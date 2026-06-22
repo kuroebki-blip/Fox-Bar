@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>FO'X — Подготовка бара</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root{
+    --bg:#14110D;
+    --surface:#1E1913;
+    --surface-2:#28221A;
+    --line:rgba(255,255,255,.08);
+    --line-strong:rgba(255,255,255,.14);
+    --text:#F3ECE1;
+    --muted:#9D9081;
+    --muted-2:#6E6356;
+    --amber:#EE8E3A;
+    --amber-soft:rgba(238,142,58,.16);
+    --amber-line:rgba(238,142,58,.4);
+    --done:#5FBF8F;
+    --done-soft:rgba(95,191,143,.14);
+    --warn:#E6B450;
+    --warn-soft:rgba(230,180,80,.12);
+    --radius:16px;
+    --tap:54px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    font-size:16px;
+    line-height:1.4;
+    -webkit-font-smoothing:antialiased;
+    padding-bottom:120px;
+  }
+  /* ---------- Header ---------- */
+  header{
+    position:sticky;top:0;z-index:40;
+    background:linear-gradient(180deg,#1A150F 0%, #14110D 100%);
+    border-bottom:1px solid var(--line);
+    padding:calc(env(safe-area-inset-top) + 14px) 18px 0;
+  }
+  .head-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .brand{display:flex;align-items:baseline;gap:10px}
+  .wordmark{
+    font-family:"Unbounded",sans-serif;font-weight:800;font-size:24px;letter-spacing:.5px;
+    line-height:1;color:var(--text);
+  }
+  .wordmark .dot{color:var(--amber)}
+  .subtitle{font-size:12px;color:var(--muted);font-weight:500;letter-spacing:.2px;margin-top:3px}
+  .reset{
+    border:1px solid var(--line-strong);background:transparent;color:var(--muted);
+    font-family:inherit;font-size:12px;font-weight:600;padding:9px 12px;border-radius:10px;cursor:pointer;
+  }
+  .reset:active{background:var(--surface-2)}
+  .overall{margin-top:14px}
+  .overall-meta{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--muted);margin-bottom:6px}
+  .overall-meta b{color:var(--amber);font-weight:700;font-family:"Unbounded",sans-serif;font-size:13px}
+  .bar-track{height:6px;border-radius:6px;background:var(--surface-2);overflow:hidden}
+  .bar-fill{height:100%;width:0;background:linear-gradient(90deg,var(--amber),#F4A95C);border-radius:6px;transition:width .35s ease}
+  /* ---------- Tabs ---------- */
+  .tabs{
+    position:sticky;top:0;z-index:30;
+    display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;
+    padding:12px 18px;margin-top:14px;
+    background:rgba(20,17,13,.92);backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);
+  }
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{
+    flex:0 0 auto;display:flex;flex-direction:column;gap:2px;align-items:flex-start;
+    border:1px solid var(--line);background:var(--surface);
+    border-radius:12px;padding:8px 13px;cursor:pointer;min-width:96px;
+    transition:border-color .2s,background .2s;
+  }
+  .tab .t-name{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap}
+  .tab .t-count{font-size:11px;color:var(--muted-2);font-variant-numeric:tabular-nums}
+  .tab.active{border-color:var(--amber-line);background:var(--amber-soft)}
+  .tab.active .t-name{color:var(--amber)}
+  .tab.done .t-count{color:var(--done)}
+  /* ---------- Content ---------- */
+  main{padding:18px 14px 0;max-width:680px;margin:0 auto}
+  .panel{display:none}
+  .panel.active{display:block;animation:fade .25s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .group-label{
+    font-family:"Unbounded",sans-serif;font-size:11px;font-weight:600;letter-spacing:1.5px;
+    text-transform:uppercase;color:var(--muted-2);margin:22px 4px 10px;
+  }
+  .group-label:first-child{margin-top:4px}
+  /* banner */
+  .banner{
+    display:flex;gap:11px;align-items:flex-start;
+    background:var(--warn-soft);border:1px solid rgba(230,180,80,.3);
+    border-radius:14px;padding:13px 14px;margin-bottom:4px;
+  }
+  .banner .ico{font-size:18px;line-height:1.2}
+  .banner .b-txt{font-size:13.5px;color:#EAD9B0;line-height:1.45}
+  .banner .b-txt b{color:var(--warn);font-weight:700}
+  /* rows */
+  .list{display:flex;flex-direction:column;gap:8px}
+  .item{
+    display:flex;align-items:center;gap:13px;min-height:var(--tap);
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:10px 14px;cursor:pointer;transition:background .15s,border-color .15s;
+    user-select:none;
+  }
+  .item:active{background:var(--surface-2)}
+  .check{
+    flex:0 0 auto;width:26px;height:26px;border-radius:50%;
+    border:2px solid var(--line-strong);position:relative;transition:all .18s;
+  }
+  .check::after{
+    content:"";position:absolute;left:8px;top:4px;width:6px;height:11px;
+    border:solid var(--bg);border-width:0 2.5px 2.5px 0;transform:rotate(45deg) scale(0);
+    transition:transform .18s;
+  }
+  .item-body{flex:1;min-width:0}
+  .item-label{font-size:15px;font-weight:500;color:var(--text);transition:color .18s}
+  .item-note{font-size:12px;color:var(--muted);margin-top:2px}
+  /* checked state */
+  .item.checked{border-color:rgba(95,191,143,.35);background:var(--done-soft)}
+  .item.checked .check{background:var(--done);border-color:var(--done)}
+  .item.checked .check::after{transform:rotate(45deg) scale(1)}
+  .item.checked .item-label{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--muted-2)}
+  /* stepper */
+  .stepper{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+  .stepper .lbl{font-size:11px;color:var(--muted-2);margin-right:2px}
+  .step-btn{
+    width:34px;height:34px;border-radius:9px;border:1px solid var(--line-strong);
+    background:var(--surface-2);color:var(--text);font-size:20px;line-height:1;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;font-family:inherit;
+  }
+  .step-btn:active{background:var(--amber-soft);border-color:var(--amber-line)}
+  .qty-in{
+    width:46px;height:34px;text-align:center;border-radius:9px;
+    border:1px solid var(--line-strong);background:var(--bg);color:var(--text);
+    font-family:inherit;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;
+  }
+  .qty-in:focus{outline:2px solid var(--amber-line);outline-offset:0;border-color:var(--amber)}
+  .item.has-qty[data-needed="1"]{border-color:var(--amber-line)}
+  .item.has-qty[data-needed="1"] .qty-in{color:var(--amber)}
+  /* generate button */
+  .gen-wrap{margin:20px 4px 8px}
+  .btn-primary{
+    width:100%;display:flex;align-items:center;justify-content:center;gap:9px;
+    background:var(--amber);color:#1A1208;border:none;border-radius:14px;
+    font-family:"Unbounded",sans-serif;font-weight:600;font-size:14px;letter-spacing:.3px;
+    padding:16px;cursor:pointer;transition:transform .1s,filter .2s;
+  }
+  .btn-primary:active{transform:scale(.985);filter:brightness(1.05)}
+  .gen-hint{text-align:center;font-size:12px;color:var(--muted-2);margin-top:9px}
+  /* order output */
+  .order{margin-top:14px;border:1px solid var(--amber-line);border-radius:16px;background:var(--surface);overflow:hidden;display:none}
+  .order.show{display:block}
+  .order-head{display:flex;align-items:center;justify-content:space-between;padding:14px 15px 0}
+  .order-head h3{margin:0;font-family:"Unbounded",sans-serif;font-size:14px;font-weight:600}
+  .order-head .cnt{font-size:12px;color:var(--muted)}
+  .order textarea{
+    width:100%;border:none;background:transparent;color:var(--text);
+    font-family:"Inter",monospace;font-size:14px;line-height:1.6;resize:vertical;
+    min-height:120px;padding:12px 15px;
+  }
+  .order textarea:focus{outline:none}
+  .order-actions{display:flex;gap:9px;padding:0 15px 15px}
+  .btn-ghost{
+    flex:1;border:1px solid var(--line-strong);background:var(--surface-2);color:var(--text);
+    font-family:inherit;font-weight:600;font-size:13px;padding:12px;border-radius:11px;cursor:pointer;
+  }
+  .btn-ghost:active{background:var(--amber-soft)}
+  .btn-ghost.copied{border-color:var(--done);color:var(--done)}
+  .btn-ghost.btn-send{border-color:var(--amber-line);color:var(--amber)}
+  .empty-order{padding:16px 15px;color:var(--muted);font-size:13.5px}
+  /* done banner */
+  .all-done{
+    display:none;align-items:center;gap:12px;margin:18px 4px 0;
+    background:var(--done-soft);border:1px solid rgba(95,191,143,.4);border-radius:16px;padding:16px;
+  }
+  .all-done.show{display:flex;animation:fade .3s ease}
+  .all-done .fox{font-size:26px}
+  .all-done .ad-txt b{font-family:"Unbounded",sans-serif;color:var(--done);font-size:15px;display:block}
+  .all-done .ad-txt span{font-size:13px;color:var(--muted)}
+  .foot{text-align:center;color:var(--muted-2);font-size:11px;padding:28px 0 10px}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <div class="head-row">
+    <div class="brand">
+      <div>
+        <div class="wordmark">FO<span class="dot">'</span>X</div>
+        <div class="subtitle">Подготовка бара к вечерней посадке</div>
+      </div>
+    </div>
+    <button class="reset" id="resetBtn">Сбросить</button>
+  </div>
+  <div class="overall">
+    <div class="overall-meta"><span>Готовность смены</span><b id="overallPct">0%</b></div>
+    <div class="bar-track"><div class="bar-fill" id="overallBar"></div></div>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs"></nav>
+
+<main id="main"></main>
+
+<script>
+const DATA = [
+  {
+    id:"look", name:"Внешний вид", icon:"✨",
+    items:[
+      {l:"Экран на раздаче чистый"},
+      {l:"Барная стойка чистая"},
+      {l:"Пиалы для чаёв в наличии"},
+      {l:"Трубочки в органайзере в наличии"},
+      {l:"Салфетки на раздаче в наличии"},
+      {l:"Открытки для вина"},
+      {l:"Шпажки"},
+      {l:"Посуда с собой", n:"bubble · кофейные 0.4 · кофейные 0.2 и кружки к ним"},
+      {l:"Снеки к пиву"},
+      {l:"Конфеты-комплимент"},
+    ]
+  },
+  {
+    id:"soft", name:"Софты", icon:"🧊",
+    banner:"Сначала <b>перетарь софты из тепла в холодильник</b> — и только потом считай остатки. Иначе подсчёт будет неверным.",
+    list:{mode:"qty", btn:"📋 Сформировать список заказа", hint:"Соберёт всё, где указано количество &gt; 0",
+          title:"Заказ софтов", unit:" — ",
+          empty:"Пока ничего не указано. Проставь количество (+) у позиций, которые нужно дозаказать, и нажми кнопку снова."},
+    groups:[
+      {
+        label:"С количеством — введи, сколько нужно дозаказать",
+        qty:true,
+        items:[
+          {l:"Вода без газа 0.5"},{l:"Вода с газом 0.5"},
+          {l:"Вода без газа 0.85"},{l:"Вода с газом 0.85"},
+          {l:"Клаустайлер"},{l:"Циндао Стаут"},{l:"Циндао Вит"},
+          {l:"Радербергер"},{l:"Корона"},
+          {l:"Молоко"},{l:"Молоко кокосовое"},{l:"Молоко миндальное"},{l:"Молоко безлактозное"},
+          {l:"Сливки"},{l:"Халва"},
+          {l:"Рислинг"},{l:"Мисти Клифф"},{l:"Пино Гриджио"},{l:"Просекко Руджери"},
+          {l:"Davne"},{l:"Loco Cimbali"},{l:"Crab & More"},{l:"Хаус игристое"},
+          {l:"Настойка вишня-корица"},{l:"Настойка Лимончелло"},{l:"Настойка Хреновуха"},
+          {l:"Сок томатный"},{l:"Сок яблочный"},{l:"Сок апельсиновый"},
+          {l:"Кола классик"},{l:"Кола Зеро"},{l:"Тоник Nunchi"},{l:"Ред Булл"},
+          {l:"Хаус водка"},{l:"Хаус ром"},{l:"Хаус джин"},{l:"Хаус текила"},
+          {l:"Трипл сек"},{l:"Апероль"},{l:"Джим Бим"},{l:"Ликёр йогурт"},
+          {l:"Пюре облепиха"},{l:"Пюре чёрная смородина"},{l:"Пюре малина"},
+          {l:"Пюре лайм"},{l:"Пюре манго"},{l:"Пюре маракуйя"},
+          {l:"Лёд с шишкой"},{l:"Кола розлив"},{l:"Маракуйя"},
+        ]
+      },
+      {
+        label:"Только проверка наличия",
+        qty:false,
+        items:[
+          {l:"Мёд"},{l:"Яблоки"},{l:"Морковь"},{l:"Лимон"},{l:"Сахар порционный"},
+          {l:"Лайм свежий"},{l:"Апельсин"},{l:"Грейпфрут"},{l:"Груша"},{l:"Морс"},
+          {l:"Лёд Кубы"},{l:"Лёд стики"},{l:"Лёд Лав Из"},{l:"Джем алоэ"},
+          {l:"Сироп клубника"},{l:"Сироп груша"},{l:"Сироп базилик"},{l:"Сироп ваниль"},
+          {l:"Сироп кедр"},{l:"Сироп малина"},{l:"Сироп поп-корн"},{l:"Сироп карамель"},
+          {l:"Сироп лесной орех"},{l:"Сироп солёная карамель"},
+          {l:"Конфеты с собой"},{l:"Снеки с собой"},
+        ]
+      }
+    ]
+  },
+  {
+    id:"prep", name:"Заготовки", icon:"🫙",
+    banner:"Пройди по списку: чего нет — заготовить по ТК. Премиксы проверь не только на наличие, но и что они <b>загазированы</b> где нужно.",
+    list:{mode:"unchecked", btn:"📋 Сформировать список заготовок", hint:"Соберёт всё, что не отмечено как готовое",
+          title:"Заготовить", empty:"Всё отмечено — заготавливать нечего. 🦊"},
+    groups:[
+      {
+        label:"Зелень — помыть, перебрать",
+        qty:false,
+        items:[ {l:"Мята"},{l:"Базилик"},{l:"Щавель"} ]
+      },
+      {
+        label:"Пены — наличие и консистенция",
+        qty:false,
+        items:[
+          {l:"Пена кокос"},{l:"Сырная пена"},
+          {l:"Пена на кактус (Рамос)"},{l:"Пена эвкалипт"},
+        ]
+      },
+      {
+        label:"Премиксы и заготовки коктейлей",
+        qty:false,
+        items:[
+          {l:"Берри спритц премикс", n:"в наличии и загазирован"},
+          {l:"Лав Из", n:"в наличии и загазирован"},
+          {l:"Премикс «Нефритовый след»"},
+          {l:"Гарниш «Нефритовый след»"},
+          {l:"Премикс «Ночной двухслад»"},
+          {l:"Сливочный улун + анчан"},
+          {l:"ПопСтар-комплимент"},
+          {l:"Негрони премикс"},
+          {l:"Лонг Айленд премикс"},
+          {l:"Ванильный игристый Совиньон Блан"},
+          {l:"Джин на изумрудном чае"},
+          {l:"Глинтвейн", n:"в наличии"},
+        ]
+      }
+    ]
+  },
+  {
+    id:"tea", name:"Чаи", icon:"🍵",
+    list:{mode:"unchecked", btn:"📋 Сформировать список чаёв", hint:"Соберёт чаи, которые не отмечены в наличии",
+          title:"Чаи — докупить", empty:"Все чаи на месте — список пустой. 🦊"},
+    items:[
+      {l:"Ассам"},{l:"Эрл Грей"},{l:"Дянь Хун"},{l:"Ли Джи"},
+      {l:"Тибетская ромашка"},{l:"Гречишный"},{l:"Шу Пуэр"},{l:"Цветы розы"},
+      {l:"Чабрец"},{l:"Моли Ча Ван"},{l:"Сливочный улун"},{l:"Габа Эфир"},{l:"Си Ху Лун Цзин"},
+    ]
+  }
+];
+
+// ---- normalize into flat structures with ids ----
+let uid=0;
+const state={}; // id -> {checked, qty}
+DATA.forEach(sec=>{
+  sec._items=[];
+  const pushItems=(arr,qty)=>arr.forEach(it=>{
+    const id="i"+(uid++);
+    it._id=id; it._qty=qty;
+    state[id]={checked:false, qty:0};
+    sec._items.push(it);
+  });
+  if(sec.items) pushItems(sec.items,false);
+  if(sec.groups) sec.groups.forEach(g=>pushItems(g.items,g.qty));
+});
+
+let activeId=DATA[0].id;
+
+// ---- Telegram Mini App integration ----
+const TG = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+function hap(kind){ try{ if(!TG) return;
+  if(kind==='sel') TG.HapticFeedback.selectionChanged();
+  else if(kind==='ok') TG.HapticFeedback.notificationOccurred('success');
+  else TG.HapticFeedback.impactOccurred(kind||'light');
+}catch(e){} }
+if(TG){
+  try{ TG.ready(); }catch(e){}
+  try{ TG.expand(); }catch(e){}
+  try{ TG.setHeaderColor('#14110D'); TG.setBackgroundColor('#14110D'); }catch(e){}
+  try{ TG.disableVerticalSwipes(); }catch(e){}
+  document.body.classList.add('in-telegram');
+}
+
+// ---- render tabs ----
+const tabsEl=document.getElementById('tabs');
+DATA.forEach(sec=>{
+  const t=document.createElement('button');
+  t.className='tab'; t.dataset.sec=sec.id;
+  t.innerHTML=`<span class="t-name">${sec.icon} ${sec.name}</span><span class="t-count" id="cnt-${sec.id}">0/${sec._items.length}</span>`;
+  t.onclick=()=>switchTab(sec.id);
+  tabsEl.appendChild(t);
+});
+
+// ---- render panels ----
+const main=document.getElementById('main');
+DATA.forEach(sec=>{
+  const panel=document.createElement('section');
+  panel.className='panel'; panel.id='panel-'+sec.id;
+
+  if(sec.banner){
+    const b=document.createElement('div');
+    b.className='banner';
+    b.innerHTML=`<span class="ico">⚠️</span><div class="b-txt">${sec.banner}</div>`;
+    panel.appendChild(b);
+  }
+
+  const renderList=(items,withGroupLabel)=>{
+    if(withGroupLabel){
+      const gl=document.createElement('div');
+      gl.className='group-label'; gl.textContent=withGroupLabel;
+      panel.appendChild(gl);
+    }
+    const list=document.createElement('div'); list.className='list';
+    items.forEach(it=>list.appendChild(buildRow(it)));
+    panel.appendChild(list);
+  };
+
+  if(sec.items) renderList(sec.items,null);
+  if(sec.groups) sec.groups.forEach(g=>renderList(g.items,g.label));
+
+  // generate-list block (any section with list config)
+  if(sec.list){
+    const gw=document.createElement('div'); gw.className='gen-wrap';
+    gw.innerHTML=`<button class="btn-primary" id="genBtn-${sec.id}">${sec.list.btn}</button>
+      <div class="gen-hint">${sec.list.hint}</div>`;
+    panel.appendChild(gw);
+
+    const order=document.createElement('div'); order.className='order'; order.id='orderBox-'+sec.id;
+    order.innerHTML=`
+      <div class="order-head"><h3>${sec.list.title}</h3><span class="cnt" id="orderCnt-${sec.id}"></span></div>
+      <div id="orderInner-${sec.id}"></div>`;
+    panel.appendChild(order);
+
+    gw.querySelector('button').onclick=()=>generateList(sec);
+  }
+
+  // per-section all-done banner
+  const ad=document.createElement('div'); ad.className='all-done'; ad.id='done-'+sec.id;
+  ad.innerHTML=`<span class="fox">🦊</span><div class="ad-txt"><b>${sec.name} — готово</b><span>Раздел проверен полностью</span></div>`;
+  panel.appendChild(ad);
+
+  main.appendChild(panel);
+});
+
+const foot=document.createElement('div'); foot.className='foot';
+foot.textContent='FO\u0027X · чек-лист бара · обновляется перед каждой сменой';
+main.appendChild(foot);
+
+function buildRow(it){
+  const row=document.createElement('div');
+  row.className='item'+(it._qty?' has-qty':'');
+  row.dataset.id=it._id;
+  const note=it.n?`<div class="item-note">${it.n}</div>`:'';
+  row.innerHTML=`<div class="check"></div>
+    <div class="item-body"><div class="item-label">${it.l}</div>${note}</div>`;
+
+  if(it._qty){
+    const st=document.createElement('div'); st.className='stepper';
+    st.innerHTML=`<span class="lbl">нужно</span>
+      <button class="step-btn" data-act="dec">−</button>
+      <input class="qty-in" type="number" inputmode="numeric" min="0" value="0">
+      <button class="step-btn" data-act="inc">+</button>`;
+    const input=st.querySelector('.qty-in');
+    st.querySelectorAll('.step-btn').forEach(btn=>{
+      btn.onclick=e=>{e.stopPropagation();
+        let v=state[it._id].qty + (btn.dataset.act==='inc'?1:-1);
+        if(v<0)v=0; setQty(it._id,v,input,row); hap('light');};
+    });
+    input.onclick=e=>e.stopPropagation();
+    input.oninput=()=>{let v=parseInt(input.value,10);if(isNaN(v)||v<0)v=0;setQty(it._id,v,input,row,true);};
+    input.onblur=()=>{input.value=state[it._id].qty;};
+    row.appendChild(st);
+  }
+
+  row.onclick=()=>{state[it._id].checked=!state[it._id].checked;
+    row.classList.toggle('checked',state[it._id].checked);hap('sel');refresh();};
+  return row;
+}
+
+function setQty(id,v,input,row,skipInputWrite){
+  state[id].qty=v;
+  if(!skipInputWrite) input.value=v;
+  row.dataset.needed = v>0 ? "1":"0";
+}
+
+// ---- progress / refresh ----
+function refresh(){
+  let totalAll=0, doneAll=0;
+  DATA.forEach(sec=>{
+    let done=0;
+    sec._items.forEach(it=>{ if(state[it._id].checked) done++; });
+    const tot=sec._items.length;
+    totalAll+=tot; doneAll+=done;
+    const cnt=document.getElementById('cnt-'+sec.id);
+    if(cnt) cnt.textContent=done+'/'+tot;
+    const tab=tabsEl.querySelector(`[data-sec="${sec.id}"]`);
+    tab.classList.toggle('done', done===tot && tot>0);
+    document.getElementById('done-'+sec.id).classList.toggle('show', done===tot && tot>0);
+  });
+  const pct=totalAll? Math.round(doneAll/totalAll*100):0;
+  document.getElementById('overallPct').textContent=pct+'%';
+  document.getElementById('overallBar').style.width=pct+'%';
+}
+
+// ---- tabs ----
+function switchTab(id){
+  activeId=id;
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id==='panel-'+id));
+  tabsEl.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.sec===id));
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// ---- generate list (generic) ----
+function generateList(sec){
+  const box=document.getElementById('orderBox-'+sec.id);
+  const inner=document.getElementById('orderInner-'+sec.id);
+  const cnt=document.getElementById('orderCnt-'+sec.id);
+  const cfg=sec.list;
+  const lines=[];
+  sec._items.forEach(it=>{
+    if(cfg.mode==='qty'){
+      if(it._qty && state[it._id].qty>0) lines.push('• '+it.l+' — '+state[it._id].qty);
+    }else{ // unchecked
+      if(!state[it._id].checked){
+        lines.push('• '+it.l);
+      }
+    }
+  });
+  box.classList.add('show');
+  if(!lines.length){
+    cnt.textContent='';
+    inner.innerHTML=`<div class="empty-order">${cfg.empty}</div>`;
+    box.scrollIntoView({behavior:'smooth',block:'nearest'});
+    return;
+  }
+  const d=new Date();
+  const dd=String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear();
+  const text=cfg.title+' — FO\u0027X\nДата: '+dd+'\n\n'+lines.join('\n');
+  cnt.textContent=lines.length+' поз.';
+  const sendBtn = TG ? `<button class="btn-ghost btn-send" data-send="${sec.id}">📨 В чат</button>` : '';
+  inner.innerHTML=`<textarea id="orderText-${sec.id}" readonly>${text}</textarea>
+    <div class="order-actions">
+      <button class="btn-ghost" data-copy="${sec.id}">Скопировать</button>
+      ${sendBtn}
+      <button class="btn-ghost" data-hide="${sec.id}">Скрыть</button>
+    </div>`;
+  inner.querySelector('[data-copy]').onclick=ev=>copyList(sec.id,ev.currentTarget);
+  inner.querySelector('[data-hide]').onclick=()=>box.classList.remove('show');
+  const sb=inner.querySelector('[data-send]'); if(sb) sb.onclick=()=>sendToChat(sec.id);
+  box.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function sendToChat(secId){
+  const ta=document.getElementById('orderText-'+secId);
+  if(!ta || !TG) return;
+  hap('ok');
+  try{ TG.sendData(ta.value); }
+  catch(e){ try{ TG.showAlert('Не получилось отправить автоматически. Нажми «Скопировать» и вставь список в чат.'); }catch(_){ alert('Скопируй список вручную.'); } }
+}
+function copyList(secId,btn){
+  const ta=document.getElementById('orderText-'+secId);
+  const done=()=>{btn.textContent='Скопировано ✓';btn.classList.add('copied');hap('ok');
+    setTimeout(()=>{btn.textContent='Скопировать';btn.classList.remove('copied');},1800);};
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(ta.value).then(done).catch(()=>{ta.select();document.execCommand('copy');done();});
+  }else{ta.removeAttribute('readonly');ta.select();document.execCommand('copy');ta.setAttribute('readonly','');done();}
+}
+
+// ---- reset ----
+document.getElementById('resetBtn').onclick=()=>{
+  if(!confirm('Сбросить все галочки и количества?')) return;
+  Object.keys(state).forEach(id=>{state[id]={checked:false,qty:0};});
+  document.querySelectorAll('.item').forEach(r=>{r.classList.remove('checked');r.dataset.needed='0';
+    const inp=r.querySelector('.qty-in'); if(inp) inp.value=0;});
+  document.querySelectorAll('.order').forEach(b=>b.classList.remove('show'));
+  refresh();
+};
+
+// init
+switchTab(DATA[0].id);
+refresh();
+</script>
+</body>
+</html>
