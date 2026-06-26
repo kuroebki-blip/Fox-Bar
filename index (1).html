@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>FO'X — Подготовка бара</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root{
+    --bg:#14110D; --surface:#1E1913; --surface-2:#28221A;
+    --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.14);
+    --text:#F3ECE1; --muted:#9D9081; --muted-2:#6E6356;
+    --amber:#EE8E3A; --amber-soft:rgba(238,142,58,.16); --amber-line:rgba(238,142,58,.4);
+    --done:#5FBF8F; --done-soft:rgba(95,191,143,.14);
+    --warn:#E6B450; --warn-soft:rgba(230,180,80,.12);
+    --radius:16px; --tap:54px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    font-size:16px;line-height:1.4;-webkit-font-smoothing:antialiased;padding-bottom:120px}
+  header{position:sticky;top:0;z-index:40;background:linear-gradient(180deg,#1A150F,#14110D);
+    border-bottom:1px solid var(--line);padding:calc(env(safe-area-inset-top) + 14px) 18px 0}
+  .head-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .wordmark{font-family:"Unbounded",sans-serif;font-weight:800;font-size:24px;letter-spacing:.5px;line-height:1}
+  .wordmark .dot{color:var(--amber)}
+  .subtitle{font-size:12px;color:var(--muted);font-weight:500;margin-top:3px}
+  .reset{border:1px solid var(--line-strong);background:transparent;color:var(--muted);
+    font-family:inherit;font-size:12px;font-weight:600;padding:9px 12px;border-radius:10px;cursor:pointer}
+  .reset:active{background:var(--surface-2)}
+  .overall{margin-top:14px;padding-bottom:14px}
+  .overall-meta{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--muted);margin-bottom:6px}
+  .overall-meta b{color:var(--amber);font-weight:700;font-family:"Unbounded",sans-serif;font-size:13px}
+  .bar-track{height:6px;border-radius:6px;background:var(--surface-2);overflow:hidden}
+  .bar-fill{height:100%;width:0;background:linear-gradient(90deg,var(--amber),#F4A95C);border-radius:6px;transition:width .35s ease}
+  .tabs{position:sticky;top:0;z-index:30;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;
+    padding:12px 18px;background:rgba(20,17,13,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{flex:0 0 auto;display:flex;flex-direction:column;gap:2px;align-items:flex-start;
+    border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:8px 13px;cursor:pointer;min-width:92px;
+    transition:border-color .2s,background .2s}
+  .tab .t-name{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap}
+  .tab .t-count{font-size:11px;color:var(--muted-2);font-variant-numeric:tabular-nums}
+  .tab.active{border-color:var(--amber-line);background:var(--amber-soft)}
+  .tab.active .t-name{color:var(--amber)}
+  .tab.done .t-count{color:var(--done)}
+  main{padding:16px 14px 0;max-width:680px;margin:0 auto}
+  .legend{display:block;font-size:12.5px;line-height:1.5;color:var(--muted);
+    background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:11px 14px;margin:0 4px 16px}
+  .legend b{color:var(--text);font-weight:600}
+  .panel{display:none}
+  .panel.active{display:block;animation:fade .25s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .group-label{font-family:"Unbounded",sans-serif;font-size:11px;font-weight:600;letter-spacing:1.5px;
+    text-transform:uppercase;color:var(--muted-2);margin:22px 4px 10px}
+  .group-label:first-child{margin-top:4px}
+  .banner{display:flex;gap:11px;align-items:flex-start;background:var(--warn-soft);
+    border:1px solid rgba(230,180,80,.3);border-radius:14px;padding:13px 14px;margin-bottom:4px}
+  .banner .ico{font-size:18px;line-height:1.2}
+  .banner .b-txt{font-size:13.5px;color:#EAD9B0;line-height:1.45}
+  .banner .b-txt b{color:var(--warn);font-weight:700}
+  .list{display:flex;flex-direction:column;gap:8px}
+  .item{display:flex;align-items:center;gap:13px;min-height:var(--tap);background:var(--surface);
+    border:1px solid var(--line);border-radius:var(--radius);padding:10px 14px;cursor:pointer;
+    transition:background .15s,border-color .15s;user-select:none}
+  .item:active{background:var(--surface-2)}
+  .check{flex:0 0 auto;width:26px;height:26px;border-radius:50%;border:2px solid var(--line-strong);position:relative;transition:all .18s}
+  .check::after{content:"";position:absolute;left:8px;top:4px;width:6px;height:11px;
+    border:solid var(--bg);border-width:0 2.5px 2.5px 0;transform:rotate(45deg) scale(0);transition:transform .18s}
+  .item-body{flex:1;min-width:0}
+  .item-label{font-size:15px;font-weight:500;color:var(--text);transition:color .18s}
+  .item-note{font-size:12px;color:var(--muted);margin-top:2px}
+  .item.checked{border-color:rgba(95,191,143,.35);background:var(--done-soft)}
+  .item.checked .check{background:var(--done);border-color:var(--done)}
+  .item.checked .check::after{transform:rotate(45deg) scale(1)}
+  .item.checked .item-label{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--muted-2)}
+  .stepper{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+  .stepper .lbl{font-size:11px;color:var(--muted-2);margin-right:2px}
+  .step-btn{width:34px;height:34px;border-radius:9px;border:1px solid var(--line-strong);background:var(--surface-2);
+    color:var(--text);font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;font-family:inherit}
+  .step-btn:active{background:var(--amber-soft);border-color:var(--amber-line)}
+  .qty-in{width:46px;height:34px;text-align:center;border-radius:9px;border:1px solid var(--line-strong);
+    background:var(--bg);color:var(--text);font-family:inherit;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+  .qty-in:focus{outline:2px solid var(--amber-line);outline-offset:0;border-color:var(--amber)}
+  .item.has-qty[data-needed="1"]{border-color:var(--amber-line)}
+  .item.has-qty[data-needed="1"] .qty-in{color:var(--amber)}
+  .comment-area{width:100%;min-height:90px;background:var(--surface);border:1px solid var(--line);border-radius:14px;
+    padding:12px 14px;color:var(--text);font-family:inherit;font-size:14px;line-height:1.5;resize:vertical}
+  .comment-area:focus{outline:2px solid var(--amber-line);border-color:var(--amber)}
+  .comment-area::placeholder{color:var(--muted-2)}
+  .all-done{display:none;align-items:center;gap:12px;margin:18px 4px 0;background:var(--done-soft);
+    border:1px solid rgba(95,191,143,.4);border-radius:16px;padding:16px}
+  .all-done.show{display:flex;animation:fade .3s ease}
+  .all-done .fox{font-size:26px}
+  .all-done .ad-txt b{font-family:"Unbounded",sans-serif;color:var(--done);font-size:15px;display:block}
+  .all-done .ad-txt span{font-size:13px;color:var(--muted)}
+  .foot{text-align:center;color:var(--muted-2);font-size:11px;padding:28px 0 10px}
+  .report-bar{position:fixed;left:0;right:0;bottom:0;z-index:50;display:flex;justify-content:center;
+    padding:14px 14px calc(env(safe-area-inset-bottom) + 14px);pointer-events:none;
+    background:linear-gradient(180deg,rgba(20,17,13,0),var(--bg) 32%)}
+  .report-btn{width:100%;max-width:652px;pointer-events:auto;background:var(--amber);color:#1A1208;border:none;
+    border-radius:14px;font-family:"Unbounded",sans-serif;font-weight:600;font-size:14px;letter-spacing:.3px;
+    padding:16px;cursor:pointer;box-shadow:0 10px 30px rgba(0,0,0,.5);transition:transform .1s,filter .2s}
+  .report-btn:active{transform:scale(.99);filter:brightness(1.05)}
+  .overlay{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.62);display:none;align-items:flex-end;justify-content:center}
+  .overlay.show{display:flex;animation:fade .2s ease}
+  .sheet{width:100%;max-width:680px;background:var(--surface);border:1px solid var(--amber-line);border-bottom:none;
+    border-radius:18px 18px 0 0;max-height:86vh;display:flex;flex-direction:column;animation:slideup .26s cubic-bezier(.2,.8,.2,1)}
+  @keyframes slideup{from{transform:translateY(100%)}to{transform:none}}
+  .sheet-head{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 4px}
+  .sheet-head h3{margin:0;font-family:"Unbounded",sans-serif;font-size:15px;font-weight:600}
+  .sheet-head .cnt{font-size:12px;color:var(--amber);font-weight:600}
+  .sheet textarea{flex:1;min-height:180px;border:none;background:transparent;color:var(--text);
+    font-family:"Inter",monospace;font-size:14px;line-height:1.65;padding:8px 16px;resize:none}
+  .sheet textarea:focus{outline:none}
+  .sheet-actions{display:flex;gap:9px;padding:10px 16px calc(env(safe-area-inset-bottom) + 16px)}
+  .btn-ghost{flex:1;border:1px solid var(--line-strong);background:var(--surface-2);color:var(--text);
+    font-family:inherit;font-weight:600;font-size:13px;padding:13px;border-radius:11px;cursor:pointer}
+  .btn-ghost:active{background:var(--amber-soft)}
+  .btn-ghost.copied{border-color:var(--done);color:var(--done)}
+  .btn-ghost.btn-send{border-color:var(--amber-line);color:var(--amber)}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <div class="head-row">
+    <div class="brand">
+      <div>
+        <div class="wordmark">FO<span class="dot">'</span>X</div>
+        <div class="subtitle">Подготовка бара к вечерней посадке</div>
+      </div>
+    </div>
+    <button class="reset" id="resetBtn">Сбросить</button>
+  </div>
+  <div class="overall">
+    <div class="overall-meta"><span>Готовность смены</span><b id="overallPct">0%</b></div>
+    <div class="bar-track"><div class="bar-fill" id="overallBar"></div></div>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs"></nav>
+<main id="main"></main>
+
+<div class="report-bar"><button class="report-btn" id="reportBtn">📋 Сформировать общий отчёт</button></div>
+<div class="overlay" id="reportOverlay">
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-head"><h3>Отчёт по бару</h3><span class="cnt" id="reportCnt"></span></div>
+    <textarea id="reportText" readonly></textarea>
+    <div class="sheet-actions" id="reportActions"></div>
+  </div>
+</div>
+
+<script>
+const DATA = [
+  {
+    id:"look", name:"Внешний вид", icon:"✨",
+    items:[
+      {l:"Экран на раздаче чистый"},
+      {l:"Барная стойка чистая"},
+      {l:"Пиалы для чаёв в наличии"},
+      {l:"Трубочки в органайзере в наличии"},
+      {l:"Салфетки на раздаче в наличии"},
+      {l:"Открытки для вина"},
+      {l:"Шпажки"},
+      {l:"Посуда с собой", n:"bubble · кофейные 0.4 · кофейные 0.2 и кружки к ним"},
+      {l:"Снеки к пиву"},
+      {l:"Конфеты-комплимент"},
+    ]
+  },
+  {
+    id:"soft", name:"Софты", icon:"🧊",
+    banner:"Сначала <b>перетарь софты из тепла в холодильник</b> — и только потом считай остатки. Иначе подсчёт будет неверным.",
+    groups:[
+      {
+        label:"С количеством — введи, сколько нужно дозаказать",
+        qty:true,
+        items:[
+          {l:"Вода без газа 0.5"},{l:"Вода с газом 0.5"},
+          {l:"Вода без газа 0.85"},{l:"Вода с газом 0.85"},
+          {l:"Клаустайлер"},{l:"Циндао Стаут"},{l:"Циндао Вит"},
+          {l:"Радербергер"},{l:"Корона"},
+          {l:"Молоко"},{l:"Молоко кокосовое"},{l:"Молоко миндальное"},{l:"Молоко безлактозное"},
+          {l:"Сливки"},{l:"Халва"},
+          {l:"Монтефьоре Зибиббо"},{l:"Монтефьоре Совиньон Блан"},
+          {l:"Молд Грюнер"},{l:"Молд Цвайгельт"},{l:"Аромо Карменер"},
+          {l:"Странаменте"},{l:"Сладкая вата"},{l:"Стальная вата"},
+          {l:"Хаус игристое"},
+          {l:"Настойка вишня-корица"},{l:"Настойка Лимончелло"},{l:"Настойка Хреновуха"},
+          {l:"Сок томатный"},{l:"Сок яблочный"},{l:"Сок апельсиновый"},
+          {l:"Кола классик"},{l:"Кола Зеро"},{l:"Тоник Nunchi"},{l:"Ред Булл"},
+          {l:"Хаус водка"},{l:"Хаус ром"},{l:"Хаус джин"},{l:"Хаус текила"},
+          {l:"Трипл сек"},{l:"Апероль"},{l:"Джим Бим"},{l:"Ликёр йогурт"},
+          {l:"Пюре облепиха"},{l:"Пюре чёрная смородина"},{l:"Пюре малина"},
+          {l:"Пюре лайм"},{l:"Пюре манго"},{l:"Пюре маракуйя"},
+          {l:"Лёд с шишкой"},
+        ]
+      },
+      {
+        label:"Только проверка наличия",
+        qty:false,
+        items:[
+          {l:"Мёд"},{l:"Яблоки"},{l:"Морковь"},{l:"Лимон"},{l:"Сахар порционный"},
+          {l:"Лайм свежий"},{l:"Апельсин"},{l:"Грейпфрут"},{l:"Груша"},{l:"Морс"},
+          {l:"Лёд Кубы"},{l:"Лёд стики"},{l:"Лёд Лав Из"},{l:"Джем алоэ"},
+          {l:"Сироп клубника"},{l:"Сироп груша"},{l:"Сироп базилик"},{l:"Сироп ваниль"},
+          {l:"Сироп кедр"},{l:"Сироп малина"},{l:"Сироп поп-корн"},{l:"Сироп карамель"},
+          {l:"Сироп лесной орех"},{l:"Сироп солёная карамель"},
+          {l:"Конфеты с собой"},{l:"Снеки с собой"},
+          {l:"Кола розлив"},{l:"Маракуйя"},
+        ]
+      }
+    ]
+  },
+  {
+    id:"prep", name:"Заготовки", icon:"🫙",
+    banner:"Пройди по списку: чего нет — заготовить по ТК. Премиксы проверь не только на наличие, но и что они <b>загазированы</b> где нужно.",
+    groups:[
+      {
+        label:"Зелень — помыть, перебрать",
+        qty:false,
+        items:[ {l:"Мята"},{l:"Базилик"},{l:"Щавель"} ]
+      },
+      {
+        label:"Пены — наличие и консистенция",
+        qty:false,
+        items:[ {l:"Пена кокос"},{l:"Сырная пена"},{l:"Пена эвкалипт"} ]
+      },
+      {
+        label:"Премиксы и заготовки коктейлей",
+        qty:false,
+        items:[
+          {l:"Берри спритц премикс", n:"в наличии и загазирован"},
+          {l:"Лав Из", n:"в наличии и загазирован"},
+          {l:"Премикс «Нефритовый след»"},
+          {l:"Гарниш «Нефритовый след»"},
+          {l:"Премикс «Ночной двухслад»"},
+          {l:"Сливочный улун + анчан"},
+          {l:"Премикс «Поп-стар»"},
+          {l:"Негрони премикс"},
+          {l:"Лонг Айленд премикс"},
+          {l:"Ванильный игристый Совиньон Блан"},
+          {l:"Джин на изумрудном чае"},
+          {l:"Глинтвейн", n:"в наличии"},
+          {l:"Премикс «Молоко единорога»"},
+          {l:"Калпис персик-груша"},
+          {l:"ПФ жасминовый чай"},
+          {l:"Премикс «Сладкопряд»"},
+          {l:"Джин киви-фейхоа"},
+          {l:"Лимонный фреш"},
+          {l:"Грейпфрутовый фреш"},
+          {l:"ПФ еловый сеятель"},
+          {l:"ПФ серебряник"},
+        ]
+      }
+    ]
+  },
+  {
+    id:"tea", name:"Чаи", icon:"🍵",
+    items:[
+      {l:"Ассам"},{l:"Эрл Грей"},{l:"Дянь Хун"},{l:"Ли Джи"},
+      {l:"Тибетская ромашка"},{l:"Гречишный"},{l:"Шу Пуэр"},{l:"Цветы розы"},
+      {l:"Чабрец"},{l:"Моли Ча Ван"},{l:"Сливочный улун"},{l:"Габа Эфир"},{l:"Си Ху Лун Цзин"},
+    ]
+  }
+];
+
+let uid=0;
+const state={};
+DATA.forEach(sec=>{
+  sec._items=[];
+  const push=(arr,qty)=>arr.forEach(it=>{ const id="i"+(uid++); it._id=id; it._qty=qty;
+    state[id]={checked:false,qty:0}; sec._items.push(it); });
+  if(sec.items) push(sec.items,false);
+  if(sec.groups) sec.groups.forEach(g=>push(g.items,g.qty));
+});
+
+let activeId=DATA[0].id;
+
+// ---- Telegram Mini App ----
+const TG = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+function hap(kind){ try{ if(!TG) return;
+  if(kind==='sel') TG.HapticFeedback.selectionChanged();
+  else if(kind==='ok') TG.HapticFeedback.notificationOccurred('success');
+  else TG.HapticFeedback.impactOccurred(kind||'light');
+}catch(e){} }
+if(TG){
+  try{ TG.ready(); }catch(e){}
+  try{ TG.expand(); }catch(e){}
+  try{ TG.setHeaderColor('#14110D'); TG.setBackgroundColor('#14110D'); }catch(e){}
+  try{ TG.disableVerticalSwipes(); }catch(e){}
+}
+
+// ---- tabs ----
+const tabsEl=document.getElementById('tabs');
+DATA.forEach(sec=>{
+  const t=document.createElement('button');
+  t.className='tab'; t.dataset.sec=sec.id;
+  t.innerHTML='<span class="t-name">'+sec.icon+' '+sec.name+'</span><span class="t-count" id="cnt-'+sec.id+'">0/'+sec._items.length+'</span>';
+  t.onclick=()=>switchTab(sec.id);
+  tabsEl.appendChild(t);
+});
+
+// ---- panels ----
+const main=document.getElementById('main');
+const legend=document.createElement('div');
+legend.className='legend';
+legend.innerHTML='Отмечай <b>✓ то, что есть</b> на баре. Что не отметишь — попадёт в отчёт как <b>отсутствующее</b>.';
+main.appendChild(legend);
+
+DATA.forEach(sec=>{
+  const panel=document.createElement('section');
+  panel.className='panel'; panel.id='panel-'+sec.id;
+
+  if(sec.banner){
+    const b=document.createElement('div'); b.className='banner';
+    b.innerHTML='<span class="ico">⚠️</span><div class="b-txt">'+sec.banner+'</div>';
+    panel.appendChild(b);
+  }
+
+  const renderList=(items,label)=>{
+    if(label){ const gl=document.createElement('div'); gl.className='group-label'; gl.textContent=label; panel.appendChild(gl); }
+    const list=document.createElement('div'); list.className='list';
+    items.forEach(it=>list.appendChild(buildRow(it)));
+    panel.appendChild(list);
+  };
+  if(sec.items) renderList(sec.items,null);
+  if(sec.groups) sec.groups.forEach(g=>renderList(g.items,g.label));
+
+  if(sec.id==='look'){
+    const cw=document.createElement('div');
+    cw.innerHTML='<div class="group-label">Комментарии</div>'+
+      '<textarea class="comment-area" id="lookComment" placeholder="Заметки по внешнему виду (необязательно): что грязное, чего не хватает, что заметили…"></textarea>';
+    panel.appendChild(cw);
+  }
+
+  const ad=document.createElement('div'); ad.className='all-done'; ad.id='done-'+sec.id;
+  ad.innerHTML='<span class="fox">🦊</span><div class="ad-txt"><b>'+sec.name+' — готово</b><span>Раздел проверен полностью</span></div>';
+  panel.appendChild(ad);
+
+  main.appendChild(panel);
+});
+
+const foot=document.createElement('div'); foot.className='foot';
+foot.textContent='FO\u0027X · чек-лист бара · обновляется перед каждой сменой';
+main.appendChild(foot);
+
+function buildRow(it){
+  const row=document.createElement('div');
+  row.className='item'+(it._qty?' has-qty':'');
+  row.dataset.id=it._id;
+  const note=it.n?'<div class="item-note">'+it.n+'</div>':'';
+  row.innerHTML='<div class="check"></div><div class="item-body"><div class="item-label">'+it.l+'</div>'+note+'</div>';
+
+  if(it._qty){
+    const st=document.createElement('div'); st.className='stepper';
+    st.innerHTML='<span class="lbl">нужно</span>'+
+      '<button class="step-btn" data-act="dec">−</button>'+
+      '<input class="qty-in" type="number" inputmode="numeric" min="0" value="0">'+
+      '<button class="step-btn" data-act="inc">+</button>';
+    const input=st.querySelector('.qty-in');
+    st.querySelectorAll('.step-btn').forEach(btn=>{
+      btn.onclick=e=>{ e.stopPropagation();
+        let v=state[it._id].qty + (btn.dataset.act==='inc'?1:-1);
+        if(v<0)v=0; setQty(it._id,v,input,row); hap('light'); };
+    });
+    input.onclick=e=>e.stopPropagation();
+    input.oninput=()=>{ let v=parseInt(input.value,10); if(isNaN(v)||v<0)v=0; setQty(it._id,v,input,row,true); };
+    input.onblur=()=>{ input.value=state[it._id].qty; };
+    row.appendChild(st);
+  }
+
+  row.onclick=()=>{ state[it._id].checked=!state[it._id].checked;
+    row.classList.toggle('checked',state[it._id].checked); hap('sel'); refresh(); };
+  return row;
+}
+
+function setQty(id,v,input,row,skip){
+  state[id].qty=v;
+  if(!skip) input.value=v;
+  row.dataset.needed = v>0 ? "1":"0";
+}
+
+function refresh(){
+  let totalAll=0, doneAll=0;
+  DATA.forEach(sec=>{
+    let done=0;
+    sec._items.forEach(it=>{ if(state[it._id].checked) done++; });
+    const tot=sec._items.length; totalAll+=tot; doneAll+=done;
+    const cnt=document.getElementById('cnt-'+sec.id); if(cnt) cnt.textContent=done+'/'+tot;
+    const tab=tabsEl.querySelector('[data-sec="'+sec.id+'"]');
+    if(tab) tab.classList.toggle('done', done===tot && tot>0);
+    const adone=document.getElementById('done-'+sec.id);
+    if(adone) adone.classList.toggle('show', done===tot && tot>0);
+  });
+  const pct=totalAll? Math.round(doneAll/totalAll*100):0;
+  document.getElementById('overallPct').textContent=pct+'%';
+  document.getElementById('overallBar').style.width=pct+'%';
+  const rb=document.getElementById('reportBtn');
+  if(rb){ const miss=totalAll-doneAll;
+    rb.textContent = miss>0 ? ('📋 Общий отчёт · нет '+miss) : '✓ Бар укомплектован — отчёт'; }
+}
+
+function switchTab(id){
+  activeId=id;
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id==='panel-'+id));
+  tabsEl.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.sec===id));
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// ---- Общий отчёт ----
+document.getElementById('reportBtn').onclick=generateReport;
+document.getElementById('reportOverlay').addEventListener('click',e=>{
+  if(e.target===document.getElementById('reportOverlay')) closeReport();
+});
+
+function generateReport(){
+  hap('light');
+  const groups=[];
+  DATA.forEach(sec=>{
+    const lines=[];
+    sec._items.forEach(it=>{
+      if(!state[it._id].checked){
+        let line='• '+it.l;
+        if(it._qty && state[it._id].qty>0) line+=' — нужно '+state[it._id].qty;
+        lines.push(line);
+      }
+    });
+    if(lines.length) groups.push({name:sec.name, icon:sec.icon, lines:lines});
+  });
+  const total=groups.reduce((s,g)=>s+g.lines.length,0);
+  const cmtEl=document.getElementById('lookComment');
+  const cmt=cmtEl ? cmtEl.value.trim() : '';
+  const d=new Date();
+  const dd=String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear();
+
+  let text='ОТЧЁТ ПО БАРУ — FO\u0027X\nДата: '+dd+'\n';
+  if(total) text+='Не отмечено (нет / не сделано): '+total+' поз.\n';
+  text+='\n';
+  if(total) text+=groups.map(g=>g.icon+' '+g.name.toUpperCase()+'\n'+g.lines.join('\n')).join('\n\n');
+  if(cmt){ if(total) text+='\n\n'; text+='📝 КОММЕНТАРИИ\n'+cmt; }
+  if(!total && !cmt) text+='Бар укомплектован полностью. Всё на месте 🦊';
+
+  document.getElementById('reportText').value=text;
+  document.getElementById('reportCnt').textContent = total ? ('нет '+total+' поз.') : (cmt ? 'есть комментарии' : 'всё на месте');
+
+  const sendBtn = TG ? '<button class="btn-ghost btn-send" id="reportSend">📨 В чат</button>' : '';
+  document.getElementById('reportActions').innerHTML=
+    '<button class="btn-ghost" id="reportCopy">Скопировать</button>'+sendBtn+
+    '<button class="btn-ghost" id="reportClose">Закрыть</button>';
+  document.getElementById('reportCopy').onclick=function(){ copyReport(this); };
+  document.getElementById('reportClose').onclick=closeReport;
+  const rs=document.getElementById('reportSend'); if(rs) rs.onclick=sendReport;
+  document.getElementById('reportOverlay').classList.add('show');
+}
+function closeReport(){ document.getElementById('reportOverlay').classList.remove('show'); }
+function sendReport(){
+  const ta=document.getElementById('reportText'); if(!ta || !TG) return; hap('ok');
+  try{ TG.sendData(ta.value); }
+  catch(e){ try{ TG.showAlert('Не получилось отправить автоматически. Нажми «Скопировать» и вставь отчёт в чат.'); }catch(_){ alert('Скопируй отчёт вручную.'); } }
+}
+function copyReport(btn){
+  const ta=document.getElementById('reportText');
+  const done=()=>{ btn.textContent='Скопировано ✓'; btn.classList.add('copied'); hap('ok');
+    setTimeout(()=>{ btn.textContent='Скопировать'; btn.classList.remove('copied'); },1800); };
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(ta.value).then(done).catch(()=>{ta.removeAttribute('readonly');ta.select();document.execCommand('copy');ta.setAttribute('readonly','');done();});
+  }else{ ta.removeAttribute('readonly'); ta.select(); document.execCommand('copy'); ta.setAttribute('readonly',''); done(); }
+}
+
+// ---- reset ----
+document.getElementById('resetBtn').onclick=()=>{
+  if(!confirm('Сбросить все галочки, количества и комментарии?')) return;
+  Object.keys(state).forEach(id=>{ state[id]={checked:false,qty:0}; });
+  document.querySelectorAll('.item').forEach(r=>{ r.classList.remove('checked'); r.dataset.needed='0';
+    const inp=r.querySelector('.qty-in'); if(inp) inp.value=0; });
+  const c=document.getElementById('lookComment'); if(c) c.value='';
+  closeReport();
+  refresh();
+};
+
+switchTab(DATA[0].id);
+refresh();
+</script>
+</body>
+</html>
