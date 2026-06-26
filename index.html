@@ -177,6 +177,62 @@
   .btn-ghost.copied{border-color:var(--done);color:var(--done)}
   .btn-ghost.btn-send{border-color:var(--amber-line);color:var(--amber)}
   .empty-order{padding:16px 15px;color:var(--muted);font-size:13.5px}
+  .legend{display:flex;align-items:center;gap:7px;font-size:12.5px;line-height:1.4;color:var(--muted);
+    background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin:0 4px 16px}
+  .legend b{color:var(--text);font-weight:600}
+  /* fixed report bar */
+  .report-bar{position:fixed;left:0;right:0;bottom:0;z-index:50;display:flex;justify-content:center;
+    padding:14px 14px calc(env(safe-area-inset-bottom) + 14px);pointer-events:none;
+    background:linear-gradient(180deg,rgba(20,17,13,0) 0%, var(--bg) 32%)}
+  .report-bar .btn-primary{width:100%;max-width:652px;pointer-events:auto;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+  /* report overlay */
+  .overlay{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.62);display:none;
+    align-items:flex-end;justify-content:center}
+  .overlay.show{display:flex;animation:fade .2s ease}
+  .sheet{width:100%;max-width:680px;background:var(--surface);border:1px solid var(--amber-line);
+    border-bottom:none;border-radius:18px 18px 0 0;max-height:86vh;display:flex;flex-direction:column;
+    animation:slideup .26s cubic-bezier(.2,.8,.2,1)}
+  @keyframes slideup{from{transform:translateY(100%)}to{transform:none}}
+  .sheet-head{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 4px}
+  .sheet-head h3{margin:0;font-family:"Unbounded",sans-serif;font-size:15px;font-weight:600}
+  .sheet-head .cnt{font-size:12px;color:var(--amber);font-weight:600}
+  .sheet textarea{flex:1;min-height:180px;border:none;background:transparent;color:var(--text);
+    font-family:"Inter",monospace;font-size:14px;line-height:1.65;padding:8px 16px;resize:none}
+  .sheet textarea:focus{outline:none}
+  .sheet-actions{display:flex;gap:9px;padding:10px 16px calc(env(safe-area-inset-bottom) + 16px)}
+  /* global report bar + bottom sheet */
+  .report-bar{position:fixed;left:0;right:0;bottom:0;z-index:50;display:flex;justify-content:center;
+    pointer-events:none;padding:14px 14px calc(env(safe-area-inset-bottom) + 12px);
+    background:linear-gradient(180deg,rgba(20,17,13,0) 0%,var(--bg) 34%)}
+  .report-btn{pointer-events:auto;width:100%;max-width:652px;background:var(--amber);color:#1A1208;
+    border:none;border-radius:14px;font-family:"Unbounded",sans-serif;font-weight:600;font-size:14px;
+    letter-spacing:.3px;padding:16px;cursor:pointer;box-shadow:0 8px 26px rgba(238,142,58,.32);
+    transition:transform .1s,filter .2s}
+  .report-btn:active{transform:scale(.985);filter:brightness(1.05)}
+  .sheet-overlay{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.55);opacity:0;visibility:hidden;
+    transition:opacity .25s}
+  .sheet-overlay.show{opacity:1;visibility:visible}
+  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:70;background:var(--surface);
+    border-top:1px solid var(--amber-line);border-radius:22px 22px 0 0;max-height:84vh;
+    display:flex;flex-direction:column;transform:translateY(101%);
+    transition:transform .32s cubic-bezier(.22,1,.36,1);max-width:680px;margin:0 auto;
+    padding-bottom:calc(env(safe-area-inset-bottom) + 4px)}
+  .sheet.show{transform:translateY(0)}
+  .sheet-grip{width:38px;height:4px;border-radius:4px;background:var(--line-strong);margin:10px auto 2px}
+  .sheet-head{padding:6px 18px 10px}
+  .sheet-head h2{margin:0;font-family:"Unbounded",sans-serif;font-size:16px;font-weight:600}
+  .sheet-body{overflow-y:auto;padding:4px 18px 8px;flex:1}
+  .report-group{margin-bottom:16px}
+  .report-group-head{font-family:"Unbounded",sans-serif;font-size:11px;font-weight:600;letter-spacing:1px;
+    text-transform:uppercase;color:var(--amber);margin-bottom:8px;display:flex;align-items:center;gap:7px}
+  .report-group-head span{margin-left:auto;color:var(--muted-2);font-family:"Inter",sans-serif;
+    letter-spacing:0;font-size:12px;text-transform:none}
+  .report-line{padding:9px 12px;background:var(--bg);border:1px solid var(--line);border-radius:10px;
+    margin-bottom:6px;font-size:14.5px;display:flex;justify-content:space-between;gap:10px;align-items:center}
+  .report-line span{flex:1}
+  .report-line i{font-style:normal;color:var(--amber);font-weight:600;white-space:nowrap}
+  .report-empty{padding:28px 12px;text-align:center;color:var(--muted);font-size:14px}
+  .sheet-actions{display:flex;gap:9px;padding:12px 18px 14px;border-top:1px solid var(--line)}
   /* done banner */
   .all-done{
     display:none;align-items:center;gap:12px;margin:18px 4px 0;
@@ -211,6 +267,17 @@
 
 <main id="main"></main>
 
+<div class="report-bar">
+  <button class="report-btn" id="reportBtn">📋 Сформировать общий отчёт</button>
+</div>
+<div class="sheet-overlay" id="sheetOverlay"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true">
+  <div class="sheet-grip"></div>
+  <div class="sheet-head"><h2 id="sheetTitle">Отчёт</h2></div>
+  <div class="sheet-body" id="sheetBody"></div>
+  <div class="sheet-actions" id="sheetActions"></div>
+</div>
+
 <script>
 const DATA = [
   {
@@ -231,9 +298,9 @@ const DATA = [
   {
     id:"soft", name:"Софты", icon:"🧊",
     banner:"Сначала <b>перетарь софты из тепла в холодильник</b> — и только потом считай остатки. Иначе подсчёт будет неверным.",
-    list:{mode:"qty", btn:"📋 Сформировать список заказа", hint:"Соберёт всё, где указано количество &gt; 0",
-          title:"Заказ софтов", unit:" — ",
-          empty:"Пока ничего не указано. Проставь количество (+) у позиций, которые нужно дозаказать, и нажми кнопку снова."},
+    list:{mode:"unchecked", btn:"📋 Сформировать отчёт", hint:"Без галочки = позиции нет. Отчёт соберёт всё неотмеченное (у позиций с количеством добавит «нужно N»).",
+          title:"Софты — чего нет",
+          empty:"Все софты отмечены — на баре всё есть. 🦊"},
     groups:[
       {
         label:"С количеством — введи, сколько нужно дозаказать",
@@ -275,8 +342,8 @@ const DATA = [
   {
     id:"prep", name:"Заготовки", icon:"🫙",
     banner:"Пройди по списку: чего нет — заготовить по ТК. Премиксы проверь не только на наличие, но и что они <b>загазированы</b> где нужно.",
-    list:{mode:"unchecked", btn:"📋 Сформировать список заготовок", hint:"Соберёт всё, что не отмечено как готовое",
-          title:"Заготовить", empty:"Всё отмечено — заготавливать нечего. 🦊"},
+    list:{mode:"unchecked", btn:"📋 Сформировать отчёт", hint:"Без галочки = заготовки нет. Отчёт соберёт всё неотмеченное.",
+          title:"Заготовки — чего нет", empty:"Всё отмечено — заготовки на месте. 🦊"},
     groups:[
       {
         label:"Зелень — помыть, перебрать",
@@ -313,8 +380,8 @@ const DATA = [
   },
   {
     id:"tea", name:"Чаи", icon:"🍵",
-    list:{mode:"unchecked", btn:"📋 Сформировать список чаёв", hint:"Соберёт чаи, которые не отмечены в наличии",
-          title:"Чаи — докупить", empty:"Все чаи на месте — список пустой. 🦊"},
+    list:{mode:"unchecked", btn:"📋 Сформировать отчёт", hint:"Без галочки = чая нет. Отчёт соберёт всё неотмеченное.",
+          title:"Чаи — чего нет", empty:"Все чаи на месте — отчёт пустой. 🦊"},
     items:[
       {l:"Ассам"},{l:"Эрл Грей"},{l:"Дянь Хун"},{l:"Ли Джи"},
       {l:"Тибетская ромашка"},{l:"Гречишный"},{l:"Шу Пуэр"},{l:"Цветы розы"},
@@ -367,6 +434,10 @@ DATA.forEach(sec=>{
 
 // ---- render panels ----
 const main=document.getElementById('main');
+const legend=document.createElement('div');
+legend.className='legend';
+legend.innerHTML='Отмечай <b>✓ то, что есть</b> на баре. Что не отметишь — попадёт в отчёт как <b>отсутствующее</b>.';
+main.appendChild(legend);
 DATA.forEach(sec=>{
   const panel=document.createElement('section');
   panel.className='panel'; panel.id='panel-'+sec.id;
@@ -392,21 +463,7 @@ DATA.forEach(sec=>{
   if(sec.items) renderList(sec.items,null);
   if(sec.groups) sec.groups.forEach(g=>renderList(g.items,g.label));
 
-  // generate-list block (any section with list config)
-  if(sec.list){
-    const gw=document.createElement('div'); gw.className='gen-wrap';
-    gw.innerHTML=`<button class="btn-primary" id="genBtn-${sec.id}">${sec.list.btn}</button>
-      <div class="gen-hint">${sec.list.hint}</div>`;
-    panel.appendChild(gw);
-
-    const order=document.createElement('div'); order.className='order'; order.id='orderBox-'+sec.id;
-    order.innerHTML=`
-      <div class="order-head"><h3>${sec.list.title}</h3><span class="cnt" id="orderCnt-${sec.id}"></span></div>
-      <div id="orderInner-${sec.id}"></div>`;
-    panel.appendChild(order);
-
-    gw.querySelector('button').onclick=()=>generateList(sec);
-  }
+  // (отчёт теперь общий — единая кнопка внизу экрана)
 
   // per-section all-done banner
   const ad=document.createElement('div'); ad.className='all-done'; ad.id='done-'+sec.id;
@@ -474,6 +531,10 @@ function refresh(){
   const pct=totalAll? Math.round(doneAll/totalAll*100):0;
   document.getElementById('overallPct').textContent=pct+'%';
   document.getElementById('overallBar').style.width=pct+'%';
+  const rb=document.getElementById('reportBtn');
+  if(rb){ const miss=totalAll-doneAll;
+    rb.textContent = miss>0 ? ('📋 Общий отчёт · нет '+miss) : '✓ Бар укомплектован — отчёт';
+  }
 }
 
 // ---- tabs ----
@@ -485,57 +546,69 @@ function switchTab(id){
 }
 
 // ---- generate list (generic) ----
-function generateList(sec){
-  const box=document.getElementById('orderBox-'+sec.id);
-  const inner=document.getElementById('orderInner-'+sec.id);
-  const cnt=document.getElementById('orderCnt-'+sec.id);
-  const cfg=sec.list;
-  const lines=[];
-  sec._items.forEach(it=>{
-    if(cfg.mode==='qty'){
-      if(it._qty && state[it._id].qty>0) lines.push('• '+it.l+' — '+state[it._id].qty);
-    }else{ // unchecked
-      if(!state[it._id].checked){
-        lines.push('• '+it.l);
+// ---- Общий отчёт ----
+const reportBar=document.createElement('div'); reportBar.className='report-bar';
+reportBar.innerHTML='<button class="btn-primary" id="reportBtn">📋 Сформировать общий отчёт</button>';
+document.body.appendChild(reportBar);
+
+const overlay=document.createElement('div'); overlay.className='overlay'; overlay.id='reportOverlay';
+overlay.innerHTML=`<div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-head"><h3>Отчёт по бару</h3><span class="cnt" id="reportCnt"></span></div>
+    <textarea id="reportText" readonly></textarea>
+    <div class="sheet-actions" id="reportActions"></div>
+  </div>`;
+document.body.appendChild(overlay);
+overlay.addEventListener('click',e=>{ if(e.target===overlay) closeReport(); });
+document.getElementById('reportBtn').onclick=generateReport;
+
+function generateReport(){
+  hap('light');
+  const groups=[];
+  DATA.forEach(sec=>{
+    const lines=[];
+    sec._items.forEach(it=>{
+      if(!state[it._id].checked){              // нет галочки = нет/не сделано
+        let line='• '+it.l;
+        if(it._qty && state[it._id].qty>0) line+=' — нужно '+state[it._id].qty;
+        lines.push(line);
       }
-    }
+    });
+    if(lines.length) groups.push({name:sec.name, icon:sec.icon, lines:lines});
   });
-  box.classList.add('show');
-  if(!lines.length){
-    cnt.textContent='';
-    inner.innerHTML=`<div class="empty-order">${cfg.empty}</div>`;
-    box.scrollIntoView({behavior:'smooth',block:'nearest'});
-    return;
-  }
+  const total=groups.reduce((s,g)=>s+g.lines.length,0);
   const d=new Date();
   const dd=String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear();
-  const text=cfg.title+' — FO\u0027X\nДата: '+dd+'\n\n'+lines.join('\n');
-  cnt.textContent=lines.length+' поз.';
-  const sendBtn = TG ? `<button class="btn-ghost btn-send" data-send="${sec.id}">📨 В чат</button>` : '';
-  inner.innerHTML=`<textarea id="orderText-${sec.id}" readonly>${text}</textarea>
-    <div class="order-actions">
-      <button class="btn-ghost" data-copy="${sec.id}">Скопировать</button>
-      ${sendBtn}
-      <button class="btn-ghost" data-hide="${sec.id}">Скрыть</button>
-    </div>`;
-  inner.querySelector('[data-copy]').onclick=ev=>copyList(sec.id,ev.currentTarget);
-  inner.querySelector('[data-hide]').onclick=()=>box.classList.remove('show');
-  const sb=inner.querySelector('[data-send]'); if(sb) sb.onclick=()=>sendToChat(sec.id);
-  box.scrollIntoView({behavior:'smooth',block:'nearest'});
+  let text;
+  if(!total){
+    text='ОТЧЁТ ПО БАРУ — FO\u0027X\nДата: '+dd+'\n\nБар укомплектован полностью. Всё на месте 🦊';
+  }else{
+    text='ОТЧЁТ ПО БАРУ — FO\u0027X\nДата: '+dd+'\nНе отмечено (нет в наличии / не сделано): '+total+' поз.\n\n';
+    text+=groups.map(g=>g.icon+' '+g.name.toUpperCase()+'\n'+g.lines.join('\n')).join('\n\n');
+  }
+  document.getElementById('reportText').value=text;
+  document.getElementById('reportCnt').textContent = total? ('нет '+total+' поз.') : 'всё на месте';
+  const sendBtn = TG ? '<button class="btn-ghost btn-send" id="reportSend">📨 В чат</button>' : '';
+  document.getElementById('reportActions').innerHTML=
+    '<button class="btn-ghost" id="reportCopy">Скопировать</button>'+sendBtn+
+    '<button class="btn-ghost" id="reportClose">Закрыть</button>';
+  document.getElementById('reportCopy').onclick=function(){copyReport(this);};
+  document.getElementById('reportClose').onclick=closeReport;
+  const rs=document.getElementById('reportSend'); if(rs) rs.onclick=sendReport;
+  document.getElementById('reportOverlay').classList.add('show');
 }
-function sendToChat(secId){
-  const ta=document.getElementById('orderText-'+secId);
-  if(!ta || !TG) return;
-  hap('ok');
+function closeReport(){ document.getElementById('reportOverlay').classList.remove('show'); }
+function sendReport(){
+  const ta=document.getElementById('reportText');
+  if(!ta || !TG) return; hap('ok');
   try{ TG.sendData(ta.value); }
-  catch(e){ try{ TG.showAlert('Не получилось отправить автоматически. Нажми «Скопировать» и вставь список в чат.'); }catch(_){ alert('Скопируй список вручную.'); } }
+  catch(e){ try{ TG.showAlert('Не получилось отправить автоматически. Нажми «Скопировать» и вставь отчёт в чат.'); }catch(_){ alert('Скопируй отчёт вручную.'); } }
 }
-function copyList(secId,btn){
-  const ta=document.getElementById('orderText-'+secId);
+function copyReport(btn){
+  const ta=document.getElementById('reportText');
   const done=()=>{btn.textContent='Скопировано ✓';btn.classList.add('copied');hap('ok');
     setTimeout(()=>{btn.textContent='Скопировать';btn.classList.remove('copied');},1800);};
   if(navigator.clipboard&&navigator.clipboard.writeText){
-    navigator.clipboard.writeText(ta.value).then(done).catch(()=>{ta.select();document.execCommand('copy');done();});
+    navigator.clipboard.writeText(ta.value).then(done).catch(()=>{ta.removeAttribute('readonly');ta.select();document.execCommand('copy');ta.setAttribute('readonly','');done();});
   }else{ta.removeAttribute('readonly');ta.select();document.execCommand('copy');ta.setAttribute('readonly','');done();}
 }
 
@@ -546,6 +619,7 @@ document.getElementById('resetBtn').onclick=()=>{
   document.querySelectorAll('.item').forEach(r=>{r.classList.remove('checked');r.dataset.needed='0';
     const inp=r.querySelector('.qty-in'); if(inp) inp.value=0;});
   document.querySelectorAll('.order').forEach(b=>b.classList.remove('show'));
+  closeReport();
   refresh();
 };
 
