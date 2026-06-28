@@ -122,6 +122,21 @@
   .btn-ghost:active{background:var(--amber-soft)}
   .btn-ghost.copied{border-color:var(--done);color:var(--done)}
   .btn-ghost.btn-send{border-color:var(--amber-line);color:var(--amber)}
+  .recipe-btn{flex:0 0 auto;width:38px;height:38px;border-radius:10px;border:1px solid var(--amber-line);
+    background:var(--amber-soft);color:var(--amber);font-size:17px;line-height:1;display:flex;
+    align-items:center;justify-content:center;cursor:pointer}
+  .recipe-btn:active{background:rgba(238,142,58,.28)}
+  .recipe-body{flex:1;overflow-y:auto;padding:6px 18px 4px}
+  .rcp-ing{list-style:none;margin:4px 0;padding:0}
+  .rcp-ing li{display:flex;justify-content:space-between;gap:12px;padding:11px 0;
+    border-bottom:1px solid var(--line);font-size:14.5px;color:var(--text)}
+  .rcp-ing li:last-child{border-bottom:none}
+  .rcp-ing li span{flex:1}
+  .rcp-ing li i{font-style:normal;color:var(--amber);font-weight:600;white-space:nowrap}
+  .rcp-steps{margin:6px 0;padding-left:22px}
+  .rcp-steps li{padding:6px 0;font-size:14.5px;color:var(--text);line-height:1.45}
+  .rcp-method{margin-top:12px;padding:12px 14px;background:var(--surface-2);border-radius:12px;
+    font-size:13.5px;color:var(--muted);line-height:1.5}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -154,6 +169,14 @@
   </div>
 </div>
 
+<div class="overlay" id="recipeOverlay">
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-head"><h3 id="recipeTitle">Раскладка</h3><span class="cnt">состав</span></div>
+    <div class="recipe-body" id="recipeBody"></div>
+    <div class="sheet-actions"><button class="btn-ghost" id="recipeClose">Закрыть</button></div>
+  </div>
+</div>
+
 <script>
 const DATA = [
   {
@@ -176,7 +199,7 @@ const DATA = [
     banner:"Сначала <b>перетарь софты из тепла в холодильник</b> — и только потом считай остатки. Иначе подсчёт будет неверным.",
     groups:[
       {
-        label:"С количеством — введи, сколько нужно дозаказать",
+        label:"Напитки, алкоголь, пюре",
         qty:true,
         items:[
           {l:"Вода без газа 0.5"},{l:"Вода с газом 0.5"},
@@ -200,8 +223,8 @@ const DATA = [
         ]
       },
       {
-        label:"Только проверка наличия",
-        qty:false,
+        label:"Фрукты, сиропы, лёд, прочее",
+        qty:true,
         items:[
           {l:"Мёд"},{l:"Яблоки"},{l:"Морковь"},{l:"Лимон"},{l:"Сахар порционный"},
           {l:"Лайм свежий"},{l:"Апельсин"},{l:"Грейпфрут"},{l:"Груша"},{l:"Морс"},
@@ -210,14 +233,14 @@ const DATA = [
           {l:"Сироп кедр"},{l:"Сироп малина"},{l:"Сироп поп-корн"},{l:"Сироп карамель"},
           {l:"Сироп лесной орех"},{l:"Сироп солёная карамель"},
           {l:"Конфеты с собой"},{l:"Снеки с собой"},
-          {l:"Кола розлив"},{l:"Маракуйя"},
+          {l:"Кола розлив"},{l:"Маракуйя"},{l:"Какао"},
         ]
       }
     ]
   },
   {
     id:"prep", name:"Заготовки", icon:"🫙",
-    banner:"Пройди по списку: чего нет — заготовить по ТК. Премиксы проверь не только на наличие, но и что они <b>загазированы</b> где нужно.",
+    banner:"Пройди по списку: чего нет — заготовить по ТК. Премиксы проверь не только на наличие, но и что они <b>загазированы</b> где нужно. Раскладку смотри по кнопке 📖.",
     groups:[
       {
         label:"Зелень — помыть, перебрать",
@@ -227,7 +250,11 @@ const DATA = [
       {
         label:"Пены — наличие и консистенция",
         qty:false,
-        items:[ {l:"Пена кокос"},{l:"Сырная пена"},{l:"Пена эвкалипт"} ]
+        items:[
+          {l:"Пена кокос", r:{ing:["Кокосовое молоко Aroy-D — 500 мл","Кокосовое молоко Alpro — 50 мл","Сахарный сироп П/Ф — 25 мл","Белок яичный пастеризованный — 20 мл","Ксантановая камедь — 1,2 г"]}},
+          {l:"Сырная пена", r:{ing:["Сливки 11% — 200 мл","Сыр Креметте — 300 г","Ксантан — 1 г"]}},
+          {l:"Пена эвкалипт", r:{ing:["Сироп Herbarista Эвкалипт — 20 мл","Сахарный сироп — 80 мл","Соевое молоко — 200 мл","Белок пастеризованный — 40 мл","Молочная кислота П/Ф — 60 мл"]}},
+        ]
       },
       {
         label:"Премиксы и заготовки коктейлей",
@@ -235,25 +262,35 @@ const DATA = [
         items:[
           {l:"Берри спритц премикс", n:"в наличии и загазирован"},
           {l:"Лав Из", n:"в наличии и загазирован"},
-          {l:"Премикс «Нефритовый след»"},
+          {l:"Премикс «Нефритовый след»", r:{ing:["Джин киви-фейхоа — 150 мл","Тоник — 3 бутылки"]}},
           {l:"Гарниш «Нефритовый след»"},
-          {l:"Премикс «Ночной двухслад»"},
-          {l:"Сливочный улун + анчан"},
-          {l:"Премикс «Поп-стар»"},
+          {l:"Премикс «Ночной двухслад»", r:{ing:["Морс Колд Брю — 900 мл","Сироп ирга — 90 мл"]}},
+          {l:"Сливочный улун + анчан", r:{ing:["Сливочный улун — 5 г","Анчан — 5 г"], method:"Заварить 20 минут, охладить, перелить."}},
+          {l:"Премикс «Поп-стар»", r:{ing:["Водка хаус — 30 мл","Мартини экстра драй — 20 мл","Сироп попкорн — 15 мл"]}},
           {l:"Негрони премикс"},
           {l:"Лонг Айленд премикс"},
-          {l:"Ванильный игристый Совиньон Блан"},
+          {l:"Ванильный игристый Совиньон Блан", r:{ing:["Вино Совиньон Блан Мисти Клифф — 750 мл","Сироп ваниль Агробар — 80 мл","Молочная кислота — 20 мл"]}},
           {l:"Джин на изумрудном чае"},
           {l:"Глинтвейн", n:"в наличии"},
-          {l:"Премикс «Молоко единорога»"},
-          {l:"Калпис персик-груша"},
-          {l:"ПФ жасминовый чай"},
-          {l:"Премикс «Сладкопряд»"},
+          {l:"Премикс «Молоко единорога»", r:{ing:["Грушевый дистиллят — 15 мл","Персиковый ликёр — 20 мл","Калпис персик-груша — 80 мл","Цитрус-микс — 15 мл"]}},
+          {l:"Калпис персик-груша", r:{ing:["Сироп персик Herbarista — 200 мл","Сироп груша Herbarista — 50 мл","Соевое молоко — 500 мл","Молочная кислота П/Ф — 150 мл"], method:"Все ингредиенты добавить в блендер и взбить, отфильтровать через супербэг."}},
+          {l:"ПФ жасминовый чай", r:{ing:["Жасминовый чай — 1000 мл","Джем алоэ — 300 г"]}},
+          {l:"Премикс «Сладкопряд»", r:{ing:["Водка Лаб 38 (ваниль, бобы тонка) — 50 мл","Ликёр Болс Бузина — 15 мл","Крем-сода — 20 мл","Сироп кокос — 10 мл","Молочная кислота — 15 мл"]}},
           {l:"Джин киви-фейхоа"},
           {l:"Лимонный фреш"},
           {l:"Грейпфрутовый фреш"},
+          {l:"Цитрус-микс", r:{ing:["Фреш грейпфрута — 300 мл","Фреш лимона — 150 мл","Фреш лайма — 150 мл","Пюре юдзу Агробар — 150 мл"]}},
           {l:"ПФ еловый сеятель"},
           {l:"ПФ серебряник"},
+        ]
+      },
+      {
+        label:"Сиропы, сахар, тапиока",
+        qty:false,
+        items:[
+          {l:"Сироп лемонграсс", r:{ing:["Лемонграсс — 200 г","Сахарный сироп — 1000 мл"]}},
+          {l:"Ванильный сахар", r:{ing:["Сахар — 270 г","Ванилин — 30 г"], method:"Смешать до однородности, хранить в сухой закрытой ёмкости."}},
+          {l:"Тапиока", r:{steps:["Вскипятить воду — примерно 7 частей воды на 1 часть тапиоки.","Засыпать тапиоку в кипящую воду и сразу помешать, чтобы не слиплась и не прилипла ко дну.","Варить на среднем огне 20–25 минут, периодически помешивая, пока жемчужины не станут мягкими и полупрозрачными насквозь.","Снять с огня, накрыть крышкой и дать постоять 15–20 минут.","Откинуть на сито и промыть холодной водой.","Залить сахарным сиропом или мёдом, чтобы не слипалась — хранить в сиропе."], method:"Лучше использовать в течение 3–4 часов после варки."}},
         ]
       }
     ]
@@ -354,6 +391,13 @@ function buildRow(it){
   row.dataset.id=it._id;
   const note=it.n?'<div class="item-note">'+it.n+'</div>':'';
   row.innerHTML='<div class="check"></div><div class="item-body"><div class="item-label">'+it.l+'</div>'+note+'</div>';
+
+  if(it.r){
+    const rb=document.createElement('button'); rb.className='recipe-btn'; rb.type='button';
+    rb.textContent='📖'; rb.title='Раскладка';
+    rb.onclick=e=>{ e.stopPropagation(); openRecipe(it); };
+    row.appendChild(rb);
+  }
 
   if(it._qty){
     const st=document.createElement('div'); st.className='stepper';
@@ -457,6 +501,26 @@ function generateReport(){
   document.getElementById('reportOverlay').classList.add('show');
 }
 function closeReport(){ document.getElementById('reportOverlay').classList.remove('show'); }
+
+// ---- Раскладки ----
+document.getElementById('recipeClose').onclick=closeRecipe;
+document.getElementById('recipeOverlay').addEventListener('click',e=>{
+  if(e.target===document.getElementById('recipeOverlay')) closeRecipe();
+});
+function openRecipe(it){
+  hap('light');
+  document.getElementById('recipeTitle').textContent=it.l;
+  let html='';
+  if(it.r.ing && it.r.ing.length) html+='<ul class="rcp-ing">'+it.r.ing.map(x=>{
+    const p=x.split(' — ');
+    return p.length>1 ? '<li><span>'+p[0]+'</span><i>'+p.slice(1).join(' — ')+'</i></li>' : '<li>'+x+'</li>';
+  }).join('')+'</ul>';
+  if(it.r.steps && it.r.steps.length) html+='<ol class="rcp-steps">'+it.r.steps.map(x=>'<li>'+x+'</li>').join('')+'</ol>';
+  if(it.r.method) html+='<div class="rcp-method">'+it.r.method+'</div>';
+  document.getElementById('recipeBody').innerHTML=html;
+  document.getElementById('recipeOverlay').classList.add('show');
+}
+function closeRecipe(){ document.getElementById('recipeOverlay').classList.remove('show'); }
 function sendReport(){
   const ta=document.getElementById('reportText'); if(!ta || !TG) return; hap('ok');
   try{ TG.sendData(ta.value); }
@@ -479,6 +543,7 @@ document.getElementById('resetBtn').onclick=()=>{
     const inp=r.querySelector('.qty-in'); if(inp) inp.value=0; });
   const c=document.getElementById('lookComment'); if(c) c.value='';
   closeReport();
+  closeRecipe();
   refresh();
 };
 
