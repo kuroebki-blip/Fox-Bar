@@ -3,12 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X — Подготовка бара</title>
+<title>FO'X App — Чек-листы и банкеты</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
+
   :root{
     --bg:#14110D; --surface:#1E1913; --surface-2:#28221A;
     --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.14);
@@ -138,15 +139,97 @@
   .rcp-method{margin-top:12px;padding:12px 14px;background:var(--surface-2);border-radius:12px;
     font-size:13.5px;color:var(--muted);line-height:1.5}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+
+/* ===== FO'X HUB + Банкетный календарь ===== */
+body.mode-hub .report-bar,
+body.mode-banquets .report-bar{display:none}
+body.mode-hub .overall,
+body.mode-banquets .overall{display:none}
+body.mode-hub #resetBtn,
+body.mode-banquets #resetBtn{display:none}
+body.mode-checklists #backBtn,
+body.mode-banquets #backBtn{display:inline-flex}
+body.mode-hub #backBtn{display:none}
+.back-btn{border:1px solid var(--line-strong);background:transparent;color:var(--muted);
+  font-family:inherit;font-size:12px;font-weight:600;padding:9px 12px;border-radius:10px;cursor:pointer;align-items:center;gap:6px}
+.back-btn:active{background:var(--surface-2)}
+.app-screen{display:none;max-width:680px;margin:0 auto;padding:16px 14px 0}
+.app-screen.active{display:block;animation:fade .25s ease}
+#checklistsScreen{max-width:none;padding:0}
+.hub-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:6px}
+.hub-card{width:100%;text-align:left;border:1px solid var(--line);background:var(--surface);
+  color:var(--text);border-radius:18px;padding:18px 16px;cursor:pointer;font-family:inherit}
+.hub-card:active{background:var(--surface-2)}
+.hub-card .hc-ico{font-size:26px;margin-bottom:8px}
+.hub-card .hc-title{font-family:"Unbounded",sans-serif;font-size:16px;font-weight:600;margin-bottom:4px}
+.hub-card .hc-sub{font-size:13px;color:var(--muted);line-height:1.45}
+.hub-note{margin-top:14px;background:var(--surface);border:1px solid var(--line);border-radius:14px;
+  padding:13px 14px;color:var(--muted);font-size:13px;line-height:1.5}
+.banq-top{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:12px}
+.banq-title{font-family:"Unbounded",sans-serif;font-size:18px;font-weight:600}
+.banq-sub{font-size:12px;color:var(--muted);margin-top:3px}
+.banq-nav{display:flex;gap:8px;align-items:center;margin:12px 0}
+.banq-month{flex:1;text-align:center;font-family:"Unbounded",sans-serif;font-size:14px;font-weight:600;color:var(--text)}
+.icon-btn{width:42px;height:38px;border-radius:11px;border:1px solid var(--line-strong);
+  background:var(--surface);color:var(--text);font-family:inherit;font-size:18px;cursor:pointer}
+.icon-btn:active{background:var(--amber-soft);border-color:var(--amber-line)}
+.calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;background:var(--surface);
+  border:1px solid var(--line);border-radius:16px;padding:10px;margin-bottom:16px}
+.cal-wd{text-align:center;color:var(--muted-2);font-size:11px;font-weight:700;text-transform:uppercase;padding:5px 0}
+.cal-day{position:relative;min-height:44px;border-radius:12px;border:1px solid transparent;background:transparent;color:var(--text);
+  font-family:inherit;font-weight:600;cursor:pointer}
+.cal-day:active{background:var(--surface-2)}
+.cal-day.muted{color:var(--muted-2)}
+.cal-day.today{border-color:var(--line-strong)}
+.cal-day.selected{background:var(--amber-soft);border-color:var(--amber-line);color:var(--amber)}
+.cal-day.has-banquet::after{content:"";position:absolute;left:50%;bottom:6px;transform:translateX(-50%);
+  width:6px;height:6px;border-radius:50%;background:var(--amber)}
+.cal-day .badge{position:absolute;right:4px;top:3px;min-width:16px;height:16px;border-radius:8px;background:var(--amber);
+  color:#1A1208;font-size:10px;line-height:16px;text-align:center;font-weight:800}
+.day-card,.banq-form{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:14px}
+.day-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:10px}
+.day-head b{font-family:"Unbounded",sans-serif;font-size:14px}
+.day-head span{font-size:12px;color:var(--amber);font-weight:700}
+.banq-list{display:flex;flex-direction:column;gap:10px}
+.banq-empty{color:var(--muted);font-size:13px;line-height:1.5;padding:8px 2px}
+.banq-item{border:1px solid var(--line);background:var(--surface-2);border-radius:14px;padding:12px}
+.banq-item-head{display:flex;justify-content:space-between;gap:10px;margin-bottom:6px}
+.banq-time{font-family:"Unbounded",sans-serif;font-size:13px;color:var(--amber);font-weight:600}
+.banq-status{font-size:11px;color:var(--muted);border:1px solid var(--line-strong);border-radius:999px;padding:3px 8px;height:max-content}
+.banq-name{font-size:15px;font-weight:700;margin-bottom:3px}
+.banq-comment{font-size:13px;color:var(--muted);line-height:1.45;margin:5px 0 9px}
+.banq-img{display:block;width:100%;border-radius:12px;border:1px solid var(--line);margin-top:8px}
+.banq-actions{display:flex;gap:8px;margin-top:10px}
+.small-btn{border:1px solid var(--line-strong);background:transparent;color:var(--muted);
+  font-family:inherit;font-size:12px;font-weight:600;padding:8px 10px;border-radius:10px;cursor:pointer}
+.small-btn.danger{color:#F08B7D;border-color:rgba(240,139,125,.35)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.form-field{display:flex;flex-direction:column;gap:5px}
+.form-field.full{grid-column:1/-1}
+.form-field label{font-size:11px;color:var(--muted-2);font-weight:700;text-transform:uppercase;letter-spacing:.8px}
+.form-field input,.form-field textarea,.form-field select{width:100%;border:1px solid var(--line-strong);
+  background:var(--bg);color:var(--text);border-radius:12px;padding:12px 12px;font-family:inherit;font-size:14px}
+.form-field textarea{min-height:82px;resize:vertical}
+.form-field input:focus,.form-field textarea:focus,.form-field select:focus{outline:2px solid var(--amber-line);border-color:var(--amber)}
+.save-btn{width:100%;margin-top:12px;border:none;background:var(--amber);color:#1A1208;border-radius:13px;
+  font-family:"Unbounded",sans-serif;font-size:13px;font-weight:600;padding:14px;cursor:pointer}
+.save-btn:active{filter:brightness(1.05)}
+.local-warn{font-size:12.5px;line-height:1.45;color:#EAD9B0;background:var(--warn-soft);
+  border:1px solid rgba(230,180,80,.3);border-radius:13px;padding:11px 12px;margin-bottom:12px}
+@media (min-width:560px){.hub-grid{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}}
+
 </style>
 </head>
-<body>
+<body class="mode-hub">
+
 <header>
   <div class="head-row">
+    <button class="back-btn" id="backBtn">← Назад</button>
     <div class="brand">
       <div>
         <div class="wordmark">FO<span class="dot">'</span>X</div>
-        <div class="subtitle">Подготовка бара к вечерней посадке</div>
+        <div class="subtitle" id="appSubtitle">Единое мини-приложение</div>
       </div>
     </div>
     <button class="reset" id="resetBtn">Сбросить</button>
@@ -157,8 +240,91 @@
   </div>
 </header>
 
-<nav class="tabs" id="tabs"></nav>
-<main id="main"></main>
+<section class="app-screen active" id="hubScreen">
+  <div class="hub-grid">
+    <button class="hub-card" data-open-section="checklists">
+      <div class="hc-ico">🧾</div>
+      <div class="hc-title">Чек-листы</div>
+      <div class="hc-sub">Подготовка бара к вечерней посадке, отчёт по отсутствующим позициям.</div>
+    </button>
+    <button class="hub-card" data-open-section="banquets">
+      <div class="hc-ico">🍽</div>
+      <div class="hc-title">Банкеты</div>
+      <div class="hc-sub">Календарь банкетов, фото заказов и список на выбранный день.</div>
+    </button>
+  </div>
+  <div class="hub-note">
+    Это общий хаб: один Telegram-бот открывает один FO'X App, а внутри выбирается нужный раздел.
+  </div>
+</section>
+
+<section class="app-screen" id="checklistsScreen">
+  <nav class="tabs" id="tabs"></nav>
+  <main id="main"></main>
+</section>
+
+<section class="app-screen" id="banquetsScreen">
+  <div class="banq-top">
+    <div>
+      <div class="banq-title">Банкеты</div>
+      <div class="banq-sub">Выбери дату в календаре, чтобы увидеть заказы</div>
+    </div>
+  </div>
+
+  <div class="local-warn">
+    Сейчас это фронтовый MVP: банкеты и фото сохраняются в памяти этого устройства. Для общей рабочей версии подключим Google Sheets/Drive.
+  </div>
+
+  <div class="banq-nav">
+    <button class="icon-btn" id="banqPrev" type="button">‹</button>
+    <div class="banq-month" id="banqMonth"></div>
+    <button class="icon-btn" id="banqNext" type="button">›</button>
+  </div>
+  <div class="calendar" id="banqCalendar"></div>
+
+  <div class="day-card">
+    <div class="day-head">
+      <b id="banqSelectedTitle">Сегодня</b>
+      <span id="banqSelectedCount">0 заказов</span>
+    </div>
+    <div class="banq-list" id="banqList"></div>
+  </div>
+
+  <div class="group-label">Добавить банкет</div>
+  <form class="banq-form" id="banqForm">
+    <div class="form-grid">
+      <div class="form-field">
+        <label>Дата</label>
+        <input id="banqDate" type="date" required>
+      </div>
+      <div class="form-field">
+        <label>Время</label>
+        <input id="banqTime" type="time" required>
+      </div>
+      <div class="form-field full">
+        <label>Название / клиент</label>
+        <input id="banqName" type="text" placeholder="Например: Банкет, 19:00" required>
+      </div>
+      <div class="form-field">
+        <label>Статус</label>
+        <select id="banqStatus">
+          <option value="Актуально">Актуально</option>
+          <option value="Выполнено">Выполнено</option>
+          <option value="Отменено">Отменено</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label>Фото заказа</label>
+        <input id="banqPhoto" type="file" accept="image/*">
+      </div>
+      <div class="form-field full">
+        <label>Комментарий</label>
+        <textarea id="banqComment" placeholder="Зал, ответственный, уточнения по заказу…"></textarea>
+      </div>
+    </div>
+    <button class="save-btn" type="submit">Добавить банкет</button>
+  </form>
+</section>
 
 <div class="report-bar"><button class="report-btn" id="reportBtn">📋 Сформировать общий отчёт</button></div>
 <div class="overlay" id="reportOverlay">
@@ -547,8 +713,203 @@ document.getElementById('resetBtn').onclick=()=>{
   refresh();
 };
 
+
+// ===== FO'X App sections =====
+function setAppSection(section){
+  document.body.classList.remove('mode-hub','mode-checklists','mode-banquets');
+  document.body.classList.add('mode-'+section);
+
+  document.getElementById('hubScreen').classList.toggle('active', section==='hub');
+  document.getElementById('checklistsScreen').classList.toggle('active', section==='checklists');
+  document.getElementById('banquetsScreen').classList.toggle('active', section==='banquets');
+
+  const sub = document.getElementById('appSubtitle');
+  if(section==='hub') sub.textContent = 'Единое мини-приложение';
+  if(section==='checklists') sub.textContent = 'Подготовка бара к вечерней посадке';
+  if(section==='banquets') sub.textContent = 'Календарь банкетов и фото заказов';
+
+  if(section==='banquets') renderBanquets();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+document.querySelectorAll('[data-open-section]').forEach(btn=>{
+  btn.addEventListener('click',()=>{ hap('sel'); setAppSection(btn.dataset.openSection); });
+});
+document.getElementById('backBtn').onclick=()=>{ hap('light'); setAppSection('hub'); };
+
+// ===== Банкетный календарь MVP =====
+const BANQ_KEY='fox_banquets_v1';
+let banquets=[];
+try{ banquets=JSON.parse(localStorage.getItem(BANQ_KEY)||'[]'); }catch(e){ banquets=[]; }
+
+function saveBanquets(){
+  localStorage.setItem(BANQ_KEY, JSON.stringify(banquets));
+}
+function pad2(n){ return String(n).padStart(2,'0'); }
+function isoDate(d){ return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+function parseIsoDate(s){
+  const p=String(s||'').split('-').map(Number);
+  return new Date(p[0], (p[1]||1)-1, p[2]||1);
+}
+function humanDate(iso){
+  const d=parseIsoDate(iso);
+  return d.toLocaleDateString('ru-RU', {weekday:'long', day:'numeric', month:'long'});
+}
+const todayIso=isoDate(new Date());
+let selectedBanqDate=todayIso;
+let banqMonthDate=new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+document.getElementById('banqDate').value=todayIso;
+document.getElementById('banqPrev').onclick=()=>{ banqMonthDate.setMonth(banqMonthDate.getMonth()-1); hap('light'); renderBanquets(); };
+document.getElementById('banqNext').onclick=()=>{ banqMonthDate.setMonth(banqMonthDate.getMonth()+1); hap('light'); renderBanquets(); };
+
+function banquetsByDate(){
+  const map={};
+  banquets.forEach(b=>{
+    if(!map[b.date]) map[b.date]=[];
+    map[b.date].push(b);
+  });
+  return map;
+}
+function renderBanquets(){
+  renderBanqCalendar();
+  renderBanqDay();
+}
+function renderBanqCalendar(){
+  const map=banquetsByDate();
+  const cal=document.getElementById('banqCalendar');
+  const monthTitle=document.getElementById('banqMonth');
+  monthTitle.textContent=banqMonthDate.toLocaleDateString('ru-RU',{month:'long',year:'numeric'});
+
+  const weekdays=['пн','вт','ср','чт','пт','сб','вс'];
+  cal.innerHTML=weekdays.map(w=>'<div class="cal-wd">'+w+'</div>').join('');
+
+  const year=banqMonthDate.getFullYear();
+  const month=banqMonthDate.getMonth();
+  const first=new Date(year,month,1);
+  const mondayIndex=(first.getDay()+6)%7;
+  const start=new Date(year,month,1-mondayIndex);
+
+  for(let i=0;i<42;i++){
+    const d=new Date(start);
+    d.setDate(start.getDate()+i);
+    const iso=isoDate(d);
+    const count=(map[iso]||[]).length;
+    const btn=document.createElement('button');
+    btn.type='button';
+    btn.className='cal-day';
+    if(d.getMonth()!==month) btn.classList.add('muted');
+    if(iso===todayIso) btn.classList.add('today');
+    if(iso===selectedBanqDate) btn.classList.add('selected');
+    if(count>0) btn.classList.add('has-banquet');
+    btn.innerHTML='<span>'+d.getDate()+'</span>'+(count>1?'<span class="badge">'+count+'</span>':'');
+    btn.onclick=()=>{
+      selectedBanqDate=iso;
+      document.getElementById('banqDate').value=iso;
+      hap('sel');
+      renderBanquets();
+    };
+    cal.appendChild(btn);
+  }
+}
+function renderBanqDay(){
+  const list=document.getElementById('banqList');
+  const items=banquets.filter(b=>b.date===selectedBanqDate).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  document.getElementById('banqSelectedTitle').textContent=humanDate(selectedBanqDate);
+  document.getElementById('banqSelectedCount').textContent=items.length+' '+pluralRu(items.length,'заказ','заказа','заказов');
+
+  if(!items.length){
+    list.innerHTML='<div class="banq-empty">На эту дату банкетов пока нет. Добавь заказ через форму ниже.</div>';
+    return;
+  }
+
+  list.innerHTML='';
+  items.forEach(b=>{
+    const card=document.createElement('div');
+    card.className='banq-item';
+    const safeName=escapeHtml(b.name||'Банкет');
+    const safeComment=escapeHtml(b.comment||'');
+    card.innerHTML=
+      '<div class="banq-item-head"><div class="banq-time">'+escapeHtml(b.time||'')+'</div><div class="banq-status">'+escapeHtml(b.status||'Актуально')+'</div></div>'+
+      '<div class="banq-name">'+safeName+'</div>'+
+      (safeComment?'<div class="banq-comment">'+safeComment+'</div>':'')+
+      (b.photo?'<img class="banq-img" src="'+b.photo+'" alt="Фото заказа">':'<div class="banq-empty">Фото заказа не добавлено</div>')+
+      '<div class="banq-actions"><button class="small-btn danger" type="button" data-del="'+b.id+'">Удалить</button></div>';
+    card.querySelector('[data-del]').onclick=()=>{
+      if(!confirm('Удалить этот банкет?')) return;
+      banquets=banquets.filter(x=>x.id!==b.id);
+      saveBanquets();
+      hap('ok');
+      renderBanquets();
+    };
+    list.appendChild(card);
+  });
+}
+function pluralRu(n,a,b,c){
+  n=Math.abs(n)%100; const n1=n%10;
+  if(n>10&&n<20) return c;
+  if(n1>1&&n1<5) return b;
+  if(n1===1) return a;
+  return c;
+}
+function escapeHtml(s){
+  return String(s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[m]));
+}
+async function imageToDataUrl(file){
+  if(!file) return '';
+  const raw=await new Promise((resolve,reject)=>{
+    const r=new FileReader();
+    r.onload=()=>resolve(r.result);
+    r.onerror=reject;
+    r.readAsDataURL(file);
+  });
+
+  return await new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>{
+      const maxSide=1600;
+      let w=img.width, h=img.height;
+      const k=Math.min(1, maxSide/Math.max(w,h));
+      w=Math.round(w*k); h=Math.round(h*k);
+      const canvas=document.createElement('canvas');
+      canvas.width=w; canvas.height=h;
+      const ctx=canvas.getContext('2d');
+      ctx.drawImage(img,0,0,w,h);
+      resolve(canvas.toDataURL('image/jpeg',0.82));
+    };
+    img.onerror=()=>resolve(raw);
+    img.src=raw;
+  });
+}
+document.getElementById('banqForm').onsubmit=async e=>{
+  e.preventDefault();
+  const file=document.getElementById('banqPhoto').files[0];
+  const photo=await imageToDataUrl(file);
+  const item={
+    id:'b'+Date.now(),
+    date:document.getElementById('banqDate').value,
+    time:document.getElementById('banqTime').value,
+    name:document.getElementById('banqName').value.trim(),
+    comment:document.getElementById('banqComment').value.trim(),
+    status:document.getElementById('banqStatus').value,
+    photo:photo
+  };
+  if(!item.date || !item.time || !item.name) return;
+  banquets.push(item);
+  saveBanquets();
+  selectedBanqDate=item.date;
+  banqMonthDate=parseIsoDate(item.date);
+  banqMonthDate.setDate(1);
+  e.target.reset();
+  document.getElementById('banqDate').value=selectedBanqDate;
+  document.getElementById('banqStatus').value='Актуально';
+  hap('ok');
+  renderBanquets();
+};
+
 switchTab(DATA[0].id);
 refresh();
+setAppSection('hub');
+
 </script>
 </body>
 </html>
