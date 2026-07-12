@@ -236,6 +236,28 @@ body.mode-hub #backBtn{display:none}
   color:var(--amber);text-decoration:none;font-family:inherit;font-size:12px;font-weight:700;padding:9px 10px;border-radius:10px}
 .banq-img.err{display:none}
 
+
+.photo-input-hidden{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}
+.photo-pick{display:flex;align-items:center;gap:12px;width:100%;min-height:64px;border:1px dashed var(--amber-line);
+  background:linear-gradient(180deg,rgba(238,142,58,.14),rgba(238,142,58,.06));border-radius:14px;
+  padding:13px 14px;cursor:pointer;color:var(--text)}
+.photo-pick:active{background:rgba(238,142,58,.22)}
+.photo-pick-ico{flex:0 0 auto;width:38px;height:38px;border-radius:12px;background:var(--amber);
+  color:#1A1208;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;line-height:1}
+.photo-pick-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.photo-pick-text b{font-size:14px;font-weight:700;color:var(--text)}
+.photo-pick-text i{font-style:normal;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.photo-preview{margin-top:10px;border:1px solid var(--line);background:var(--surface-2);border-radius:14px;padding:10px}
+.photo-preview img{display:block;width:100%;max-height:260px;object-fit:contain;border-radius:10px;background:#000}
+.photo-clear{margin-top:9px;width:100%;border:1px solid rgba(240,139,125,.35);background:transparent;color:#F0B0A7;
+  border-radius:10px;padding:10px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.photo-clear:active{background:rgba(240,139,125,.12)}
+.save-btn[disabled]{opacity:.62;cursor:wait;filter:saturate(.7)}
+
+
+.cloudinary-missing{font-size:12.5px;line-height:1.45;color:#EAD9B0;background:var(--warn-soft);
+  border:1px solid rgba(230,180,80,.3);border-radius:13px;padding:11px 12px;margin:0 0 12px}
+
 </style>
 </head>
 <body class="mode-hub">
@@ -292,7 +314,8 @@ body.mode-hub #backBtn{display:none}
   <div class="local-warn" id="banqStorageWarn">
     Загружаю банкеты из общей базы…
   </div>
-  <div class="sync-status" id="banqSyncStatus">Подключение к Google Sheets/Drive не настроено.</div>
+  <div class="sync-status" id="banqSyncStatus">Подключение к Google Sheets не настроено.</div>
+  <div class="cloudinary-missing" id="cloudinaryWarn" hidden>Cloudinary пока не настроен: фото не будут загружаться. Заполни CLOUDINARY_CLOUD_NAME и CLOUDINARY_UPLOAD_PRESET в index.html.</div>
 
   <div class="banq-nav">
     <button class="icon-btn" id="banqPrev" type="button">‹</button>
@@ -333,9 +356,20 @@ body.mode-hub #backBtn{display:none}
           <option value="Отменено">Отменено</option>
         </select>
       </div>
-      <div class="form-field">
+      <div class="form-field full">
         <label>Фото заказа</label>
-        <input id="banqPhoto" type="file" accept="image/*">
+        <input id="banqPhoto" class="photo-input-hidden" type="file" accept="image/*">
+        <label for="banqPhoto" class="photo-pick" id="banqPhotoPick">
+          <span class="photo-pick-ico">＋</span>
+          <span class="photo-pick-text">
+            <b>Добавить фото заказа</b>
+            <i id="banqPhotoHint">Скрин или фото листа банкета</i>
+          </span>
+        </label>
+        <div class="photo-preview" id="banqPhotoPreview" hidden>
+          <img id="banqPhotoPreviewImg" alt="Предпросмотр фото">
+          <button type="button" class="photo-clear" id="banqPhotoClear">Убрать фото</button>
+        </div>
       </div>
       <div class="form-field full">
         <label>Комментарий</label>
@@ -759,10 +793,15 @@ document.getElementById('backBtn').onclick=()=>{ hap('light'); setAppSection('hu
 loadBanquets(); };
 
 
-// ===== Банкетный календарь v2: общая база Google Sheets/Drive =====
+// ===== Банкетный календарь v2: общая база Google Sheets + Cloudinary =====
 // 1) Вставь сюда URL опубликованного Google Apps Script Web App.
 // Пример: https://script.google.com/macros/s/AKfycbx.../exec
 const BANQ_API_URL = 'https://script.google.com/macros/s/AKfycbxRlmtQMLMQ0h3NhQtInpYFAxyQxTLSgrzFClrFF3pqRqmHHxMbWrXeTc56nbAcLteZ/exec';
+
+// Cloudinary: заполни эти 2 строки после создания аккаунта.
+// Cloud name берётся из Dashboard, upload preset должен быть Unsigned.
+const CLOUDINARY_CLOUD_NAME = 'sivtytoc';
+const CLOUDINARY_UPLOAD_PRESET = 'fox_banquets_unsigned';
 
 // 2) Вставь Telegram user_id админов. У обычных пользователей форма добавления будет скрыта.
 // Узнать id можно через @userinfobot. После настройки ID должен быть числом без кавычек.
@@ -811,7 +850,7 @@ function updateStorageWarning(){
   const warn=document.getElementById('banqStorageWarn');
   if(!warn) return;
   if(isApiConfigured()){
-    warn.textContent='Банкеты загружаются из общей базы. Фото хранятся в Google Drive и видны всем пользователям Mini App.';
+    warn.textContent='Банкеты загружаются из общей базы. Фото хранятся в Cloudinary и видны всем пользователям Mini App.';
   }else{
     warn.textContent='Общая база пока не подключена. Банкеты сохраняются только на этом устройстве и не видны другим пользователям.';
   }
@@ -862,11 +901,12 @@ function jsonp(url, params){
 async function loadBanquets(){
   updateAdminVisibility();
   updateStorageWarning();
+  updateCloudinaryWarning();
 
   if(!isApiConfigured()){
     banqSharedMode=false;
     try{ banquets=JSON.parse(localStorage.getItem(BANQ_LOCAL_FALLBACK_KEY)||'[]'); }catch(e){ banquets=[]; }
-    setSyncStatus('warn','Работает локальный тестовый режим. Чтобы все видели одни и те же фото, подключи Apps Script Web App.');
+    setSyncStatus('warn','Работает локальный тестовый режим. Чтобы все видели одни и те же фото, подключи Apps Script Web App и Cloudinary.');
     renderBanquets();
     return;
   }
@@ -1039,35 +1079,129 @@ function pluralRu(n,a,b,c){
   if(n1===1) return a;
   return c;
 }
+
+function formatBytes(bytes){
+  bytes=Number(bytes)||0;
+  if(bytes<1024) return bytes+' B';
+  if(bytes<1024*1024) return Math.round(bytes/1024)+' KB';
+  return (bytes/1024/1024).toFixed(1)+' MB';
+}
+function setPhotoUi(file){
+  const hint=document.getElementById('banqPhotoHint');
+  const preview=document.getElementById('banqPhotoPreview');
+  const img=document.getElementById('banqPhotoPreviewImg');
+
+  if(!file){
+    if(hint) hint.textContent='Скрин или фото листа банкета';
+    if(preview) preview.hidden=true;
+    if(img) img.removeAttribute('src');
+    return;
+  }
+
+  if(hint) hint.textContent=file.name+' · '+formatBytes(file.size);
+
+  if(preview && img){
+    const url=URL.createObjectURL(file);
+    img.onload=()=>URL.revokeObjectURL(url);
+    img.src=url;
+    preview.hidden=false;
+  }
+}
+
 function escapeHtml(s){
   return String(s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[m]));
 }
+
+function isCloudinaryConfigured(){
+  return CLOUDINARY_CLOUD_NAME &&
+    CLOUDINARY_UPLOAD_PRESET &&
+    !CLOUDINARY_CLOUD_NAME.includes('PASTE_') &&
+    !CLOUDINARY_UPLOAD_PRESET.includes('PASTE_');
+}
+function updateCloudinaryWarning(){
+  const el=document.getElementById('cloudinaryWarn');
+  if(el) el.hidden=isCloudinaryConfigured();
+}
+async function uploadPhotoToCloudinary(file){
+  if(!file) return { url:'', publicId:'' };
+
+  if(!isCloudinaryConfigured()){
+    throw new Error('Cloudinary не настроен. Заполни CLOUDINARY_CLOUD_NAME и CLOUDINARY_UPLOAD_PRESET в index.html.');
+  }
+
+  const fd=new FormData();
+  fd.append('file', file);
+  fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+  fd.append('tags', 'fox,banquets');
+
+  const endpoint='https://api.cloudinary.com/v1_1/'+encodeURIComponent(CLOUDINARY_CLOUD_NAME)+'/image/upload';
+  const res=await fetch(endpoint,{ method:'POST', body:fd });
+  const data=await res.json().catch(()=>null);
+
+  if(!res.ok || !data || !data.secure_url){
+    const msg=(data && data.error && data.error.message) ? data.error.message : 'Cloudinary upload failed';
+    throw new Error('Фото не загрузилось в Cloudinary: '+msg);
+  }
+
+  return {
+    url:data.secure_url,
+    publicId:data.public_id || ''
+  };
+}
+
 async function imageToDataUrl(file){
   if(!file) return '';
+
   const raw=await new Promise((resolve,reject)=>{
     const r=new FileReader();
-    r.onload=()=>resolve(r.result);
-    r.onerror=reject;
+    r.onload=()=>resolve(String(r.result||''));
+    r.onerror=()=>reject(new Error('Не удалось прочитать фото'));
     r.readAsDataURL(file);
   });
 
-  return await new Promise(resolve=>{
+  return await new Promise((resolve,reject)=>{
     const img=new Image();
+
     img.onload=()=>{
-      const maxSide=1100;
-      let w=img.width, h=img.height;
-      const k=Math.min(1, maxSide/Math.max(w,h));
-      w=Math.round(w*k); h=Math.round(h*k);
-      const canvas=document.createElement('canvas');
-      canvas.width=w; canvas.height=h;
-      const ctx=canvas.getContext('2d');
-      ctx.drawImage(img,0,0,w,h);
-      resolve(canvas.toDataURL('image/jpeg',0.72));
+      try{
+        // Маленький размер специально для Apps Script: иначе большие фото с телефона могут не долетать.
+        const maxSide=900;
+        let w=img.naturalWidth || img.width;
+        let h=img.naturalHeight || img.height;
+        const k=Math.min(1, maxSide/Math.max(w,h));
+        w=Math.max(1,Math.round(w*k));
+        h=Math.max(1,Math.round(h*k));
+
+        const canvas=document.createElement('canvas');
+        canvas.width=w;
+        canvas.height=h;
+        const ctx=canvas.getContext('2d');
+        ctx.drawImage(img,0,0,w,h);
+
+        // 0.58 — нормальный компромисс: читаемо для заказа, но не слишком тяжело для Web App.
+        const jpg=canvas.toDataURL('image/jpeg',0.58);
+
+        if(!jpg || jpg.length<100){
+          reject(new Error('Фото не удалось подготовить'));
+          return;
+        }
+
+        resolve(jpg);
+      }catch(err){
+        reject(err);
+      }
     };
-    img.onerror=()=>resolve(raw);
+
+    img.onerror=()=>{
+      // HEIC/неподдерживаемые форматы часто не открываются в canvas.
+      // В таком случае лучше явно предупредить, чем создать банкет без фото.
+      reject(new Error('Это фото не удалось обработать. Попробуй скриншот или JPG/PNG.'));
+    };
+
     img.src=raw;
   });
 }
+
 async function postBanqForm(fields){
   const fd=new FormData();
   Object.keys(fields).forEach(k=>fd.append(k, fields[k] == null ? '' : fields[k]));
@@ -1076,6 +1210,19 @@ async function postBanqForm(fields){
   fd.append('telegramInitData', TG ? (TG.initData || '') : '');
   await fetch(BANQ_API_URL, {method:'POST', mode:'no-cors', body:fd});
 }
+
+const banqPhotoInput=document.getElementById('banqPhoto');
+const banqPhotoClear=document.getElementById('banqPhotoClear');
+if(banqPhotoInput){
+  banqPhotoInput.addEventListener('change',()=>setPhotoUi(banqPhotoInput.files && banqPhotoInput.files[0]));
+}
+if(banqPhotoClear){
+  banqPhotoClear.addEventListener('click',()=>{
+    if(banqPhotoInput) banqPhotoInput.value='';
+    setPhotoUi(null);
+  });
+}
+
 document.getElementById('banqForm').onsubmit=async e=>{
   e.preventDefault();
   if(!isBanqAdmin()){
@@ -1083,8 +1230,35 @@ document.getElementById('banqForm').onsubmit=async e=>{
     return;
   }
 
+  const form=e.target;
+  const saveBtn=form.querySelector('.save-btn');
+  if(saveBtn){
+    saveBtn.disabled=true;
+    saveBtn.textContent='Сохраняю…';
+  }
   const file=document.getElementById('banqPhoto').files[0];
-  const photo=await imageToDataUrl(file);
+  let imageUrl='';
+  let cloudinaryPublicId='';
+
+  try{
+    if(file){
+      setSyncStatus('', 'Загружаю фото в Cloudinary…');
+      const uploaded=await uploadPhotoToCloudinary(file);
+      imageUrl=uploaded.url;
+      cloudinaryPublicId=uploaded.publicId;
+      setSyncStatus('', 'Фото загружено, сохраняю банкет…');
+    }
+  }catch(err){
+    if(saveBtn){
+      saveBtn.disabled=false;
+      saveBtn.textContent='Добавить банкет';
+    }
+    const msg=String(err && err.message ? err.message : err);
+    setSyncStatus('err', msg);
+    alert(msg);
+    return;
+  }
+
   const item={
     id:'b'+Date.now(),
     date:document.getElementById('banqDate').value,
@@ -1092,32 +1266,49 @@ document.getElementById('banqForm').onsubmit=async e=>{
     name:document.getElementById('banqName').value.trim(),
     comment:document.getElementById('banqComment').value.trim(),
     status:document.getElementById('banqStatus').value,
-    photo:photo
+    photo:imageUrl,
+    cloudinaryPublicId:cloudinaryPublicId
   };
   if(!item.date || !item.time || !item.name) return;
 
   setSyncStatus('', 'Сохраняю банкет…');
 
   if(isApiConfigured()){
-    await postBanqForm({
-      action:'save',
-      id:item.id,
-      date:item.date,
-      time:item.time,
-      name:item.name,
-      comment:item.comment,
-      status:item.status,
-      photoBase64:item.photo,
-      photoName:file ? file.name : ''
-    });
+    try{
+      await postBanqForm({
+        action:'save',
+        id:item.id,
+        date:item.date,
+        time:item.time,
+        name:item.name,
+        comment:item.comment,
+        status:item.status,
+        imageUrl:item.photo,
+        cloudinaryPublicId:item.cloudinaryPublicId,
+        photoName:file ? file.name : ''
+      });
+    }catch(err){
+      if(saveBtn){
+        saveBtn.disabled=false;
+        saveBtn.textContent='Добавить банкет';
+      }
+      setSyncStatus('err','Не удалось отправить банкет. Попробуй фото поменьше или другой формат.');
+      alert('Не удалось отправить банкет. Попробуй фото поменьше или другой формат.');
+      return;
+    }
     selectedBanqDate=item.date;
     banqMonthDate=parseIsoDate(item.date);
     banqMonthDate.setDate(1);
     e.target.reset();
+    setPhotoUi(null);
     document.getElementById('banqDate').value=selectedBanqDate;
     document.getElementById('banqStatus').value='Актуально';
+    if(saveBtn){
+      saveBtn.disabled=false;
+      saveBtn.textContent='Добавить банкет';
+    }
     hap('ok');
-    setTimeout(loadBanquets, 900);
+    setTimeout(loadBanquets, 1200);
   }else{
     banquets.push(item);
     saveLocalFallback();
@@ -1125,8 +1316,13 @@ document.getElementById('banqForm').onsubmit=async e=>{
     banqMonthDate=parseIsoDate(item.date);
     banqMonthDate.setDate(1);
     e.target.reset();
+    setPhotoUi(null);
     document.getElementById('banqDate').value=selectedBanqDate;
     document.getElementById('banqStatus').value='Актуально';
+    if(saveBtn){
+      saveBtn.disabled=false;
+      saveBtn.textContent='Добавить банкет';
+    }
     hap('ok');
     renderBanquets();
     setSyncStatus('warn','Сохранено локально. Другие пользователи это не увидят, пока не подключена общая база.');
