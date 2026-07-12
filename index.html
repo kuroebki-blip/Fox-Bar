@@ -219,6 +219,15 @@ body.mode-hub #backBtn{display:none}
   border:1px solid rgba(230,180,80,.3);border-radius:13px;padding:11px 12px;margin-bottom:12px}
 @media (min-width:560px){.hub-grid{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}}
 
+
+/* ===== FO'X Банкетный календарь v2: shared storage + admin visibility ===== */
+.admin-hidden{display:none!important}
+.sync-status{font-size:12.5px;line-height:1.45;color:var(--muted);background:var(--surface);
+  border:1px solid var(--line);border-radius:13px;padding:11px 12px;margin-bottom:12px}
+.sync-status.ok{color:#C9E8D8;border-color:rgba(95,191,143,.35);background:var(--done-soft)}
+.sync-status.warn{color:#EAD9B0;border-color:rgba(230,180,80,.3);background:var(--warn-soft)}
+.sync-status.err{color:#F0B0A7;border-color:rgba(240,139,125,.35);background:rgba(240,139,125,.12)}
+
 </style>
 </head>
 <body class="mode-hub">
@@ -271,9 +280,10 @@ body.mode-hub #backBtn{display:none}
     </div>
   </div>
 
-  <div class="local-warn">
-    Сейчас это фронтовый MVP: банкеты и фото сохраняются в памяти этого устройства. Для общей рабочей версии подключим Google Sheets/Drive.
+  <div class="local-warn" id="banqStorageWarn">
+    Загружаю банкеты из общей базы…
   </div>
+  <div class="sync-status" id="banqSyncStatus">Подключение к Google Sheets/Drive не настроено.</div>
 
   <div class="banq-nav">
     <button class="icon-btn" id="banqPrev" type="button">‹</button>
@@ -290,8 +300,9 @@ body.mode-hub #backBtn{display:none}
     <div class="banq-list" id="banqList"></div>
   </div>
 
-  <div class="group-label">Добавить банкет</div>
-  <form class="banq-form" id="banqForm">
+  <div id="banqAdminBlock" class="admin-hidden">
+    <div class="group-label">Добавить банкет</div>
+    <form class="banq-form" id="banqForm">
     <div class="form-grid">
       <div class="form-field">
         <label>Дата</label>
@@ -322,8 +333,9 @@ body.mode-hub #backBtn{display:none}
         <textarea id="banqComment" placeholder="Зал, ответственный, уточнения по заказу…"></textarea>
       </div>
     </div>
-    <button class="save-btn" type="submit">Добавить банкет</button>
-  </form>
+      <button class="save-btn" type="submit">Добавить банкет</button>
+    </form>
+  </div>
 </section>
 
 <div class="report-bar"><button class="report-btn" id="reportBtn">📋 Сформировать общий отчёт</button></div>
@@ -734,16 +746,68 @@ function setAppSection(section){
 document.querySelectorAll('[data-open-section]').forEach(btn=>{
   btn.addEventListener('click',()=>{ hap('sel'); setAppSection(btn.dataset.openSection); });
 });
-document.getElementById('backBtn').onclick=()=>{ hap('light'); setAppSection('hub'); };
+document.getElementById('backBtn').onclick=()=>{ hap('light'); setAppSection('hub');
+loadBanquets(); };
 
-// ===== Банкетный календарь MVP =====
-const BANQ_KEY='fox_banquets_v1';
+
+// ===== Банкетный календарь v2: общая база Google Sheets/Drive =====
+// 1) Вставь сюда URL опубликованного Google Apps Script Web App.
+// Пример: https://script.google.com/macros/s/AKfycbx.../exec
+const BANQ_API_URL = 'PASTE_APPS_SCRIPT_WEB_APP_URL_HERE';
+
+// 2) Вставь Telegram user_id админов. У обычных пользователей форма добавления будет скрыта.
+// Узнать id можно через @userinfobot. После настройки ID должен быть числом без кавычек.
+const ADMIN_TELEGRAM_IDS = [
+  1036250074,
+  315978242,
+  317564157
+];
+
+const BANQ_LOCAL_FALLBACK_KEY='fox_banquets_v2_local_fallback';
 let banquets=[];
-try{ banquets=JSON.parse(localStorage.getItem(BANQ_KEY)||'[]'); }catch(e){ banquets=[]; }
+let banqSharedMode=false;
 
-function saveBanquets(){
-  localStorage.setItem(BANQ_KEY, JSON.stringify(banquets));
+function getTgUser(){
+  try{ return TG && TG.initDataUnsafe && TG.initDataUnsafe.user ? TG.initDataUnsafe.user : null; }
+  catch(e){ return null; }
 }
+function getTgUserId(){
+  const u=getTgUser();
+  return u && u.id ? String(u.id) : '';
+}
+function getTgUserName(){
+  const u=getTgUser();
+  if(!u) return '';
+  return [u.first_name,u.last_name].filter(Boolean).join(' ') || u.username || String(u.id||'');
+}
+function isBanqAdmin(){
+  const id=getTgUserId();
+  return id && ADMIN_TELEGRAM_IDS.map(String).includes(id);
+}
+function isApiConfigured(){
+  return BANQ_API_URL && !BANQ_API_URL.includes('PASTE_APPS_SCRIPT_WEB_APP_URL_HERE');
+}
+function setSyncStatus(type,text){
+  const el=document.getElementById('banqSyncStatus');
+  if(!el) return;
+  el.className='sync-status '+(type||'');
+  el.textContent=text;
+}
+function updateAdminVisibility(){
+  const block=document.getElementById('banqAdminBlock');
+  if(!block) return;
+  block.classList.toggle('admin-hidden', !isBanqAdmin());
+}
+function updateStorageWarning(){
+  const warn=document.getElementById('banqStorageWarn');
+  if(!warn) return;
+  if(isApiConfigured()){
+    warn.textContent='Банкеты загружаются из общей базы. Фото хранятся в Google Drive и видны всем пользователям Mini App.';
+  }else{
+    warn.textContent='Общая база пока не подключена. Банкеты сохраняются только на этом устройстве и не видны другим пользователям.';
+  }
+}
+
 function pad2(n){ return String(n).padStart(2,'0'); }
 function isoDate(d){ return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
 function parseIsoDate(s){
@@ -754,6 +818,7 @@ function humanDate(iso){
   const d=parseIsoDate(iso);
   return d.toLocaleDateString('ru-RU', {weekday:'long', day:'numeric', month:'long'});
 }
+
 const todayIso=isoDate(new Date());
 let selectedBanqDate=todayIso;
 let banqMonthDate=new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -762,6 +827,63 @@ document.getElementById('banqDate').value=todayIso;
 document.getElementById('banqPrev').onclick=()=>{ banqMonthDate.setMonth(banqMonthDate.getMonth()-1); hap('light'); renderBanquets(); };
 document.getElementById('banqNext').onclick=()=>{ banqMonthDate.setMonth(banqMonthDate.getMonth()+1); hap('light'); renderBanquets(); };
 
+function jsonp(url, params){
+  return new Promise((resolve,reject)=>{
+    const cb='__foxBanqCb_'+Date.now()+'_'+Math.floor(Math.random()*100000);
+    const qs=new URLSearchParams(Object.assign({},params,{callback:cb,_:Date.now()}));
+    const s=document.createElement('script');
+    const timer=setTimeout(()=>{ cleanup(); reject(new Error('timeout')); },15000);
+    function cleanup(){
+      clearTimeout(timer);
+      try{ delete window[cb]; }catch(e){ window[cb]=undefined; }
+      if(s.parentNode) s.parentNode.removeChild(s);
+    }
+    window[cb]=(data)=>{ cleanup(); resolve(data); };
+    s.onerror=()=>{ cleanup(); reject(new Error('jsonp error')); };
+    s.src=url+(url.includes('?')?'&':'?')+qs.toString();
+    document.body.appendChild(s);
+  });
+}
+
+async function loadBanquets(){
+  updateAdminVisibility();
+  updateStorageWarning();
+
+  if(!isApiConfigured()){
+    banqSharedMode=false;
+    try{ banquets=JSON.parse(localStorage.getItem(BANQ_LOCAL_FALLBACK_KEY)||'[]'); }catch(e){ banquets=[]; }
+    setSyncStatus('warn','Работает локальный тестовый режим. Чтобы все видели одни и те же фото, подключи Apps Script Web App.');
+    renderBanquets();
+    return;
+  }
+
+  try{
+    setSyncStatus('', 'Загружаю общую базу банкетов…');
+    const res=await jsonp(BANQ_API_URL,{action:'list'});
+    if(!res || !res.ok) throw new Error(res && res.error ? res.error : 'bad response');
+    banquets=(res.items||[]).map(x=>({
+      id:String(x.id||''),
+      date:String(x.date||''),
+      time:String(x.time||''),
+      name:String(x.name||''),
+      comment:String(x.comment||''),
+      status:String(x.status||'Актуально'),
+      photo:String(x.imageUrl||x.photo||'')
+    })).filter(x=>x.id && x.date);
+    banqSharedMode=true;
+    setSyncStatus('ok','Общая база подключена. Банкеты и фото видны всем пользователям.');
+    renderBanquets();
+  }catch(e){
+    banqSharedMode=false;
+    try{ banquets=JSON.parse(localStorage.getItem(BANQ_LOCAL_FALLBACK_KEY)||'[]'); }catch(_){ banquets=[]; }
+    setSyncStatus('err','Не удалось загрузить общую базу. Проверь URL Web App и доступы. Сейчас показан локальный резерв.');
+    renderBanquets();
+  }
+}
+
+function saveLocalFallback(){
+  localStorage.setItem(BANQ_LOCAL_FALLBACK_KEY, JSON.stringify(banquets));
+}
 function banquetsByDate(){
   const map={};
   banquets.forEach(b=>{
@@ -818,7 +940,7 @@ function renderBanqDay(){
   document.getElementById('banqSelectedCount').textContent=items.length+' '+pluralRu(items.length,'заказ','заказа','заказов');
 
   if(!items.length){
-    list.innerHTML='<div class="banq-empty">На эту дату банкетов пока нет. Добавь заказ через форму ниже.</div>';
+    list.innerHTML='<div class="banq-empty">На эту дату банкетов пока нет.</div>';
     return;
   }
 
@@ -832,15 +954,23 @@ function renderBanqDay(){
       '<div class="banq-item-head"><div class="banq-time">'+escapeHtml(b.time||'')+'</div><div class="banq-status">'+escapeHtml(b.status||'Актуально')+'</div></div>'+
       '<div class="banq-name">'+safeName+'</div>'+
       (safeComment?'<div class="banq-comment">'+safeComment+'</div>':'')+
-      (b.photo?'<img class="banq-img" src="'+b.photo+'" alt="Фото заказа">':'<div class="banq-empty">Фото заказа не добавлено</div>')+
-      '<div class="banq-actions"><button class="small-btn danger" type="button" data-del="'+b.id+'">Удалить</button></div>';
-    card.querySelector('[data-del]').onclick=()=>{
-      if(!confirm('Удалить этот банкет?')) return;
-      banquets=banquets.filter(x=>x.id!==b.id);
-      saveBanquets();
-      hap('ok');
-      renderBanquets();
-    };
+      (b.photo?'<img class="banq-img" src="'+escapeHtml(b.photo)+'" alt="Фото заказа">':'<div class="banq-empty">Фото заказа не добавлено</div>')+
+      (isBanqAdmin()?'<div class="banq-actions"><button class="small-btn danger" type="button" data-del="'+escapeHtml(b.id)+'">Удалить</button></div>':'');
+    const del=card.querySelector('[data-del]');
+    if(del){
+      del.onclick=async ()=>{
+        if(!confirm('Удалить этот банкет?')) return;
+        if(isApiConfigured()){
+          await postBanqForm({action:'delete',id:b.id});
+          await loadBanquets();
+        }else{
+          banquets=banquets.filter(x=>x.id!==b.id);
+          saveLocalFallback();
+          renderBanquets();
+        }
+        hap('ok');
+      };
+    }
     list.appendChild(card);
   });
 }
@@ -880,8 +1010,21 @@ async function imageToDataUrl(file){
     img.src=raw;
   });
 }
+async function postBanqForm(fields){
+  const fd=new FormData();
+  Object.keys(fields).forEach(k=>fd.append(k, fields[k] == null ? '' : fields[k]));
+  fd.append('telegramUserId', getTgUserId());
+  fd.append('telegramUserName', getTgUserName());
+  fd.append('telegramInitData', TG ? (TG.initData || '') : '');
+  await fetch(BANQ_API_URL, {method:'POST', mode:'no-cors', body:fd});
+}
 document.getElementById('banqForm').onsubmit=async e=>{
   e.preventDefault();
+  if(!isBanqAdmin()){
+    alert('Добавлять банкеты может только админ.');
+    return;
+  }
+
   const file=document.getElementById('banqPhoto').files[0];
   const photo=await imageToDataUrl(file);
   const item={
@@ -894,21 +1037,55 @@ document.getElementById('banqForm').onsubmit=async e=>{
     photo:photo
   };
   if(!item.date || !item.time || !item.name) return;
-  banquets.push(item);
-  saveBanquets();
-  selectedBanqDate=item.date;
-  banqMonthDate=parseIsoDate(item.date);
-  banqMonthDate.setDate(1);
-  e.target.reset();
-  document.getElementById('banqDate').value=selectedBanqDate;
-  document.getElementById('banqStatus').value='Актуально';
-  hap('ok');
-  renderBanquets();
+
+  setSyncStatus('', 'Сохраняю банкет…');
+
+  if(isApiConfigured()){
+    await postBanqForm({
+      action:'save',
+      id:item.id,
+      date:item.date,
+      time:item.time,
+      name:item.name,
+      comment:item.comment,
+      status:item.status,
+      photoBase64:item.photo,
+      photoName:file ? file.name : ''
+    });
+    selectedBanqDate=item.date;
+    banqMonthDate=parseIsoDate(item.date);
+    banqMonthDate.setDate(1);
+    e.target.reset();
+    document.getElementById('banqDate').value=selectedBanqDate;
+    document.getElementById('banqStatus').value='Актуально';
+    hap('ok');
+    setTimeout(loadBanquets, 900);
+  }else{
+    banquets.push(item);
+    saveLocalFallback();
+    selectedBanqDate=item.date;
+    banqMonthDate=parseIsoDate(item.date);
+    banqMonthDate.setDate(1);
+    e.target.reset();
+    document.getElementById('banqDate').value=selectedBanqDate;
+    document.getElementById('banqStatus').value='Актуально';
+    hap('ok');
+    renderBanquets();
+    setSyncStatus('warn','Сохранено локально. Другие пользователи это не увидят, пока не подключена общая база.');
+  }
 };
+
+window.showMyId=function(){
+  const id=getTgUserId() || 'не открыт внутри Telegram';
+  alert('Ваш Telegram user_id: '+id);
+};
+
+
 
 switchTab(DATA[0].id);
 refresh();
 setAppSection('hub');
+loadBanquets();
 
 </script>
 </body>
