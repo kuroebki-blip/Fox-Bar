@@ -228,6 +228,14 @@ body.mode-hub #backBtn{display:none}
 .sync-status.warn{color:#EAD9B0;border-color:rgba(230,180,80,.3);background:var(--warn-soft)}
 .sync-status.err{color:#F0B0A7;border-color:rgba(240,139,125,.35);background:rgba(240,139,125,.12)}
 
+
+.banq-refresh{border:1px solid var(--amber-line);background:var(--amber-soft);color:var(--amber);
+  font-family:inherit;font-size:12px;font-weight:700;padding:10px 12px;border-radius:11px;cursor:pointer}
+.banq-refresh:active{background:rgba(238,142,58,.28)}
+.banq-photo-link{display:inline-flex;margin-top:8px;border:1px solid var(--amber-line);background:var(--amber-soft);
+  color:var(--amber);text-decoration:none;font-family:inherit;font-size:12px;font-weight:700;padding:9px 10px;border-radius:10px}
+.banq-img.err{display:none}
+
 </style>
 </head>
 <body class="mode-hub">
@@ -278,6 +286,7 @@ body.mode-hub #backBtn{display:none}
       <div class="banq-title">Банкеты</div>
       <div class="banq-sub">Выбери дату в календаре, чтобы увидеть заказы</div>
     </div>
+    <button class="banq-refresh" id="banqRefresh" type="button">Обновить</button>
   </div>
 
   <div class="local-warn" id="banqStorageWarn">
@@ -826,6 +835,11 @@ let banqMonthDate=new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 document.getElementById('banqDate').value=todayIso;
 document.getElementById('banqPrev').onclick=()=>{ banqMonthDate.setMonth(banqMonthDate.getMonth()-1); hap('light'); renderBanquets(); };
 document.getElementById('banqNext').onclick=()=>{ banqMonthDate.setMonth(banqMonthDate.getMonth()+1); hap('light'); renderBanquets(); };
+const banqRefreshBtn=document.getElementById('banqRefresh');
+if(banqRefreshBtn){
+  banqRefreshBtn.onclick=()=>{ hap('light'); loadBanquets(); };
+}
+
 
 function jsonp(url, params){
   return new Promise((resolve,reject)=>{
@@ -868,7 +882,9 @@ async function loadBanquets(){
       name:String(x.name||''),
       comment:String(x.comment||''),
       status:String(x.status||'Актуально'),
-      photo:String(x.imageUrl||x.photo||'')
+      photo:String(x.imageUrl||x.photo||''),
+      fileId:String(x.fileId||''),
+      imageUrls:(x.imageUrls||[]).map(String).filter(Boolean)
     })).filter(x=>x.id && x.date);
     banqSharedMode=true;
     setSyncStatus('ok','Общая база подключена. Банкеты и фото видны всем пользователям.');
@@ -954,7 +970,7 @@ function renderBanqDay(){
       '<div class="banq-item-head"><div class="banq-time">'+escapeHtml(b.time||'')+'</div><div class="banq-status">'+escapeHtml(b.status||'Актуально')+'</div></div>'+
       '<div class="banq-name">'+safeName+'</div>'+
       (safeComment?'<div class="banq-comment">'+safeComment+'</div>':'')+
-      (b.photo?'<img class="banq-img" src="'+escapeHtml(b.photo)+'" alt="Фото заказа">':'<div class="banq-empty">Фото заказа не добавлено</div>')+
+      renderBanqPhotoHtml(b)+
       (isBanqAdmin()?'<div class="banq-actions"><button class="small-btn danger" type="button" data-del="'+escapeHtml(b.id)+'">Удалить</button></div>':'');
     const del=card.querySelector('[data-del]');
     if(del){
@@ -972,8 +988,50 @@ function renderBanqDay(){
       };
     }
     list.appendChild(card);
+    attachBanqImageFallbacks(card);
   });
 }
+
+function getBanqImageUrls(b){
+  const urls=[];
+  if(b.imageUrls && b.imageUrls.length) b.imageUrls.forEach(u=>urls.push(u));
+  if(b.photo) urls.push(b.photo);
+  if(b.fileId){
+    urls.push('https://lh3.googleusercontent.com/d/'+encodeURIComponent(b.fileId)+'=w1600');
+    urls.push('https://drive.google.com/thumbnail?id='+encodeURIComponent(b.fileId)+'&sz=w1600');
+    urls.push('https://drive.google.com/uc?export=view&id='+encodeURIComponent(b.fileId));
+  }
+  return [...new Set(urls.filter(Boolean))];
+}
+function renderBanqPhotoHtml(b){
+  const urls=getBanqImageUrls(b);
+  if(!urls.length) return '<div class="banq-empty">Фото заказа не добавлено</div>';
+  const first=escapeHtml(urls[0]);
+  return '<img class="banq-img" src="'+first+'" alt="Фото заказа" data-img-urls="'+escapeHtml(JSON.stringify(urls))+'" data-img-i="0">'+
+    '<a class="banq-photo-link" href="'+first+'" target="_blank" rel="noopener">Открыть фото отдельно</a>';
+}
+function attachBanqImageFallbacks(root){
+  root.querySelectorAll('img.banq-img[data-img-urls]').forEach(img=>{
+    img.onerror=()=>{
+      let urls=[];
+      try{ urls=JSON.parse(img.dataset.imgUrls||'[]'); }catch(e){}
+      let i=Number(img.dataset.imgI||0)+1;
+      if(i<urls.length){
+        img.dataset.imgI=String(i);
+        img.src=urls[i];
+        const link=img.parentElement && img.parentElement.querySelector('.banq-photo-link');
+        if(link) link.href=urls[i];
+      }else{
+        img.classList.add('err');
+        const empty=document.createElement('div');
+        empty.className='banq-empty';
+        empty.textContent='Фото не открылось внутри приложения. Нажми «Открыть фото отдельно».';
+        img.insertAdjacentElement('afterend', empty);
+      }
+    };
+  });
+}
+
 function pluralRu(n,a,b,c){
   n=Math.abs(n)%100; const n1=n%10;
   if(n>10&&n<20) return c;
@@ -996,7 +1054,7 @@ async function imageToDataUrl(file){
   return await new Promise(resolve=>{
     const img=new Image();
     img.onload=()=>{
-      const maxSide=1600;
+      const maxSide=1100;
       let w=img.width, h=img.height;
       const k=Math.min(1, maxSide/Math.max(w,h));
       w=Math.round(w*k); h=Math.round(h*k);
@@ -1004,7 +1062,7 @@ async function imageToDataUrl(file){
       canvas.width=w; canvas.height=h;
       const ctx=canvas.getContext('2d');
       ctx.drawImage(img,0,0,w,h);
-      resolve(canvas.toDataURL('image/jpeg',0.82));
+      resolve(canvas.toDataURL('image/jpeg',0.72));
     };
     img.onerror=()=>resolve(raw);
     img.src=raw;
