@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.7 — быстрая камера и ручная обрезка</title>
+<title>FO'X App v15.8 — камера без зума и ручная обрезка</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -375,7 +375,8 @@ body.mode-hub #backBtn{display:none}
 .receipt-camera-close,.receipt-camera-switch{border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12);color:#fff;
   border-radius:10px;padding:9px 10px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
 .receipt-camera-stage{position:relative;flex:1 1 auto;min-height:0;width:100%;overflow:hidden;background:#050505}
-.receipt-camera-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center center;background:#050505}
+.receipt-camera-video-bg{position:absolute;inset:-18px;width:calc(100% + 36px);height:calc(100% + 36px);object-fit:cover;object-position:center center;filter:blur(20px) brightness(.45);transform:scale(1.08);background:#050505;pointer-events:none}
+.receipt-camera-video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center center;background:transparent}
 .receipt-camera-video.front{transform:scaleX(-1)}
 .receipt-camera-guide{position:absolute;inset:12px;border:1px dashed rgba(255,255,255,.58);border-radius:14px;
   box-shadow:none;pointer-events:none;transition:border-color .2s ease}
@@ -533,7 +534,7 @@ body.mode-hub #backBtn{display:none}
     <div>
       <div class="receipt-title">Документы и чеки</div>
       <div class="receipt-sub" id="receiptScreenSub">Выбери режим → сними все страницы → получи один PDF → проверь результат</div>
-      <div class="receipt-version-badge">v15.7 · без автоопределения границ</div>
+      <div class="receipt-version-badge">v15.8 · камера без зума · ручная обрезка</div>
     </div>
   </div>
 
@@ -684,6 +685,7 @@ body.mode-hub #backBtn{display:none}
     </div>
   </div>
   <div class="receipt-camera-stage" id="receiptCameraStage">
+    <video class="receipt-camera-video-bg" id="receiptCameraVideoBg" autoplay playsinline muted aria-hidden="true"></video>
     <video class="receipt-camera-video" id="receiptCameraVideo" autoplay playsinline muted></video>
     <div class="receipt-camera-guide" id="receiptCameraGuide"></div>
     <div class="receipt-camera-flash" id="receiptCameraFlash"></div>
@@ -1736,7 +1738,7 @@ window.showMyId=function(){
 
 
 
-// ===== FO’X v15.7 — быстрая полноэкранная камера + ручная обрезка =====
+// ===== FO’X v15.8 — полный кадр без цифрового зума + ручная обрезка =====
 // После публикации Apps Script вставь сюда URL нового Web App.
 const STOCK_API_URL = 'https://script.google.com/macros/s/AKfycbx9XlQG6kCvWVU6OekcWAmHAVnjFXfG-_UD_pKQrQqYaWNyHzmXsmB_2LGohxETrrfTpA/exec';
 const RECEIPT_MESSAGE_DOC_TYPE = 'Счёт на оплату';
@@ -1855,7 +1857,9 @@ function stopReceiptCamera(){
     receiptCameraStream=null;
   }
   const video=document.getElementById('receiptCameraVideo');
+  const videoBg=document.getElementById('receiptCameraVideoBg');
   if(video){video.pause();video.srcObject=null;video.classList.remove('front');}
+  if(videoBg){videoBg.pause();videoBg.srcObject=null;}
 }
 function closeReceiptCamera(){
   stopReceiptCamera();
@@ -1870,24 +1874,15 @@ function closeReceiptCamera(){
 }
 function nextAnimationFrame_(){return new Promise(resolve=>requestAnimationFrame(()=>resolve()));}
 async function getReceiptCameraStream_(){
-  const stage=document.getElementById('receiptCameraStage');
-  const portrait=(stage?stage.clientHeight:window.innerHeight)>=(stage?stage.clientWidth:window.innerWidth);
+  // Не задаём width/height, aspectRatio и resizeMode: Android WebView иначе
+  // может включить crop-and-scale и создать ощущение сильного цифрового зума.
   const primary={
     audio:false,
-    video:{
-      facingMode:receiptCameraFacing==='environment'?{exact:'environment'}:{exact:'user'},
-      width:{ideal:portrait?1080:1920},
-      height:{ideal:portrait?1920:1080},
-      resizeMode:{ideal:'crop-and-scale'}
-    }
+    video:{facingMode:receiptCameraFacing==='environment'?{exact:'environment'}:{exact:'user'}}
   };
   const fallback={
     audio:false,
-    video:{
-      facingMode:{ideal:receiptCameraFacing},
-      width:{ideal:portrait?1080:1920},
-      height:{ideal:portrait?1920:1080}
-    }
+    video:{facingMode:{ideal:receiptCameraFacing}}
   };
   try{return await navigator.mediaDevices.getUserMedia(primary);}
   catch(_){return await navigator.mediaDevices.getUserMedia(fallback);}
@@ -1900,7 +1895,9 @@ async function startReceiptCameraStream(){
   await nextAnimationFrame_();
   receiptCameraStream=await getReceiptCameraStream_();
   const video=document.getElementById('receiptCameraVideo');
+  const videoBg=document.getElementById('receiptCameraVideoBg');
   video.srcObject=receiptCameraStream;
+  if(videoBg) videoBg.srcObject=receiptCameraStream;
   video.classList.toggle('front',receiptCameraFacing==='user');
   await new Promise((resolve,reject)=>{
     const timer=setTimeout(()=>reject(new Error('Камера долго запускается. Закрой её и открой снова.')),10000);
@@ -1908,6 +1905,16 @@ async function startReceiptCameraStream(){
     if(video.readyState>=1) ready(); else video.addEventListener('loadedmetadata',ready,{once:true});
   });
   await video.play();
+  if(videoBg){try{await videoBg.play();}catch(_){}}
+
+  // Сбрасываем аппаратный/цифровой zoom на минимальное доступное значение.
+  try{
+    const track=receiptCameraStream.getVideoTracks()[0];
+    const caps=track&&track.getCapabilities?track.getCapabilities():null;
+    if(caps&&caps.zoom&&Number.isFinite(caps.zoom.min)){
+      await track.applyConstraints({advanced:[{zoom:caps.zoom.min}]});
+    }
+  }catch(_){}
 
   // Мягко просим непрерывный фокус, только если Android/WebView его поддерживает.
   try{
@@ -1926,7 +1933,7 @@ async function openReceiptCamera(replaceIndex=-1){
   const heading=document.getElementById('receiptCameraHeading');
   const hint=document.getElementById('receiptCameraHint');
   if(heading) heading.textContent=receiptCameraReplaceIndex>=0?'Переснять страницу '+(receiptCameraReplaceIndex+1):(getReceiptMode()==='check'?'Съёмка чека':'Съёмка документа');
-  if(hint) hint.textContent='Снимок сохраняется сразу. Автообрезки нет — края правятся кнопкой ✂';
+  if(hint) hint.textContent='Показывается весь кадр без цифрового зума. Края можно поправить кнопкой ✂';
   updateReceiptCameraCount();
   overlay.hidden=false;
   try{
@@ -1965,30 +1972,31 @@ function videoFrameToCanvas(){
   const video=document.getElementById('receiptCameraVideo');
   const stage=document.getElementById('receiptCameraStage');
   if(!video||!video.videoWidth||!video.videoHeight) throw new Error('Камера ещё не готова. Подожди секунду.');
-  if(!stage||!stage.clientWidth||!stage.clientHeight) throw new Error('Не удалось определить размер камеры.');
 
   const vw=video.videoWidth,vh=video.videoHeight;
-  const stageAspect=stage.clientWidth/stage.clientHeight;
-  const videoAspect=vw/vh;
-  let sx=0,sy=0,sw=vw,sh=vh;
-
-  // Берём ровно ту область, которая видна в полноэкранном preview с object-fit: cover.
-  if(videoAspect>stageAspect){
-    sw=vh*stageAspect;
-    sx=(vw-sw)/2;
-  }else if(videoAspect<stageAspect){
-    sh=vw/stageAspect;
-    sy=(vh-sh)/2;
-  }
-
+  const stagePortrait=(stage?stage.clientHeight:window.innerHeight)>=(stage?stage.clientWidth:window.innerWidth);
+  const framePortrait=vh>=vw;
+  const rotate=stagePortrait!==framePortrait;
   const maxSide=1800;
-  const scale=Math.min(1,maxSide/Math.max(sw,sh));
+  const rawW=rotate?vh:vw;
+  const rawH=rotate?vw:vh;
+  const scale=Math.min(1,maxSide/Math.max(rawW,rawH));
   const canvas=document.createElement('canvas');
-  canvas.width=Math.max(1,Math.round(sw*scale));
-  canvas.height=Math.max(1,Math.round(sh*scale));
+  canvas.width=Math.max(1,Math.round(rawW*scale));
+  canvas.height=Math.max(1,Math.round(rawH*scale));
   const ctx=canvas.getContext('2d',{alpha:false});
   ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
-  ctx.drawImage(video,sx,sy,sw,sh,0,0,canvas.width,canvas.height);
+
+  // Сохраняем весь поток камеры, ничего не вырезаем под пропорции экрана.
+  if(rotate){
+    ctx.save();
+    ctx.translate(canvas.width,0);
+    ctx.rotate(Math.PI/2);
+    ctx.drawImage(video,0,0,canvas.height,canvas.width);
+    ctx.restore();
+  }else{
+    ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  }
   return canvas;
 }
 async function cameraFrameToReceiptPage(){
@@ -2001,7 +2009,7 @@ async function cameraFrameToReceiptPage(){
     height:canvas.height,
     orientation:canvas.width>canvas.height?'landscape':'portrait',
     cropped:false,
-    cropNote:'Сохранён видимый кадр без автообрезки.',
+    cropNote:'Сохранён полный кадр камеры без цифрового зума и автообрезки.',
     originalDataUrl:dataUrl,
     dataUrl
   };
