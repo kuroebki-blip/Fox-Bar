@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.5 — умное определение листа</title>
+<title>FO'X App v15.7 — быстрая камера и ручная обрезка</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -308,8 +308,9 @@ body.mode-hub #backBtn{display:none}
 .receipt-page img{display:block;width:100%;height:164px;object-fit:contain;background:#0C0A08;border-radius:10px}
 .receipt-page-num{position:absolute;left:14px;top:14px;background:rgba(0,0,0,.72);color:#fff;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:700}
 .receipt-page-orientation{position:absolute;right:14px;top:14px;background:rgba(0,0,0,.72);color:#fff;border-radius:999px;padding:4px 8px;font-size:10px;font-weight:700}
-.receipt-page-actions{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px}
+.receipt-page-actions{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:8px}
 .receipt-page-actions button{border:1px solid var(--line-strong);background:var(--bg);color:var(--muted);border-radius:9px;padding:8px 2px;font-size:13px;cursor:pointer}
+.receipt-page-actions button[data-rotate]{font-size:20px;line-height:1;color:var(--amber)}
 .receipt-page-actions button:disabled{opacity:.28}.receipt-page-actions .del{color:#F0B0A7}
 .receipt-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .receipt-primary,.receipt-secondary,.receipt-danger{border-radius:12px;padding:13px 14px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer}
@@ -341,24 +342,58 @@ body.mode-hub #backBtn{display:none}
 .receipt-access-denied{padding:14px;border:1px solid rgba(240,139,125,.35);background:rgba(240,139,125,.12);color:#F0B0A7;border-radius:14px}
 .receipt-mode-note{font-size:12px;color:var(--muted);line-height:1.45;margin-top:6px}
 .receipt-check-only[hidden],.receipt-doc-only[hidden]{display:none!important}
-.receipt-camera-overlay{position:fixed;inset:0;z-index:120;background:#000;display:flex;flex-direction:column}
+
+.receipt-version-badge{display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:5px 9px;border-radius:999px;
+  border:1px solid rgba(95,191,143,.35);background:var(--done-soft);color:#C9E8D8;font-size:10px;font-weight:800;letter-spacing:.2px}
+
+.receipt-editor-overlay{position:fixed;inset:0;z-index:130;background:#090806;display:flex;flex-direction:column;color:#fff}
+.receipt-editor-overlay[hidden]{display:none!important}
+.receipt-editor-head{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;padding:calc(env(safe-area-inset-top) + 10px) 10px 10px;background:#15110d;border-bottom:1px solid rgba(255,255,255,.1)}
+.receipt-editor-head b{font-family:"Unbounded",sans-serif;font-size:12px;text-align:center}
+.receipt-editor-head-actions{display:flex;gap:7px;align-items:center}
+.receipt-editor-btn{border:1px solid rgba(255,255,255,.24);background:rgba(255,255,255,.08);color:#fff;border-radius:10px;padding:9px 10px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.receipt-editor-btn.save{border:none;background:var(--amber);color:#1A1208}
+.receipt-editor-stage{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:12px;background:#050403}
+.receipt-editor-frame{position:relative;flex:0 0 auto;overflow:hidden;background:#111;box-shadow:0 8px 35px rgba(0,0,0,.55);user-select:none;-webkit-user-select:none}
+.receipt-editor-image{display:block;width:100%;height:100%;pointer-events:none}
+.receipt-crop-box{position:absolute;border:2px solid var(--amber);box-shadow:0 0 0 9999px rgba(0,0,0,.58);touch-action:none;cursor:move}
+.receipt-crop-box::before{content:"";position:absolute;inset:0;border:1px solid rgba(255,255,255,.55);pointer-events:none}
+.receipt-crop-handle{position:absolute;width:28px;height:28px;border:3px solid #fff;background:var(--amber);border-radius:50%;box-shadow:0 2px 10px rgba(0,0,0,.5);touch-action:none}
+.receipt-crop-handle[data-handle="nw"]{left:-15px;top:-15px;cursor:nwse-resize}
+.receipt-crop-handle[data-handle="ne"]{right:-15px;top:-15px;cursor:nesw-resize}
+.receipt-crop-handle[data-handle="se"]{right:-15px;bottom:-15px;cursor:nwse-resize}
+.receipt-crop-handle[data-handle="sw"]{left:-15px;bottom:-15px;cursor:nesw-resize}
+.receipt-editor-hint{padding:10px 14px calc(env(safe-area-inset-bottom) + 12px);background:#15110d;color:rgba(255,255,255,.75);font-size:12px;text-align:center;line-height:1.4}
+
+.receipt-camera-overlay{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;z-index:120;background:#000;
+  display:flex;flex-direction:column;overflow:hidden;overscroll-behavior:none}
 .receipt-camera-overlay[hidden]{display:none!important}
-.receipt-camera-head{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;padding:calc(env(safe-area-inset-top) + 10px) 10px 10px;background:rgba(0,0,0,.88);color:#fff}
+.receipt-camera-head{flex:0 0 auto;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;
+  padding:calc(env(safe-area-inset-top) + 8px) 10px 8px;background:rgba(0,0,0,.78);color:#fff;z-index:3}
 .receipt-camera-head b{font-family:"Unbounded",sans-serif;font-size:12px;text-align:center;min-width:0}
 .receipt-camera-head-actions{display:flex;gap:6px;align-items:center}
-.receipt-camera-close,.receipt-camera-switch,.receipt-camera-orientation{border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.1);color:#fff;border-radius:10px;padding:9px 10px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
-.receipt-camera-stage{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#000}
-.receipt-camera-video{width:100%;height:100%;object-fit:contain;background:#000}
-.receipt-camera-guide{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:calc(100% - 24px);height:calc(100% - 24px);border:1px dashed rgba(255,255,255,.58);border-radius:14px;box-shadow:none;pointer-events:none;transition:border-color .2s ease}
-.receipt-camera-guide.portrait,.receipt-camera-guide.landscape{width:calc(100% - 24px);height:calc(100% - 24px);aspect-ratio:auto}
+.receipt-camera-close,.receipt-camera-switch{border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12);color:#fff;
+  border-radius:10px;padding:9px 10px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.receipt-camera-stage{position:relative;flex:1 1 auto;min-height:0;width:100%;overflow:hidden;background:#050505}
+.receipt-camera-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center center;background:#050505}
+.receipt-camera-video.front{transform:scaleX(-1)}
+.receipt-camera-guide{position:absolute;inset:12px;border:1px dashed rgba(255,255,255,.58);border-radius:14px;
+  box-shadow:none;pointer-events:none;transition:border-color .2s ease}
+.receipt-camera-guide.portrait,.receipt-camera-guide.landscape{inset:12px;aspect-ratio:auto}
 .receipt-camera-guide:before,.receipt-camera-guide:after{content:"";position:absolute;width:34px;height:34px;border-color:var(--amber);border-style:solid}
 .receipt-camera-guide:before{left:-2px;top:-2px;border-width:4px 0 0 4px;border-radius:12px 0 0 0}
 .receipt-camera-guide:after{right:-2px;bottom:-2px;border-width:0 4px 4px 0;border-radius:0 0 12px 0}
-.receipt-camera-bottom{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 18px calc(env(safe-area-inset-bottom) + 16px);background:rgba(0,0,0,.92);color:#fff}
-.receipt-camera-count{min-width:78px;font-size:12px;color:rgba(255,255,255,.72)}
-.receipt-camera-shot{width:72px;height:72px;border-radius:50%;border:5px solid #fff;background:var(--amber);box-shadow:0 0 0 3px rgba(255,255,255,.28);cursor:pointer;flex:0 0 auto}.receipt-camera-shot:disabled{opacity:.45;cursor:wait}
-.receipt-camera-done{min-width:78px;border:none;background:var(--done);color:#102019;border-radius:12px;padding:12px 13px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer}
-.receipt-camera-hint{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);max-width:90%;background:rgba(0,0,0,.64);color:#fff;border-radius:999px;padding:7px 11px;font-size:11px;white-space:nowrap;pointer-events:none}
+.receipt-camera-bottom{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:12px 18px calc(env(safe-area-inset-bottom) + 14px);background:rgba(0,0,0,.84);color:#fff;z-index:3}
+.receipt-camera-count{min-width:78px;font-size:12px;color:rgba(255,255,255,.78)}
+.receipt-camera-shot{width:72px;height:72px;border-radius:50%;border:5px solid #fff;background:var(--amber);
+  box-shadow:0 0 0 3px rgba(255,255,255,.28);cursor:pointer;flex:0 0 auto}
+.receipt-camera-shot:disabled{opacity:.45;cursor:wait}
+.receipt-camera-done{min-width:78px;border:none;background:var(--done);color:#102019;border-radius:12px;padding:12px 13px;
+  font-family:inherit;font-size:13px;font-weight:800;cursor:pointer}
+.receipt-camera-hint{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);max-width:calc(100% - 28px);
+  background:rgba(0,0,0,.66);color:#fff;border-radius:12px;padding:7px 11px;font-size:11px;line-height:1.3;text-align:center;
+  white-space:normal;pointer-events:none}
 .receipt-camera-flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
 .receipt-camera-flash.show{animation:receiptFlash .22s ease}
 @keyframes receiptFlash{0%{opacity:.9}100%{opacity:0}}
@@ -498,11 +533,12 @@ body.mode-hub #backBtn{display:none}
     <div>
       <div class="receipt-title">Документы и чеки</div>
       <div class="receipt-sub" id="receiptScreenSub">Выбери режим → сними все страницы → получи один PDF → проверь результат</div>
+      <div class="receipt-version-badge">v15.7 · без автоопределения границ</div>
     </div>
   </div>
 
   <div class="receipt-status" id="receiptStatus">
-    Сфотографируй страницы прямо в приложении или выбери готовые фото.
+    Сфотографируй страницы или выбери готовые фото. Края можно обрезать вручную перед распознаванием.
     <div class="receipt-progress"><i id="receiptProgress"></i></div>
   </div>
 
@@ -644,15 +680,14 @@ body.mode-hub #backBtn{display:none}
     <button class="receipt-camera-close" id="receiptCameraClose" type="button">Закрыть</button>
     <b id="receiptCameraHeading">Съёмка страницы</b>
     <div class="receipt-camera-head-actions">
-      <button class="receipt-camera-orientation" id="receiptCameraOrientation" type="button">▯ Вертикально</button>
       <button class="receipt-camera-switch" id="receiptCameraSwitch" type="button">↻ Камера</button>
     </div>
   </div>
   <div class="receipt-camera-stage" id="receiptCameraStage">
     <video class="receipt-camera-video" id="receiptCameraVideo" autoplay playsinline muted></video>
-    <div class="receipt-camera-guide portrait" id="receiptCameraGuide"></div>
+    <div class="receipt-camera-guide" id="receiptCameraGuide"></div>
     <div class="receipt-camera-flash" id="receiptCameraFlash"></div>
-    <div class="receipt-camera-hint" id="receiptCameraHint">Помести весь лист внутрь рамки</div>
+    <div class="receipt-camera-hint" id="receiptCameraHint">Снимок сохраняется сразу. Автообрезки нет — края правятся кнопкой ✂</div>
   </div>
   <div class="receipt-camera-bottom">
     <div class="receipt-camera-count" id="receiptCameraCount">Снято: 0</div>
@@ -660,6 +695,29 @@ body.mode-hub #backBtn{display:none}
     <button class="receipt-camera-done" id="receiptCameraDone" type="button">Готово</button>
   </div>
   <canvas id="receiptCameraCanvas" hidden></canvas>
+</div>
+
+<div class="receipt-editor-overlay" id="receiptEditorOverlay" hidden role="dialog" aria-modal="true" aria-label="Обрезка страницы">
+  <div class="receipt-editor-head">
+    <button class="receipt-editor-btn" id="receiptEditorCancel" type="button">Отмена</button>
+    <b id="receiptEditorTitle">Обрезать страницу</b>
+    <div class="receipt-editor-head-actions">
+      <button class="receipt-editor-btn" id="receiptEditorReset" type="button">Сбросить</button>
+      <button class="receipt-editor-btn save" id="receiptEditorSave" type="button">Готово</button>
+    </div>
+  </div>
+  <div class="receipt-editor-stage" id="receiptEditorStage">
+    <div class="receipt-editor-frame" id="receiptEditorFrame">
+      <img class="receipt-editor-image" id="receiptEditorImage" alt="Редактируемая страница">
+      <div class="receipt-crop-box" id="receiptCropBox">
+        <span class="receipt-crop-handle" data-handle="nw"></span>
+        <span class="receipt-crop-handle" data-handle="ne"></span>
+        <span class="receipt-crop-handle" data-handle="se"></span>
+        <span class="receipt-crop-handle" data-handle="sw"></span>
+      </div>
+    </div>
+  </div>
+  <div class="receipt-editor-hint">Перетащи рамку или круглые точки по углам. Нажми «Готово», чтобы обрезать.</div>
 </div>
 
 <div class="report-bar"><button class="report-btn" id="reportBtn">📋 Сформировать общий отчёт</button></div>
@@ -1678,7 +1736,7 @@ window.showMyId=function(){
 
 
 
-// ===== FO’X v15.5 — встроенная камера + автоопределение границ листа =====
+// ===== FO’X v15.7 — быстрая полноэкранная камера + ручная обрезка =====
 // После публикации Apps Script вставь сюда URL нового Web App.
 const STOCK_API_URL = 'https://script.google.com/macros/s/AKfycbx9XlQG6kCvWVU6OekcWAmHAVnjFXfG-_UD_pKQrQqYaWNyHzmXsmB_2LGohxETrrfTpA/exec';
 const RECEIPT_MESSAGE_DOC_TYPE = 'Счёт на оплату';
@@ -1694,9 +1752,11 @@ let receiptCameraStream = null;
 let receiptCameraFacing = 'environment';
 let receiptCameraReplaceIndex = -1;
 let receiptCameraSessionShots = 0;
-let receiptCameraOrientation = 'portrait';
-let receiptOpenCvPromise = null;
-const RECEIPT_OPENCV_URL = 'https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.10.0-release.1/dist/opencv.js';
+let receiptCameraDirty = false;
+let receiptEditorPageIndex = -1;
+let receiptEditorSourceImage = null;
+let receiptEditorRect = null;
+let receiptEditorDrag = null;
 
 
 function isStockApiConfigured(){
@@ -1795,64 +1855,78 @@ function stopReceiptCamera(){
     receiptCameraStream=null;
   }
   const video=document.getElementById('receiptCameraVideo');
-  if(video) video.srcObject=null;
+  if(video){video.pause();video.srcObject=null;video.classList.remove('front');}
 }
 function closeReceiptCamera(){
   stopReceiptCamera();
   const overlay=document.getElementById('receiptCameraOverlay');
   if(overlay) overlay.hidden=true;
   receiptCameraReplaceIndex=-1;
-}
-function updateReceiptCameraOrientationUi(){
-  const guide=document.getElementById('receiptCameraGuide');
-  const btn=document.getElementById('receiptCameraOrientation');
-  const portrait=receiptCameraOrientation!=='landscape';
-  if(guide){
-    guide.classList.toggle('portrait',portrait);
-    guide.classList.toggle('landscape',!portrait);
+  if(receiptCameraDirty){
+    receiptCameraDirty=false;
+    renderReceiptPages();
+    setReceiptStatus('', 'Снимки готовы. Автообрезка отключена — при необходимости используй кнопку ✂.',0);
   }
-  if(btn) btn.textContent=portrait?'▯ Вертикально':'▭ Горизонтально';
 }
-function toggleReceiptCameraOrientation(){
-  receiptCameraOrientation=receiptCameraOrientation==='portrait'?'landscape':'portrait';
-  updateReceiptCameraOrientationUi();
-  const hint=document.getElementById('receiptCameraHint');
-  if(hint) hint.textContent='Автообрезка найдёт края листа. Ориентация результата: '+(receiptCameraOrientation==='portrait'?'вертикальная':'горизонтальная');
-  hap('sel');
+function nextAnimationFrame_(){return new Promise(resolve=>requestAnimationFrame(()=>resolve()));}
+async function getReceiptCameraStream_(){
+  const stage=document.getElementById('receiptCameraStage');
+  const portrait=(stage?stage.clientHeight:window.innerHeight)>=(stage?stage.clientWidth:window.innerWidth);
+  const primary={
+    audio:false,
+    video:{
+      facingMode:receiptCameraFacing==='environment'?{exact:'environment'}:{exact:'user'},
+      width:{ideal:portrait?1080:1920},
+      height:{ideal:portrait?1920:1080},
+      resizeMode:{ideal:'crop-and-scale'}
+    }
+  };
+  const fallback={
+    audio:false,
+    video:{
+      facingMode:{ideal:receiptCameraFacing},
+      width:{ideal:portrait?1080:1920},
+      height:{ideal:portrait?1920:1080}
+    }
+  };
+  try{return await navigator.mediaDevices.getUserMedia(primary);}
+  catch(_){return await navigator.mediaDevices.getUserMedia(fallback);}
 }
 async function startReceiptCameraStream(){
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
     throw new Error('Встроенная камера не поддерживается этим Telegram/WebView.');
   }
   stopReceiptCamera();
-  const constraints={
-    audio:false,
-    video:{
-      facingMode:{ideal:receiptCameraFacing},
-      width:{ideal:1920},
-      height:{ideal:2560}
-    }
-  };
-  receiptCameraStream=await navigator.mediaDevices.getUserMedia(constraints);
+  await nextAnimationFrame_();
+  receiptCameraStream=await getReceiptCameraStream_();
   const video=document.getElementById('receiptCameraVideo');
   video.srcObject=receiptCameraStream;
+  video.classList.toggle('front',receiptCameraFacing==='user');
+  await new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>reject(new Error('Камера долго запускается. Закрой её и открой снова.')),10000);
+    const ready=()=>{clearTimeout(timer);video.removeEventListener('loadedmetadata',ready);resolve();};
+    if(video.readyState>=1) ready(); else video.addEventListener('loadedmetadata',ready,{once:true});
+  });
   await video.play();
+
+  // Мягко просим непрерывный фокус, только если Android/WebView его поддерживает.
+  try{
+    const track=receiptCameraStream.getVideoTracks()[0];
+    const caps=track&&track.getCapabilities?track.getCapabilities():null;
+    if(caps&&Array.isArray(caps.focusMode)&&caps.focusMode.includes('continuous')){
+      await track.applyConstraints({advanced:[{focusMode:'continuous'}]});
+    }
+  }catch(_){}
 }
 async function openReceiptCamera(replaceIndex=-1){
   receiptCameraReplaceIndex=Number.isInteger(replaceIndex)?replaceIndex:-1;
   receiptCameraSessionShots=0;
-  if(receiptCameraReplaceIndex>=0&&receiptPages[receiptCameraReplaceIndex]){
-    const page=receiptPages[receiptCameraReplaceIndex];
-    receiptCameraOrientation=page.width>page.height?'landscape':'portrait';
-  }else{
-    receiptCameraOrientation='portrait';
-  }
-  updateReceiptCameraOrientationUi();
+  receiptCameraDirty=false;
   const overlay=document.getElementById('receiptCameraOverlay');
   const heading=document.getElementById('receiptCameraHeading');
   const hint=document.getElementById('receiptCameraHint');
   if(heading) heading.textContent=receiptCameraReplaceIndex>=0?'Переснять страницу '+(receiptCameraReplaceIndex+1):(getReceiptMode()==='check'?'Съёмка чека':'Съёмка документа');
-  if(hint) hint.textContent=getReceiptMode()==='check'?'Держи чек целиком в кадре — края определятся автоматически':'Держи весь лист в кадре — края определятся автоматически';
+  if(hint) hint.textContent='Снимок сохраняется сразу. Автообрезки нет — края правятся кнопкой ✂';
   updateReceiptCameraCount();
   overlay.hidden=false;
   try{
@@ -1875,134 +1949,61 @@ function updateReceiptCameraCount(){
   if(!el) return;
   el.textContent=receiptCameraReplaceIndex>=0?'Замена страницы':('Снято: '+receiptCameraSessionShots);
 }
-function ensureReceiptOpenCv(){
-  if(window.cv&&window.cv.Mat) return Promise.resolve(window.cv);
-  if(receiptOpenCvPromise) return receiptOpenCvPromise;
-  receiptOpenCvPromise=new Promise((resolve,reject)=>{
-    const started=Date.now();
-    let settled=false;
-    const finish=async()=>{
-      if(settled) return;
-      try{
-        if(window.cv&&typeof window.cv.then==='function') window.cv=await window.cv;
-      }catch(e){}
-      if(window.cv&&window.cv.Mat){settled=true;resolve(window.cv);return;}
-      if(Date.now()-started>30000){settled=true;reject(new Error('Модуль автообрезки не загрузился. Проверь интернет.'));return;}
-      setTimeout(finish,120);
-    };
-    const oldModule=window.Module||{};
-    const oldReady=oldModule.onRuntimeInitialized;
-    window.Module=Object.assign({},oldModule,{onRuntimeInitialized:function(){try{if(typeof oldReady==='function')oldReady();}catch(e){}finish();}});
-    let script=document.getElementById('foxReceiptOpenCv');
-    if(!script){
-      script=document.createElement('script');
-      script.id='foxReceiptOpenCv';
-      script.async=true;
-      script.src=RECEIPT_OPENCV_URL;
-      script.onload=finish;
-      script.onerror=()=>{if(!settled){settled=true;reject(new Error('Не удалось загрузить автообрезку. Проверь интернет.'));}};
-      document.head.appendChild(script);
-    }else finish();
+function canvasToJpegDataUrl_(canvas,quality=.84){
+  return new Promise((resolve,reject)=>{
+    if(!canvas.toBlob){try{resolve(canvas.toDataURL('image/jpeg',quality));}catch(err){reject(err);}return;}
+    canvas.toBlob(blob=>{
+      if(!blob){reject(new Error('Не удалось сохранить снимок'));return;}
+      const reader=new FileReader();
+      reader.onload=()=>resolve(String(reader.result||''));
+      reader.onerror=()=>reject(new Error('Не удалось прочитать снимок'));
+      reader.readAsDataURL(blob);
+    },'image/jpeg',quality);
   });
-  return receiptOpenCvPromise;
-}
-function receiptDistance(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
-function orderReceiptCorners(points){
-  const pts=points.map(p=>({x:Number(p.x),y:Number(p.y)}));
-  const bySum=[...pts].sort((a,b)=>(a.x+a.y)-(b.x+b.y));
-  const tl=bySum[0],br=bySum[3];
-  const rest=pts.filter(p=>p!==tl&&p!==br).sort((a,b)=>(a.y-a.x)-(b.y-b.x));
-  const tr=rest[0],bl=rest[1];
-  return [tl,tr,br,bl];
-}
-function rotateCanvasQuarter(sourceCanvas){
-  const canvas=document.createElement('canvas');canvas.width=sourceCanvas.height;canvas.height=sourceCanvas.width;
-  const ctx=canvas.getContext('2d',{alpha:false});ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
-  ctx.translate(canvas.width/2,canvas.height/2);ctx.rotate(Math.PI/2);
-  ctx.drawImage(sourceCanvas,-sourceCanvas.width/2,-sourceCanvas.height/2);
-  return canvas;
-}
-async function autoCropReceiptCanvas(sourceCanvas,preferredOrientation){
-  const cv=await ensureReceiptOpenCv();
-  let src=null,small=null,gray=null,blur=null,edges=null,closed=null,kernel=null,contours=null,hierarchy=null;
-  try{
-    src=cv.imread(sourceCanvas);
-    const maxDetect=1280;
-    const scale=Math.min(1,maxDetect/Math.max(src.cols,src.rows));
-    small=new cv.Mat();
-    cv.resize(src,small,new cv.Size(Math.max(1,Math.round(src.cols*scale)),Math.max(1,Math.round(src.rows*scale))),0,0,cv.INTER_AREA);
-    gray=new cv.Mat();blur=new cv.Mat();edges=new cv.Mat();closed=new cv.Mat();
-    cv.cvtColor(small,gray,cv.COLOR_RGBA2GRAY,0);
-    cv.GaussianBlur(gray,blur,new cv.Size(5,5),0,0,cv.BORDER_DEFAULT);
-    cv.Canny(blur,edges,45,135,3,false);
-    kernel=cv.Mat.ones(5,5,cv.CV_8U);
-    cv.morphologyEx(edges,closed,cv.MORPH_CLOSE,kernel,new cv.Point(-1,-1),2);
-    cv.dilate(closed,closed,kernel,new cv.Point(-1,-1),1);
-    contours=new cv.MatVector();hierarchy=new cv.Mat();
-    cv.findContours(closed,contours,hierarchy,cv.RETR_LIST,cv.CHAIN_APPROX_SIMPLE);
-    const imageArea=small.cols*small.rows;
-    let best=null,bestArea=0;
-    const epsilons=[.012,.018,.025,.035,.05];
-    for(let i=0;i<contours.size();i++){
-      const cnt=contours.get(i);const area=Math.abs(cv.contourArea(cnt,false));
-      if(area<imageArea*.055||area>imageArea*.995){cnt.delete();continue;}
-      const hull=new cv.Mat();cv.convexHull(cnt,hull,false,true);
-      const peri=cv.arcLength(hull,true);
-      for(const eps of epsilons){
-        const approx=new cv.Mat();cv.approxPolyDP(hull,approx,peri*eps,true);
-        if(approx.rows===4&&cv.isContourConvex(approx)){
-          const pts=[];for(let j=0;j<4;j++)pts.push({x:approx.data32S[j*2]/scale,y:approx.data32S[j*2+1]/scale});
-          if(area>bestArea){bestArea=area;best=pts;}
-        }
-        approx.delete();
-        if(bestArea===area&&best) break;
-      }
-      hull.delete();cnt.delete();
-    }
-    if(!best) return {canvas:sourceCanvas,cropped:false,reason:'Границы листа не найдены — сохранён полный кадр.'};
-    const [tl,tr,br,bl]=orderReceiptCorners(best);
-    let width=Math.max(receiptDistance(tl,tr),receiptDistance(bl,br));
-    let height=Math.max(receiptDistance(tl,bl),receiptDistance(tr,br));
-    if(width<220||height<220) return {canvas:sourceCanvas,cropped:false,reason:'Лист слишком маленький в кадре — сохранён полный снимок.'};
-    const maxOut=2100;const outScale=Math.min(1,maxOut/Math.max(width,height));
-    width=Math.max(1,Math.round(width*outScale));height=Math.max(1,Math.round(height*outScale));
-    const srcPts=cv.matFromArray(4,1,cv.CV_32FC2,[tl.x,tl.y,tr.x,tr.y,br.x,br.y,bl.x,bl.y]);
-    const dstPts=cv.matFromArray(4,1,cv.CV_32FC2,[0,0,width-1,0,width-1,height-1,0,height-1]);
-    const M=cv.getPerspectiveTransform(srcPts,dstPts);const warped=new cv.Mat();
-    cv.warpPerspective(src,warped,M,new cv.Size(width,height),cv.INTER_LINEAR,cv.BORDER_CONSTANT,new cv.Scalar(255,255,255,255));
-    let canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;cv.imshow(canvas,warped);
-    srcPts.delete();dstPts.delete();M.delete();warped.delete();
-    if(preferredOrientation==='portrait'&&canvas.width>canvas.height) canvas=rotateCanvasQuarter(canvas);
-    if(preferredOrientation==='landscape'&&canvas.height>canvas.width) canvas=rotateCanvasQuarter(canvas);
-    return {canvas,cropped:true,reason:'Границы листа найдены и выровнены.'};
-  }finally{
-    [src,small,gray,blur,edges,closed,kernel,hierarchy].forEach(m=>{try{if(m)m.delete();}catch(e){}});
-    try{if(contours)contours.delete();}catch(e){}
-  }
 }
 function videoFrameToCanvas(){
   const video=document.getElementById('receiptCameraVideo');
+  const stage=document.getElementById('receiptCameraStage');
   if(!video||!video.videoWidth||!video.videoHeight) throw new Error('Камера ещё не готова. Подожди секунду.');
-  const maxSide=2200;const k=Math.min(1,maxSide/Math.max(video.videoWidth,video.videoHeight));
-  const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(video.videoWidth*k));canvas.height=Math.max(1,Math.round(video.videoHeight*k));
-  const ctx=canvas.getContext('2d',{alpha:false});ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  if(!stage||!stage.clientWidth||!stage.clientHeight) throw new Error('Не удалось определить размер камеры.');
+
+  const vw=video.videoWidth,vh=video.videoHeight;
+  const stageAspect=stage.clientWidth/stage.clientHeight;
+  const videoAspect=vw/vh;
+  let sx=0,sy=0,sw=vw,sh=vh;
+
+  // Берём ровно ту область, которая видна в полноэкранном preview с object-fit: cover.
+  if(videoAspect>stageAspect){
+    sw=vh*stageAspect;
+    sx=(vw-sw)/2;
+  }else if(videoAspect<stageAspect){
+    sh=vw/stageAspect;
+    sy=(vh-sh)/2;
+  }
+
+  const maxSide=1800;
+  const scale=Math.min(1,maxSide/Math.max(sw,sh));
+  const canvas=document.createElement('canvas');
+  canvas.width=Math.max(1,Math.round(sw*scale));
+  canvas.height=Math.max(1,Math.round(sh*scale));
+  const ctx=canvas.getContext('2d',{alpha:false});
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(video,sx,sy,sw,sh,0,0,canvas.width,canvas.height);
   return canvas;
 }
 async function cameraFrameToReceiptPage(){
-  const sourceCanvas=videoFrameToCanvas();
-  const originalDataUrl=sourceCanvas.toDataURL('image/jpeg',.88);
-  const processed=await autoCropReceiptCanvas(sourceCanvas,receiptCameraOrientation);
-  const canvas=processed.canvas;
+  const canvas=videoFrameToCanvas();
+  const dataUrl=await canvasToJpegDataUrl_(canvas,.84);
   return {
     id:'p'+Date.now()+Math.random().toString(36).slice(2,7),
     name:'camera_'+Date.now()+'.jpg',
     width:canvas.width,
     height:canvas.height,
     orientation:canvas.width>canvas.height?'landscape':'portrait',
-    cropped:processed.cropped,
-    cropNote:processed.reason,
-    originalDataUrl,
-    dataUrl:canvas.toDataURL('image/jpeg',.9)
+    cropped:false,
+    cropNote:'Сохранён видимый кадр без автообрезки.',
+    originalDataUrl:dataUrl,
+    dataUrl
   };
 }
 
@@ -2010,7 +2011,7 @@ async function captureReceiptCameraFrame(){
   const shot=document.getElementById('receiptCameraShot');
   const hint=document.getElementById('receiptCameraHint');
   if(shot) shot.disabled=true;
-  if(hint) hint.textContent='Определяю границы листа…';
+  if(hint) hint.textContent='Сохраняю снимок…';
   try{
     const page=await cameraFrameToReceiptPage();
     const flash=document.getElementById('receiptCameraFlash');
@@ -2019,22 +2020,26 @@ async function captureReceiptCameraFrame(){
       receiptPages[receiptCameraReplaceIndex]=page;
       receiptPdfBlob=null;receiptResult=null;receiptJobId='';
       document.getElementById('receiptResultCard').hidden=true;
-      renderReceiptPages();
-      setReceiptStatus('', 'Страница заменена. Проверь порядок.',0);
+      receiptCameraDirty=true;
       closeReceiptCamera();
+      setReceiptStatus('', 'Страница заменена. Автообрезка не применялась.',0);
       return;
     }
     receiptPages.push(page);
     receiptCameraSessionShots++;
     receiptPdfBlob=null;receiptResult=null;receiptJobId='';
     document.getElementById('receiptResultCard').hidden=true;
-    renderReceiptPages();updateReceiptCameraCount();
-    setReceiptStatus(page.cropped?'ok':'warn',page.cropNote+' Можно снять следующую страницу.',0);
+    receiptCameraDirty=true;
+    updateReceiptCameraCount();
+    if(hint) hint.textContent='Снимок сохранён. Можно снять следующую страницу.';
     hap('ok');
   }catch(err){setReceiptStatus('err',String(err&&err.message?err.message:err),0);}
   finally{
     if(shot) shot.disabled=false;
-    if(hint) hint.textContent=getReceiptMode()==='check'?'Держи чек целиком в кадре — края определятся автоматически':'Держи весь лист в кадре — края определятся автоматически';
+    setTimeout(()=>{
+      const overlay=document.getElementById('receiptCameraOverlay');
+      if(hint&&overlay&&!overlay.hidden) hint.textContent='Снимок сохраняется сразу. Автообрезки нет — края правятся кнопкой ✂';
+    },800);
   }
 }
 const receiptCameraOpen=document.getElementById('receiptCameraOpen');
@@ -2042,13 +2047,18 @@ if(receiptCameraOpen) receiptCameraOpen.addEventListener('click',()=>openReceipt
 document.getElementById('receiptCameraClose').addEventListener('click',closeReceiptCamera);
 document.getElementById('receiptCameraDone').addEventListener('click',closeReceiptCamera);
 document.getElementById('receiptCameraShot').addEventListener('click',captureReceiptCameraFrame);
-document.getElementById('receiptCameraOrientation').addEventListener('click',toggleReceiptCameraOrientation);
 document.getElementById('receiptCameraSwitch').addEventListener('click',async()=>{
   receiptCameraFacing=receiptCameraFacing==='environment'?'user':'environment';
   try{await startReceiptCameraStream();}
   catch(err){setReceiptStatus('warn','Не удалось переключить камеру: '+String(err&&err.message?err.message:err),0);}
 });
 document.addEventListener('visibilitychange',()=>{if(document.hidden) stopReceiptCamera();});
+window.addEventListener('orientationchange',()=>{
+  const overlay=document.getElementById('receiptCameraOverlay');
+  if(overlay&&!overlay.hidden){
+    setTimeout(()=>startReceiptCameraStream().catch(()=>{}),250);
+  }
+});
 
 const receiptCameraFallback=document.getElementById('receiptCameraFallback');
 if(receiptCameraFallback){
@@ -2092,7 +2102,7 @@ document.getElementById('receiptOpenPdf').onclick=()=>{
   const url=receiptResult&&receiptResult.pdfUrl;if(url){if(TG) TG.openLink(url);else window.open(url,'_blank');}
 };
 function resetReceiptScanner(){
-  closeReceiptCamera();
+  closeReceiptCamera();closeReceiptCropEditor();
   receiptPollingToken++;receiptPages=[];receiptPdfBlob=null;receiptJobId='';receiptResult=null;receiptReshootIndex=-1;
   document.getElementById('receiptResultCard').hidden=true;renderReceiptPages();updateReceiptModeUi(true);
 }
@@ -2100,14 +2110,13 @@ async function imageFileToReceiptPage(file){
   const raw=await readFileAsDataUrl(file);
   return await new Promise((resolve,reject)=>{
     const img=new Image();
-    img.onload=async()=>{try{
-      const maxSide=2200;let w=img.naturalWidth||img.width;let h=img.naturalHeight||img.height;
+    img.onload=()=>{try{
+      const maxSide=1800;let w=img.naturalWidth||img.width;let h=img.naturalHeight||img.height;
       const k=Math.min(1,maxSide/Math.max(w,h));w=Math.max(1,Math.round(w*k));h=Math.max(1,Math.round(h*k));
-      const sourceCanvas=document.createElement('canvas');sourceCanvas.width=w;sourceCanvas.height=h;
-      const ctx=sourceCanvas.getContext('2d',{alpha:false});ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);
-      const processed=await autoCropReceiptCanvas(sourceCanvas,null);
-      const canvas=processed.canvas;
-      resolve({id:'p'+Date.now()+Math.random().toString(36).slice(2,7),name:file.name,width:canvas.width,height:canvas.height,orientation:canvas.width>canvas.height?'landscape':'portrait',cropped:processed.cropped,cropNote:processed.reason,originalDataUrl:sourceCanvas.toDataURL('image/jpeg',.88),dataUrl:canvas.toDataURL('image/jpeg',.9)});
+      const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+      const ctx=canvas.getContext('2d',{alpha:false});ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);
+      const dataUrl=canvas.toDataURL('image/jpeg',.84);
+      resolve({id:'p'+Date.now()+Math.random().toString(36).slice(2,7),name:file.name,width:w,height:h,orientation:w>h?'landscape':'portrait',cropped:false,cropNote:'Сохранён полный кадр.',originalDataUrl:dataUrl,dataUrl});
     }catch(err){reject(err);}};
     img.onerror=()=>reject(new Error('Не удалось открыть фото. Используй JPG/PNG или сделай скриншот.'));img.src=raw;
   });
@@ -2121,32 +2130,119 @@ function renderReceiptPages(){
     const isLandscape=p.width>p.height;
     const card=document.createElement('div');card.className='receipt-page';
     card.innerHTML='<span class="receipt-page-num">'+(i+1)+'</span><span class="receipt-page-orientation">'+(isLandscape?'Горизонтально':'Вертикально')+'</span><img src="'+p.dataUrl+'" alt="Страница '+(i+1)+'">'+
-      '<div class="receipt-page-actions"><button type="button" data-up '+(i===0?'disabled':'')+'>↑</button><button type="button" data-down '+(i===receiptPages.length-1?'disabled':'')+'>↓</button><button type="button" data-rotate title="Сменить ориентацию">'+(isLandscape?'▯':'▭')+'</button><button type="button" data-reshoot title="Переснять страницу">↻</button><button type="button" class="del" data-del>✕</button></div>';
+      '<div class="receipt-page-actions"><button type="button" data-up title="Выше" '+(i===0?'disabled':'')+'>↑</button><button type="button" data-down title="Ниже" '+(i===receiptPages.length-1?'disabled':'')+'>↓</button><button type="button" data-crop title="Обрезать края">✂</button><button type="button" data-rotate aria-label="Повернуть по часовой стрелке" title="Повернуть по часовой стрелке">↻</button><button type="button" data-reshoot title="Переснять страницу">📷</button><button type="button" class="del" data-del title="Удалить">✕</button></div>';
     card.querySelector('[data-up]').onclick=()=>moveReceiptPage(i,-1);card.querySelector('[data-down]').onclick=()=>moveReceiptPage(i,1);
+    card.querySelector('[data-crop]').onclick=()=>openReceiptCropEditor(i);
     card.querySelector('[data-rotate]').onclick=()=>rotateReceiptPage(i);
     card.querySelector('[data-reshoot]').onclick=()=>openReceiptCamera(i);
     card.querySelector('[data-del]').onclick=()=>{receiptPages.splice(i,1);receiptPdfBlob=null;renderReceiptPages();};root.appendChild(card);
   });
   scan.disabled=!receiptPages.length;
-  summary.textContent=receiptPages.length?('Страниц/кадров: '+receiptPages.length+'. Листы автоматически найдены, выровнены и будут объединены в один PDF.'):'Страниц пока нет.';
+  summary.textContent=receiptPages.length?('Страниц/кадров: '+receiptPages.length+'. При необходимости обрежь края кнопкой ✂. Все страницы объединятся в один PDF.'):'Страниц пока нет.';
+}
+async function rotateDataUrlClockwise(dataUrl,quality=.84){
+  const img=await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('Не удалось повернуть страницу'));im.src=dataUrl;});
+  const canvas=document.createElement('canvas');canvas.width=img.naturalHeight||img.height;canvas.height=img.naturalWidth||img.width;
+  const ctx=canvas.getContext('2d',{alpha:false});ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.translate(canvas.width/2,canvas.height/2);ctx.rotate(Math.PI/2);
+  ctx.drawImage(img,-(img.naturalWidth||img.width)/2,-(img.naturalHeight||img.height)/2,img.naturalWidth||img.width,img.naturalHeight||img.height);
+  return {dataUrl:canvas.toDataURL('image/jpeg',quality),width:canvas.width,height:canvas.height};
 }
 async function rotateReceiptPage(index){
   const page=receiptPages[index];
   if(!page) return;
   try{
-    const img=await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('Не удалось повернуть страницу'));im.src=page.dataUrl;});
-    const canvas=document.createElement('canvas');
-    canvas.width=page.height;canvas.height=page.width;
-    const ctx=canvas.getContext('2d',{alpha:false});
-    ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
-    ctx.translate(canvas.width/2,canvas.height/2);ctx.rotate(Math.PI/2);
-    ctx.drawImage(img,-page.width/2,-page.height/2,page.width,page.height);
-    receiptPages[index]=Object.assign({},page,{width:canvas.width,height:canvas.height,orientation:canvas.width>canvas.height?'landscape':'portrait',dataUrl:canvas.toDataURL('image/jpeg',.86)});
+    const current=await rotateDataUrlClockwise(page.dataUrl,.84);
+    const original=await rotateDataUrlClockwise(page.originalDataUrl||page.dataUrl,.84);
+    receiptPages[index]=Object.assign({},page,{width:current.width,height:current.height,orientation:current.width>current.height?'landscape':'portrait',dataUrl:current.dataUrl,originalDataUrl:original.dataUrl});
     receiptPdfBlob=null;receiptResult=null;receiptJobId='';
     document.getElementById('receiptResultCard').hidden=true;
-    renderReceiptPages();setReceiptStatus('', 'Ориентация страницы '+(index+1)+' изменена.',0);hap('sel');
+    renderReceiptPages();setReceiptStatus('', 'Страница '+(index+1)+' повернута по часовой стрелке.',0);hap('sel');
   }catch(err){setReceiptStatus('err',String(err&&err.message?err.message:err),0);}
 }
+
+
+function clampReceiptValue(value,min,max){return Math.max(min,Math.min(max,value));}
+function closeReceiptCropEditor(){
+  document.getElementById('receiptEditorOverlay').hidden=true;
+  receiptEditorPageIndex=-1;receiptEditorSourceImage=null;receiptEditorRect=null;receiptEditorDrag=null;
+}
+function applyReceiptCropRect(){
+  const box=document.getElementById('receiptCropBox');
+  if(!box||!receiptEditorRect) return;
+  box.style.left=receiptEditorRect.x+'px';box.style.top=receiptEditorRect.y+'px';box.style.width=receiptEditorRect.w+'px';box.style.height=receiptEditorRect.h+'px';
+}
+function resetReceiptCropRect(){
+  const frame=document.getElementById('receiptEditorFrame');
+  const margin=Math.max(10,Math.round(Math.min(frame.clientWidth,frame.clientHeight)*.035));
+  receiptEditorRect={x:margin,y:margin,w:Math.max(60,frame.clientWidth-margin*2),h:Math.max(60,frame.clientHeight-margin*2)};
+  applyReceiptCropRect();
+}
+async function openReceiptCropEditor(index){
+  const page=receiptPages[index];if(!page) return;
+  try{
+    const source=page.originalDataUrl||page.dataUrl;
+    const img=await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('Не удалось открыть страницу для обрезки'));im.src=source;});
+    receiptEditorPageIndex=index;receiptEditorSourceImage=img;
+    document.getElementById('receiptEditorTitle').textContent='Обрезать страницу '+(index+1);
+    document.getElementById('receiptEditorImage').src=source;
+    document.getElementById('receiptEditorOverlay').hidden=false;
+    requestAnimationFrame(()=>{
+      const stage=document.getElementById('receiptEditorStage');const frame=document.getElementById('receiptEditorFrame');
+      const maxW=Math.max(200,stage.clientWidth-8),maxH=Math.max(200,stage.clientHeight-8);
+      const iw=img.naturalWidth||img.width,ih=img.naturalHeight||img.height;const scale=Math.min(maxW/iw,maxH/ih,1);
+      frame.style.width=Math.max(1,Math.round(iw*scale))+'px';frame.style.height=Math.max(1,Math.round(ih*scale))+'px';
+      resetReceiptCropRect();
+    });
+  }catch(err){setReceiptStatus('err',String(err&&err.message?err.message:err),0);}
+}
+async function saveReceiptManualCrop(){
+  const index=receiptEditorPageIndex,page=receiptPages[index],frame=document.getElementById('receiptEditorFrame');
+  if(!page||!receiptEditorSourceImage||!receiptEditorRect||!frame.clientWidth||!frame.clientHeight) return;
+  try{
+    const img=receiptEditorSourceImage,iw=img.naturalWidth||img.width,ih=img.naturalHeight||img.height;
+    const sx=clampReceiptValue(Math.round(receiptEditorRect.x/frame.clientWidth*iw),0,iw-1);
+    const sy=clampReceiptValue(Math.round(receiptEditorRect.y/frame.clientHeight*ih),0,ih-1);
+    const sw=clampReceiptValue(Math.round(receiptEditorRect.w/frame.clientWidth*iw),1,iw-sx);
+    const sh=clampReceiptValue(Math.round(receiptEditorRect.h/frame.clientHeight*ih),1,ih-sy);
+    const maxSide=1800,scale=Math.min(1,maxSide/Math.max(sw,sh));
+    const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(sw*scale));canvas.height=Math.max(1,Math.round(sh*scale));
+    const ctx=canvas.getContext('2d',{alpha:false});ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(img,sx,sy,sw,sh,0,0,canvas.width,canvas.height);
+    receiptPages[index]=Object.assign({},page,{width:canvas.width,height:canvas.height,orientation:canvas.width>canvas.height?'landscape':'portrait',cropped:true,cropNote:'Обрезано вручную.',dataUrl:canvas.toDataURL('image/jpeg',.84)});
+    receiptPdfBlob=null;receiptResult=null;receiptJobId='';document.getElementById('receiptResultCard').hidden=true;
+    closeReceiptCropEditor();renderReceiptPages();setReceiptStatus('ok','Страница '+(index+1)+' обрезана вручную.',0);hap('ok');
+  }catch(err){setReceiptStatus('err',String(err&&err.message?err.message:err),0);}
+}
+function beginReceiptCropDrag(event){
+  if(!receiptEditorRect) return;
+  const handle=event.target&&event.target.dataset?event.target.dataset.handle:'';
+  receiptEditorDrag={pointerId:event.pointerId,mode:handle||'move',startX:event.clientX,startY:event.clientY,startRect:Object.assign({},receiptEditorRect)};
+  try{event.currentTarget.setPointerCapture(event.pointerId);}catch(e){}
+  event.preventDefault();
+}
+function moveReceiptCropDrag(event){
+  if(!receiptEditorDrag||event.pointerId!==receiptEditorDrag.pointerId) return;
+  const frame=document.getElementById('receiptEditorFrame'),minSize=54,r=receiptEditorDrag.startRect;
+  const dx=event.clientX-receiptEditorDrag.startX,dy=event.clientY-receiptEditorDrag.startY;let x=r.x,y=r.y,w=r.w,h=r.h;
+  if(receiptEditorDrag.mode==='move'){
+    x=clampReceiptValue(r.x+dx,0,frame.clientWidth-r.w);y=clampReceiptValue(r.y+dy,0,frame.clientHeight-r.h);
+  }else{
+    if(receiptEditorDrag.mode.includes('w')){const nx=clampReceiptValue(r.x+dx,0,r.x+r.w-minSize);w=r.w+(r.x-nx);x=nx;}
+    if(receiptEditorDrag.mode.includes('e')){w=clampReceiptValue(r.w+dx,minSize,frame.clientWidth-r.x);}
+    if(receiptEditorDrag.mode.includes('n')){const ny=clampReceiptValue(r.y+dy,0,r.y+r.h-minSize);h=r.h+(r.y-ny);y=ny;}
+    if(receiptEditorDrag.mode.includes('s')){h=clampReceiptValue(r.h+dy,minSize,frame.clientHeight-r.y);}
+  }
+  receiptEditorRect={x,y,w,h};applyReceiptCropRect();event.preventDefault();
+}
+function endReceiptCropDrag(event){if(receiptEditorDrag&&event.pointerId===receiptEditorDrag.pointerId) receiptEditorDrag=null;}
+const receiptCropBox=document.getElementById('receiptCropBox');
+receiptCropBox.addEventListener('pointerdown',beginReceiptCropDrag);
+window.addEventListener('pointermove',moveReceiptCropDrag,{passive:false});
+window.addEventListener('pointerup',endReceiptCropDrag);window.addEventListener('pointercancel',endReceiptCropDrag);
+document.getElementById('receiptEditorCancel').addEventListener('click',closeReceiptCropEditor);
+document.getElementById('receiptEditorReset').addEventListener('click',resetReceiptCropRect);
+document.getElementById('receiptEditorSave').addEventListener('click',saveReceiptManualCrop);
 
 function moveReceiptPage(index,delta){const to=index+delta;if(to<0||to>=receiptPages.length)return;const tmp=receiptPages[index];receiptPages[index]=receiptPages[to];receiptPages[to]=tmp;receiptPdfBlob=null;renderReceiptPages();hap('sel');}
 async function buildReceiptPdf(){
