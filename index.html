@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.8 — камера без зума и ручная обрезка</title>
+<title>FO'X App v15.9 — HD-камера и вспышка</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -372,8 +372,10 @@ body.mode-hub #backBtn{display:none}
   padding:calc(env(safe-area-inset-top) + 8px) 10px 8px;background:rgba(0,0,0,.78);color:#fff;z-index:3}
 .receipt-camera-head b{font-family:"Unbounded",sans-serif;font-size:12px;text-align:center;min-width:0}
 .receipt-camera-head-actions{display:flex;gap:6px;align-items:center}
-.receipt-camera-close,.receipt-camera-switch{border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12);color:#fff;
+.receipt-camera-close,.receipt-camera-switch,.receipt-camera-torch{border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12);color:#fff;
   border-radius:10px;padding:9px 10px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.receipt-camera-torch.active{background:rgba(238,142,58,.28);border-color:var(--amber);color:#FFD9B7}
+.receipt-camera-torch:disabled{opacity:.48;cursor:not-allowed}
 .receipt-camera-stage{position:relative;flex:1 1 auto;min-height:0;width:100%;overflow:hidden;background:#050505}
 .receipt-camera-video-bg{position:absolute;inset:-18px;width:calc(100% + 36px);height:calc(100% + 36px);object-fit:cover;object-position:center center;filter:blur(20px) brightness(.45);transform:scale(1.08);background:#050505;pointer-events:none}
 .receipt-camera-video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center center;background:transparent}
@@ -534,7 +536,7 @@ body.mode-hub #backBtn{display:none}
     <div>
       <div class="receipt-title">Документы и чеки</div>
       <div class="receipt-sub" id="receiptScreenSub">Выбери режим → сними все страницы → получи один PDF → проверь результат</div>
-      <div class="receipt-version-badge">v15.8 · камера без зума · ручная обрезка</div>
+      <div class="receipt-version-badge">v15.9 · HD-камера · вспышка · ручная обрезка</div>
     </div>
   </div>
 
@@ -681,6 +683,7 @@ body.mode-hub #backBtn{display:none}
     <button class="receipt-camera-close" id="receiptCameraClose" type="button">Закрыть</button>
     <b id="receiptCameraHeading">Съёмка страницы</b>
     <div class="receipt-camera-head-actions">
+      <button class="receipt-camera-torch" id="receiptCameraTorch" type="button" disabled>⚡ Вспышка</button>
       <button class="receipt-camera-switch" id="receiptCameraSwitch" type="button">↻ Камера</button>
     </div>
   </div>
@@ -689,7 +692,7 @@ body.mode-hub #backBtn{display:none}
     <video class="receipt-camera-video" id="receiptCameraVideo" autoplay playsinline muted></video>
     <div class="receipt-camera-guide" id="receiptCameraGuide"></div>
     <div class="receipt-camera-flash" id="receiptCameraFlash"></div>
-    <div class="receipt-camera-hint" id="receiptCameraHint">Снимок сохраняется сразу. Автообрезки нет — края правятся кнопкой ✂</div>
+    <div class="receipt-camera-hint" id="receiptCameraHint">HD-снимок сохраняется без автообрезки. При необходимости используй ✂</div>
   </div>
   <div class="receipt-camera-bottom">
     <div class="receipt-camera-count" id="receiptCameraCount">Снято: 0</div>
@@ -1738,7 +1741,7 @@ window.showMyId=function(){
 
 
 
-// ===== FO’X v15.8 — полный кадр без цифрового зума + ручная обрезка =====
+// ===== FO’X v15.9 — HD-снимок + вспышка + ручная обрезка =====
 // После публикации Apps Script вставь сюда URL нового Web App.
 const STOCK_API_URL = 'https://script.google.com/macros/s/AKfycbx9XlQG6kCvWVU6OekcWAmHAVnjFXfG-_UD_pKQrQqYaWNyHzmXsmB_2LGohxETrrfTpA/exec';
 const RECEIPT_MESSAGE_DOC_TYPE = 'Счёт на оплату';
@@ -1752,6 +1755,9 @@ let receiptPollingToken = 0;
 let receiptReshootIndex = -1;
 let receiptCameraStream = null;
 let receiptCameraFacing = 'environment';
+let receiptCameraTorchOn = false;
+let receiptCameraTorchSupported = false;
+let receiptCameraImageCapture = null;
 let receiptCameraReplaceIndex = -1;
 let receiptCameraSessionShots = 0;
 let receiptCameraDirty = false;
@@ -1851,7 +1857,20 @@ async function appendReceiptFiles(files, preparingText){
     setReceiptStatus('', 'Страницы готовы. Проверь порядок и нажми распознавание.',0);
   }catch(err){setReceiptStatus('err',String(err&&err.message?err.message:err),0);}
 }
+function updateReceiptTorchButton_(){
+  const btn=document.getElementById('receiptCameraTorch');
+  if(!btn) return;
+  btn.disabled=!receiptCameraTorchSupported;
+  btn.classList.toggle('active',receiptCameraTorchOn&&receiptCameraTorchSupported);
+  btn.textContent=receiptCameraTorchSupported
+    ? (receiptCameraTorchOn?'⚡ Включена':'⚡ Вспышка')
+    : '⚡ Нет вспышки';
+}
 function stopReceiptCamera(){
+  receiptCameraTorchOn=false;
+  receiptCameraTorchSupported=false;
+  receiptCameraImageCapture=null;
+  updateReceiptTorchButton_();
   if(receiptCameraStream){
     receiptCameraStream.getTracks().forEach(track=>{try{track.stop();}catch(e){}});
     receiptCameraStream=null;
@@ -1874,18 +1893,21 @@ function closeReceiptCamera(){
 }
 function nextAnimationFrame_(){return new Promise(resolve=>requestAnimationFrame(()=>resolve()));}
 async function getReceiptCameraStream_(){
-  // Не задаём width/height, aspectRatio и resizeMode: Android WebView иначе
-  // может включить crop-and-scale и создать ощущение сильного цифрового зума.
-  const primary={
-    audio:false,
-    video:{facingMode:receiptCameraFacing==='environment'?{exact:'environment'}:{exact:'user'}}
+  // Просим максимальное доступное разрешение без resizeMode/crop-and-scale.
+  // Значения ideal не обязаны применяться буквально и не создают цифровой зум.
+  const highQuality={
+    facingMode:receiptCameraFacing==='environment'?{exact:'environment'}:{exact:'user'},
+    width:{ideal:3840},
+    height:{ideal:2160},
+    frameRate:{ideal:30,max:30}
   };
-  const fallback={
-    audio:false,
-    video:{facingMode:{ideal:receiptCameraFacing}}
+  const fallbackQuality={
+    facingMode:{ideal:receiptCameraFacing},
+    width:{ideal:2560},
+    height:{ideal:1440}
   };
-  try{return await navigator.mediaDevices.getUserMedia(primary);}
-  catch(_){return await navigator.mediaDevices.getUserMedia(fallback);}
+  try{return await navigator.mediaDevices.getUserMedia({audio:false,video:highQuality});}
+  catch(_){return await navigator.mediaDevices.getUserMedia({audio:false,video:fallbackQuality});}
 }
 async function startReceiptCameraStream(){
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
@@ -1906,6 +1928,13 @@ async function startReceiptCameraStream(){
   });
   await video.play();
   if(videoBg){try{await videoBg.play();}catch(_){}}
+
+  const track=receiptCameraStream.getVideoTracks()[0];
+  const caps=track&&track.getCapabilities?track.getCapabilities():{};
+  receiptCameraTorchOn=false;
+  receiptCameraTorchSupported=Boolean(receiptCameraFacing==='environment'&&caps&&caps.torch);
+  receiptCameraImageCapture=(typeof ImageCapture!=='undefined'&&track)?new ImageCapture(track):null;
+  updateReceiptTorchButton_();
 
   // Сбрасываем аппаратный/цифровой zoom на минимальное доступное значение.
   try{
@@ -1933,7 +1962,7 @@ async function openReceiptCamera(replaceIndex=-1){
   const heading=document.getElementById('receiptCameraHeading');
   const hint=document.getElementById('receiptCameraHint');
   if(heading) heading.textContent=receiptCameraReplaceIndex>=0?'Переснять страницу '+(receiptCameraReplaceIndex+1):(getReceiptMode()==='check'?'Съёмка чека':'Съёмка документа');
-  if(hint) hint.textContent='Показывается весь кадр без цифрового зума. Края можно поправить кнопкой ✂';
+  if(hint) hint.textContent='HD-снимок сохраняется в максимальном доступном качестве. Края можно поправить кнопкой ✂';
   updateReceiptCameraCount();
   overlay.hidden=false;
   try{
@@ -1956,7 +1985,7 @@ function updateReceiptCameraCount(){
   if(!el) return;
   el.textContent=receiptCameraReplaceIndex>=0?'Замена страницы':('Снято: '+receiptCameraSessionShots);
 }
-function canvasToJpegDataUrl_(canvas,quality=.84){
+function canvasToJpegDataUrl_(canvas,quality=.94){
   return new Promise((resolve,reject)=>{
     if(!canvas.toBlob){try{resolve(canvas.toDataURL('image/jpeg',quality));}catch(err){reject(err);}return;}
     canvas.toBlob(blob=>{
@@ -1968,40 +1997,68 @@ function canvasToJpegDataUrl_(canvas,quality=.84){
     },'image/jpeg',quality);
   });
 }
-function videoFrameToCanvas(){
-  const video=document.getElementById('receiptCameraVideo');
+function drawCameraSourceToCanvas_(source,sourceW,sourceH,maxSide=3400){
   const stage=document.getElementById('receiptCameraStage');
-  if(!video||!video.videoWidth||!video.videoHeight) throw new Error('Камера ещё не готова. Подожди секунду.');
-
-  const vw=video.videoWidth,vh=video.videoHeight;
   const stagePortrait=(stage?stage.clientHeight:window.innerHeight)>=(stage?stage.clientWidth:window.innerWidth);
-  const framePortrait=vh>=vw;
-  const rotate=stagePortrait!==framePortrait;
-  const maxSide=1800;
-  const rawW=rotate?vh:vw;
-  const rawH=rotate?vw:vh;
+  const sourcePortrait=sourceH>=sourceW;
+  const rotate=stagePortrait!==sourcePortrait;
+  const rawW=rotate?sourceH:sourceW;
+  const rawH=rotate?sourceW:sourceH;
   const scale=Math.min(1,maxSide/Math.max(rawW,rawH));
   const canvas=document.createElement('canvas');
   canvas.width=Math.max(1,Math.round(rawW*scale));
   canvas.height=Math.max(1,Math.round(rawH*scale));
   const ctx=canvas.getContext('2d',{alpha:false});
-  ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
-
-  // Сохраняем весь поток камеры, ничего не вырезаем под пропорции экрана.
+  ctx.imageSmoothingEnabled=true;
+  ctx.imageSmoothingQuality='high';
+  ctx.fillStyle='#fff';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
   if(rotate){
     ctx.save();
     ctx.translate(canvas.width,0);
     ctx.rotate(Math.PI/2);
-    ctx.drawImage(video,0,0,canvas.height,canvas.width);
+    ctx.drawImage(source,0,0,canvas.height,canvas.width);
     ctx.restore();
   }else{
-    ctx.drawImage(video,0,0,canvas.width,canvas.height);
+    ctx.drawImage(source,0,0,canvas.width,canvas.height);
   }
   return canvas;
 }
+function videoFrameToCanvas(){
+  const video=document.getElementById('receiptCameraVideo');
+  if(!video||!video.videoWidth||!video.videoHeight) throw new Error('Камера ещё не готова. Подожди секунду.');
+  return drawCameraSourceToCanvas_(video,video.videoWidth,video.videoHeight,3200);
+}
+async function stillBlobToCanvas_(blob){
+  const url=URL.createObjectURL(blob);
+  try{
+    const img=await new Promise((resolve,reject)=>{
+      const el=new Image();
+      el.onload=()=>resolve(el);
+      el.onerror=()=>reject(new Error('Не удалось открыть полноразмерный снимок камеры'));
+      el.src=url;
+    });
+    return drawCameraSourceToCanvas_(img,img.naturalWidth||img.width,img.naturalHeight||img.height,3400);
+  }finally{
+    URL.revokeObjectURL(url);
+  }
+}
 async function cameraFrameToReceiptPage(){
-  const canvas=videoFrameToCanvas();
-  const dataUrl=await canvasToJpegDataUrl_(canvas,.84);
+  let canvas;
+  let captureMode='HD-кадр видеопотока';
+  if(receiptCameraImageCapture&&typeof receiptCameraImageCapture.takePhoto==='function'){
+    try{
+      const blob=await receiptCameraImageCapture.takePhoto();
+      if(blob&&blob.size>0){
+        canvas=await stillBlobToCanvas_(blob);
+        captureMode='полноразмерное фото камеры';
+      }
+    }catch(_){
+      canvas=null;
+    }
+  }
+  if(!canvas) canvas=videoFrameToCanvas();
+  const dataUrl=await canvasToJpegDataUrl_(canvas,.94);
   return {
     id:'p'+Date.now()+Math.random().toString(36).slice(2,7),
     name:'camera_'+Date.now()+'.jpg',
@@ -2009,7 +2066,7 @@ async function cameraFrameToReceiptPage(){
     height:canvas.height,
     orientation:canvas.width>canvas.height?'landscape':'portrait',
     cropped:false,
-    cropNote:'Сохранён полный кадр камеры без цифрового зума и автообрезки.',
+    cropNote:'Сохранено '+captureMode+' без автообрезки.',
     originalDataUrl:dataUrl,
     dataUrl
   };
@@ -2046,7 +2103,7 @@ async function captureReceiptCameraFrame(){
     if(shot) shot.disabled=false;
     setTimeout(()=>{
       const overlay=document.getElementById('receiptCameraOverlay');
-      if(hint&&overlay&&!overlay.hidden) hint.textContent='Снимок сохраняется сразу. Автообрезки нет — края правятся кнопкой ✂';
+      if(hint&&overlay&&!overlay.hidden) hint.textContent='HD-снимок сохраняется без автообрезки. При необходимости используй ✂';
     },800);
   }
 }
@@ -2055,6 +2112,25 @@ if(receiptCameraOpen) receiptCameraOpen.addEventListener('click',()=>openReceipt
 document.getElementById('receiptCameraClose').addEventListener('click',closeReceiptCamera);
 document.getElementById('receiptCameraDone').addEventListener('click',closeReceiptCamera);
 document.getElementById('receiptCameraShot').addEventListener('click',captureReceiptCameraFrame);
+document.getElementById('receiptCameraTorch').addEventListener('click',async()=>{
+  const track=receiptCameraStream&&receiptCameraStream.getVideoTracks()[0];
+  if(!track||!receiptCameraTorchSupported){
+    setReceiptStatus('warn','На этой камере вспышка недоступна.',0);
+    return;
+  }
+  const next=!receiptCameraTorchOn;
+  try{
+    await track.applyConstraints({advanced:[{torch:next}]});
+    receiptCameraTorchOn=next;
+    updateReceiptTorchButton_();
+    const hint=document.getElementById('receiptCameraHint');
+    if(hint) hint.textContent=next?'Вспышка включена. Наведи камеру и сделай снимок.':'Вспышка выключена.';
+  }catch(err){
+    receiptCameraTorchOn=false;
+    updateReceiptTorchButton_();
+    setReceiptStatus('warn','Телефон не разрешил включить вспышку в Telegram.',0);
+  }
+});
 document.getElementById('receiptCameraSwitch').addEventListener('click',async()=>{
   receiptCameraFacing=receiptCameraFacing==='environment'?'user':'environment';
   try{await startReceiptCameraStream();}
@@ -2119,11 +2195,11 @@ async function imageFileToReceiptPage(file){
   return await new Promise((resolve,reject)=>{
     const img=new Image();
     img.onload=()=>{try{
-      const maxSide=1800;let w=img.naturalWidth||img.width;let h=img.naturalHeight||img.height;
+      const maxSide=3400;let w=img.naturalWidth||img.width;let h=img.naturalHeight||img.height;
       const k=Math.min(1,maxSide/Math.max(w,h));w=Math.max(1,Math.round(w*k));h=Math.max(1,Math.round(h*k));
       const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
-      const ctx=canvas.getContext('2d',{alpha:false});ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);
-      const dataUrl=canvas.toDataURL('image/jpeg',.84);
+      const ctx=canvas.getContext('2d',{alpha:false});ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);
+      const dataUrl=canvas.toDataURL('image/jpeg',.94);
       resolve({id:'p'+Date.now()+Math.random().toString(36).slice(2,7),name:file.name,width:w,height:h,orientation:w>h?'landscape':'portrait',cropped:false,cropNote:'Сохранён полный кадр.',originalDataUrl:dataUrl,dataUrl});
     }catch(err){reject(err);}};
     img.onerror=()=>reject(new Error('Не удалось открыть фото. Используй JPG/PNG или сделай скриншот.'));img.src=raw;
