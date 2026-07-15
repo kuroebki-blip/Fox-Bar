@@ -3,11 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App — Чек-листы и банкеты</title>
+<title>FO'X App v15 — Общий сканер и коэффициент раскладок</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 <style>
 
   :root{
@@ -138,18 +139,37 @@
   .rcp-steps li{padding:6px 0;font-size:14.5px;color:var(--text);line-height:1.45}
   .rcp-method{margin-top:12px;padding:12px 14px;background:var(--surface-2);border-radius:12px;
     font-size:13.5px;color:var(--muted);line-height:1.5}
+  .recipe-scale{display:flex;align-items:center;gap:8px;margin:8px 18px 6px;padding:10px 11px;
+    background:var(--surface-2);border:1px solid var(--line);border-radius:13px}
+  .recipe-scale[hidden]{display:none!important}
+  .recipe-scale-label{font-size:12px;color:var(--muted);font-weight:700;flex:1;min-width:0}
+  .recipe-scale-btn{width:38px;height:38px;border-radius:10px;border:1px solid var(--line-strong);
+    background:var(--bg);color:var(--text);font-family:inherit;font-size:19px;font-weight:700;cursor:pointer}
+  .recipe-scale-btn:active{background:var(--amber-soft);border-color:var(--amber-line)}
+  .recipe-scale-input-wrap{display:flex;align-items:center;gap:4px;height:38px;padding:0 9px;border-radius:10px;
+    background:var(--bg);border:1px solid var(--amber-line);color:var(--amber);font-weight:800}
+  .recipe-scale-input{width:58px;border:none;outline:none;background:transparent;color:var(--amber);
+    font-family:inherit;font-size:15px;font-weight:800;text-align:center;font-variant-numeric:tabular-nums}
+  .recipe-scale-reset{height:38px;border-radius:10px;border:1px solid var(--line-strong);background:transparent;
+    color:var(--muted);font-family:inherit;font-size:12px;font-weight:800;padding:0 10px;cursor:pointer}
+  .recipe-scale-reset:active{background:var(--surface);color:var(--text)}
+  @media (max-width:390px){.recipe-scale{gap:6px;margin-left:12px;margin-right:12px}.recipe-scale-label{display:none}.recipe-scale-input{width:52px}}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
 
 /* ===== FO'X HUB + Банкетный календарь ===== */
 body.mode-hub .report-bar,
-body.mode-banquets .report-bar{display:none}
+body.mode-banquets .report-bar,
+body.mode-receipts .report-bar{display:none}
 body.mode-hub .overall,
-body.mode-banquets .overall{display:none}
+body.mode-banquets .overall,
+body.mode-receipts .overall{display:none}
 body.mode-hub #resetBtn,
-body.mode-banquets #resetBtn{display:none}
+body.mode-banquets #resetBtn,
+body.mode-receipts #resetBtn{display:none}
 body.mode-checklists #backBtn,
-body.mode-banquets #backBtn{display:inline-flex}
+body.mode-banquets #backBtn,
+body.mode-receipts #backBtn{display:inline-flex}
 body.mode-hub #backBtn{display:none}
 .back-btn{border:1px solid var(--line-strong);background:transparent;color:var(--muted);
   font-family:inherit;font-size:12px;font-weight:600;padding:9px 12px;border-radius:10px;cursor:pointer;align-items:center;gap:6px}
@@ -258,6 +278,67 @@ body.mode-hub #backBtn{display:none}
 .cloudinary-missing{font-size:12.5px;line-height:1.45;color:#EAD9B0;background:var(--warn-soft);
   border:1px solid rgba(230,180,80,.3);border-radius:13px;padding:11px 12px;margin:0 0 12px}
 
+
+
+/* ===== FO’X v13 — сканер поступлений ===== */
+.receipt-top{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:12px}
+.receipt-title{font-family:"Unbounded",sans-serif;font-size:18px;font-weight:600}
+.receipt-sub{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.45}
+.receipt-card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:14px}
+.receipt-status{font-size:13px;line-height:1.45;color:var(--muted);background:var(--surface);border:1px solid var(--line);
+  border-radius:13px;padding:11px 12px;margin-bottom:12px}
+.receipt-status.ok{color:#C9E8D8;border-color:rgba(95,191,143,.35);background:var(--done-soft)}
+.receipt-status.warn{color:#EAD9B0;border-color:rgba(230,180,80,.3);background:var(--warn-soft)}
+.receipt-status.err{color:#F0B0A7;border-color:rgba(240,139,125,.35);background:rgba(240,139,125,.12)}
+.receipt-progress{height:5px;background:var(--surface-2);border-radius:999px;overflow:hidden;margin-top:8px}
+.receipt-progress>i{display:block;height:100%;width:0;background:var(--amber);transition:width .25s ease}
+.receipt-scan-input{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}
+.receipt-scan-btn{display:flex;align-items:center;gap:12px;width:100%;min-height:68px;border:1px dashed var(--amber-line);
+  background:linear-gradient(180deg,rgba(238,142,58,.16),rgba(238,142,58,.06));color:var(--text);border-radius:15px;padding:13px 14px;
+  cursor:pointer;font-family:inherit;text-align:left}
+.receipt-scan-btn:active{background:rgba(238,142,58,.24)}
+.receipt-scan-ico{width:42px;height:42px;flex:0 0 auto;border-radius:13px;background:var(--amber);color:#1A1208;
+  display:flex;align-items:center;justify-content:center;font-size:23px}
+.receipt-scan-text{display:flex;flex-direction:column;gap:3px}.receipt-scan-text b{font-size:14px}.receipt-scan-text span{font-size:12px;color:var(--muted)}
+.receipt-pages{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+.receipt-page{position:relative;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:8px;min-width:0}
+.receipt-page img{display:block;width:100%;height:164px;object-fit:contain;background:#0C0A08;border-radius:10px}
+.receipt-page-num{position:absolute;left:14px;top:14px;background:rgba(0,0,0,.72);color:#fff;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:700}
+.receipt-page-actions{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-top:8px}
+.receipt-page-actions button{border:1px solid var(--line-strong);background:var(--bg);color:var(--muted);border-radius:9px;padding:8px 2px;font-size:13px;cursor:pointer}
+.receipt-page-actions button:disabled{opacity:.28}.receipt-page-actions .del{color:#F0B0A7}
+.receipt-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.receipt-primary,.receipt-secondary,.receipt-danger{border-radius:12px;padding:13px 14px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer}
+.receipt-primary{flex:1;border:none;background:var(--amber);color:#1A1208}
+.receipt-secondary{border:1px solid var(--line-strong);background:var(--surface-2);color:var(--text)}
+.receipt-danger{border:1px solid rgba(240,139,125,.35);background:transparent;color:#F0B0A7}
+.receipt-primary[disabled],.receipt-secondary[disabled]{opacity:.48;cursor:not-allowed}
+.receipt-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.receipt-field{display:flex;flex-direction:column;gap:5px}.receipt-field.full{grid-column:1/-1}
+.receipt-field label{font-size:11px;color:var(--muted-2);font-weight:700;text-transform:uppercase;letter-spacing:.7px}
+.receipt-field input,.receipt-field select,.receipt-field textarea{width:100%;border:1px solid var(--line-strong);background:var(--bg);color:var(--text);
+  border-radius:11px;padding:11px 12px;font-family:inherit;font-size:14px}
+.receipt-field textarea{min-height:100px;resize:vertical;line-height:1.5}
+.receipt-items{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+.receipt-item{border:1px solid var(--line);background:var(--surface-2);border-radius:14px;padding:12px}
+.receipt-item.need-review{border-color:rgba(230,180,80,.4)}
+.receipt-item.excluded{opacity:.72}
+.receipt-item-head{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px}
+.receipt-item-head input{width:21px;height:21px;accent-color:var(--amber);flex:0 0 auto}
+.receipt-item-name{font-size:14px;font-weight:700;line-height:1.35;flex:1}
+.receipt-item-meta{font-size:11px;color:var(--muted);margin-top:3px}
+.receipt-match{font-size:10px;font-weight:700;border:1px solid var(--line-strong);border-radius:999px;padding:3px 7px;color:var(--muted);white-space:nowrap}
+.receipt-item-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.receipt-item-fields .full{grid-column:1/-1}
+.receipt-item-fields label{display:flex;flex-direction:column;gap:4px;font-size:10px;color:var(--muted-2);font-weight:700;text-transform:uppercase}
+.receipt-item-fields input,.receipt-item-fields select{width:100%;min-width:0;border:1px solid var(--line-strong);background:var(--bg);color:var(--text);
+  border-radius:10px;padding:10px;font-family:inherit;font-size:13px}
+.receipt-summary{font-size:12px;color:var(--muted);line-height:1.5;margin-top:8px}
+.receipt-access-denied{padding:14px;border:1px solid rgba(240,139,125,.35);background:rgba(240,139,125,.12);color:#F0B0A7;border-radius:14px}
+.receipt-mode-note{font-size:12px;color:var(--muted);line-height:1.45;margin-top:6px}
+.receipt-check-only[hidden],.receipt-doc-only[hidden]{display:none!important}
+@media (max-width:420px){.receipt-pages{grid-template-columns:1fr}.receipt-grid{grid-template-columns:1fr}.receipt-field.full{grid-column:auto}}
+
 </style>
 </head>
 <body class="mode-hub">
@@ -290,6 +371,11 @@ body.mode-hub #backBtn{display:none}
       <div class="hc-ico">🍽</div>
       <div class="hc-title">Банкеты</div>
       <div class="hc-sub">Календарь банкетов, фото заказов и список на выбранный день.</div>
+    </button>
+    <button class="hub-card" data-open-section="receipts">
+      <div class="hc-ico">📦</div>
+      <div class="hc-title">Документы и чеки</div>
+      <div class="hc-sub">Сканирование поставок и кассовых чеков, единый PDF, сток и отправка в Telegram.</div>
     </button>
   </div>
   <div class="hub-note">
@@ -381,6 +467,143 @@ body.mode-hub #backBtn{display:none}
   </div>
 </section>
 
+
+<section class="app-screen" id="receiptsScreen">
+  <div class="receipt-top">
+    <div>
+      <div class="receipt-title">Документы и чеки</div>
+      <div class="receipt-sub" id="receiptScreenSub">Выбери режим → сними все страницы → получи один PDF → проверь результат</div>
+    </div>
+  </div>
+
+  <div class="receipt-status" id="receiptStatus">
+    Добавь фотографии всех страниц документа или чека.
+    <div class="receipt-progress"><i id="receiptProgress"></i></div>
+  </div>
+
+  <div id="receiptAccessDenied" class="receipt-access-denied" hidden>
+    Раздел доступен всем пользователям FO’X внутри Telegram.
+  </div>
+
+  <div id="receiptAdminBlock">
+    <div class="receipt-card">
+      <div class="receipt-grid">
+        <div class="receipt-field full">
+          <label>Что сканируем</label>
+          <select id="receiptMode">
+            <option value="document">Документ поставки</option>
+            <option value="check">Кассовый / онлайн-чек</option>
+          </select>
+          <div class="receipt-mode-note" id="receiptModeNote">Накладная, счёт, УПД, ТТН или комплект документов одной поставки.</div>
+        </div>
+        <div class="receipt-field full">
+          <label>Подразделение / куда внести товар</label>
+          <select id="receiptWarehouse">
+            <option value="Бар">Бар</option>
+            <option value="Заготовочный">Заготовочный</option>
+          </select>
+        </div>
+      </div>
+
+      <input id="receiptCamera" class="receipt-scan-input" type="file" accept="image/*" capture="environment" multiple>
+      <input id="receiptReshoot" class="receipt-scan-input" type="file" accept="image/*" capture="environment">
+      <label class="receipt-scan-btn" for="receiptCamera">
+        <span class="receipt-scan-ico">📷</span>
+        <span class="receipt-scan-text">
+          <b id="receiptCameraTitle">Сканировать / добавить страницы</b>
+          <span>Можно добавлять по одной или выбрать несколько фото</span>
+        </span>
+      </label>
+
+      <div class="receipt-pages" id="receiptPages"></div>
+
+      <div class="receipt-actions">
+        <button type="button" class="receipt-danger" id="receiptReset">Очистить</button>
+        <button type="button" class="receipt-primary" id="receiptScan" disabled>Собрать PDF и распознать</button>
+      </div>
+      <div class="receipt-summary" id="receiptPageSummary">Страниц пока нет.</div>
+    </div>
+
+    <div class="receipt-card" id="receiptResultCard" hidden>
+      <div class="group-label" id="receiptReviewTitle" style="margin-top:0">Проверка документа</div>
+
+      <div class="receipt-grid">
+        <div class="receipt-field">
+          <label>Дата для сообщения</label>
+          <input id="receiptDateText" type="text" inputmode="numeric" placeholder="ДД.ММ.ГГГГ">
+        </div>
+        <div class="receipt-field">
+          <label>Итоговая сумма</label>
+          <input id="receiptTotal" type="number" inputmode="decimal" step="0.01">
+        </div>
+      </div>
+
+      <div class="receipt-grid receipt-doc-only" id="receiptDocumentFields">
+        <div class="receipt-field">
+          <label>Поставщик коротко</label>
+          <input id="receiptSupplierShort" type="text">
+        </div>
+        <div class="receipt-field">
+          <label>Дата поступления</label>
+          <input id="receiptArrivalDate" type="text" inputmode="numeric" placeholder="ДД.ММ.ГГГГ">
+        </div>
+        <div class="receipt-field full">
+          <label>Поставщик полный</label>
+          <input id="receiptSupplierFull" type="text">
+        </div>
+        <div class="receipt-field">
+          <label>Реальный тип документа</label>
+          <input id="receiptRealTypes" type="text">
+        </div>
+        <div class="receipt-field">
+          <label>Номер документа</label>
+          <input id="receiptDocNumber" type="text">
+        </div>
+      </div>
+
+      <div class="receipt-grid receipt-check-only" id="receiptCheckFields" hidden>
+        <div class="receipt-field">
+          <label>Карта / способ оплаты</label>
+          <input id="receiptPaymentCard" type="text" placeholder="Например: Тинькофф 8064">
+        </div>
+        <div class="receipt-field">
+          <label>Место покупки</label>
+          <select id="receiptPurchaseChannel">
+            <option value="Покупка в магазине">Покупка в магазине</option>
+            <option value="Покупка в Ozon">Покупка в Ozon</option>
+            <option value="Покупка онлайн">Покупка онлайн</option>
+          </select>
+        </div>
+        <div class="receipt-field full">
+          <label>Товар и количество для сообщения</label>
+          <input id="receiptPurchaseSummary" type="text" placeholder="Например: Радебергер Пилснер 7,92 л">
+        </div>
+        <div class="receipt-field full">
+          <label>Магазин / продавец</label>
+          <input id="receiptMerchant" type="text" placeholder="Магнит, АТОЛ, Ozon…">
+        </div>
+      </div>
+
+      <div class="group-label">Позиции для возможного внесения в сток</div>
+      <div class="receipt-items" id="receiptItems"></div>
+
+      <div class="group-label">Сообщение в Telegram</div>
+      <div class="receipt-field full">
+        <textarea id="receiptMessage"></textarea>
+      </div>
+
+      <div class="receipt-actions">
+        <button type="button" class="receipt-secondary" id="receiptOpenPdf">Открыть PDF</button>
+        <button type="button" class="receipt-primary" id="receiptConfirm">✅ Внести в сток</button>
+      </div>
+      <div class="receipt-actions">
+        <button type="button" class="receipt-secondary" id="receiptSend">📨 Отправить PDF и сообщение в чат</button>
+      </div>
+      <div class="receipt-summary" id="receiptActionHint"></div>
+    </div>
+  </div>
+</section>
+
 <div class="report-bar"><button class="report-btn" id="reportBtn">📋 Сформировать общий отчёт</button></div>
 <div class="overlay" id="reportOverlay">
   <div class="sheet" role="dialog" aria-modal="true">
@@ -392,7 +615,14 @@ body.mode-hub #backBtn{display:none}
 
 <div class="overlay" id="recipeOverlay">
   <div class="sheet" role="dialog" aria-modal="true">
-    <div class="sheet-head"><h3 id="recipeTitle">Раскладка</h3><span class="cnt">состав</span></div>
+    <div class="sheet-head"><h3 id="recipeTitle">Раскладка</h3><span class="cnt" id="recipeScaleBadge">×1</span></div>
+    <div class="recipe-scale" id="recipeScaleControls" hidden>
+      <span class="recipe-scale-label">Коэффициент раскладки</span>
+      <button class="recipe-scale-btn" id="recipeScaleDown" type="button">−</button>
+      <label class="recipe-scale-input-wrap">×<input class="recipe-scale-input" id="recipeScaleInput" type="number" inputmode="decimal" min="0.1" max="100" step="0.1" value="1"></label>
+      <button class="recipe-scale-btn" id="recipeScaleUp" type="button">+</button>
+      <button class="recipe-scale-reset" id="recipeScaleReset" type="button">×1</button>
+    </div>
     <div class="recipe-body" id="recipeBody"></div>
     <div class="sheet-actions"><button class="btn-ghost" id="recipeClose">Закрыть</button></div>
   </div>
@@ -723,25 +953,71 @@ function generateReport(){
 }
 function closeReport(){ document.getElementById('reportOverlay').classList.remove('show'); }
 
-// ---- Раскладки ----
+// ---- Раскладки + коэффициент ----
+let activeRecipeItem=null;
+let activeRecipeFactor=1;
+
 document.getElementById('recipeClose').onclick=closeRecipe;
 document.getElementById('recipeOverlay').addEventListener('click',e=>{
   if(e.target===document.getElementById('recipeOverlay')) closeRecipe();
 });
-function openRecipe(it){
-  hap('light');
+
+function normalizeRecipeFactor(value){
+  let n=parseFloat(String(value==null?'':value).replace(',','.'));
+  if(!Number.isFinite(n)||n<=0)n=1;
+  return Math.min(100,Math.max(.1,Math.round(n*100)/100));
+}
+function formatRecipeNumber(value){
+  const n=Math.round((Number(value)||0)*1000)/1000;
+  return String(n).replace('.',',');
+}
+function scaleRecipeAmount(text,factor){
+  return String(text||'').replace(/\d+(?:[.,]\d+)?/g,m=>{
+    const n=parseFloat(m.replace(',','.'));
+    return Number.isFinite(n)?formatRecipeNumber(n*factor):m;
+  });
+}
+function renderActiveRecipe(){
+  const it=activeRecipeItem;if(!it||!it.r)return;
   document.getElementById('recipeTitle').textContent=it.l;
+  const hasIngredients=!!(it.r.ing&&it.r.ing.length);
+  document.getElementById('recipeScaleControls').hidden=!hasIngredients;
+  document.getElementById('recipeScaleBadge').textContent=hasIngredients?('×'+formatRecipeNumber(activeRecipeFactor)):'состав';
+  document.getElementById('recipeScaleInput').value=String(activeRecipeFactor);
   let html='';
-  if(it.r.ing && it.r.ing.length) html+='<ul class="rcp-ing">'+it.r.ing.map(x=>{
+  if(hasIngredients) html+='<ul class="rcp-ing">'+it.r.ing.map(x=>{
     const p=x.split(' — ');
-    return p.length>1 ? '<li><span>'+p[0]+'</span><i>'+p.slice(1).join(' — ')+'</i></li>' : '<li>'+x+'</li>';
+    if(p.length<2)return '<li>'+escapeHtml(x)+'</li>';
+    const name=escapeHtml(p[0]);
+    const amount=escapeHtml(scaleRecipeAmount(p.slice(1).join(' — '),activeRecipeFactor));
+    return '<li><span>'+name+'</span><i>'+amount+'</i></li>';
   }).join('')+'</ul>';
-  if(it.r.steps && it.r.steps.length) html+='<ol class="rcp-steps">'+it.r.steps.map(x=>'<li>'+x+'</li>').join('')+'</ol>';
-  if(it.r.method) html+='<div class="rcp-method">'+it.r.method+'</div>';
+  if(it.r.steps&&it.r.steps.length)html+='<ol class="rcp-steps">'+it.r.steps.map(x=>'<li>'+escapeHtml(x)+'</li>').join('')+'</ol>';
+  if(it.r.method)html+='<div class="rcp-method">'+escapeHtml(it.r.method)+'</div>';
   document.getElementById('recipeBody').innerHTML=html;
+}
+function setRecipeFactor(value){
+  activeRecipeFactor=normalizeRecipeFactor(value);
+  renderActiveRecipe();
+  hap('sel');
+}
+function openRecipe(it){
+  hap('light');activeRecipeItem=it;activeRecipeFactor=1;renderActiveRecipe();
   document.getElementById('recipeOverlay').classList.add('show');
 }
-function closeRecipe(){ document.getElementById('recipeOverlay').classList.remove('show'); }
+function closeRecipe(){
+  document.getElementById('recipeOverlay').classList.remove('show');
+  activeRecipeItem=null;activeRecipeFactor=1;
+}
+document.getElementById('recipeScaleInput').addEventListener('input',e=>{
+  const raw=String(e.target.value||'');
+  if(raw===''||raw==='.'||raw===',')return;
+  activeRecipeFactor=normalizeRecipeFactor(raw);renderActiveRecipe();
+});
+document.getElementById('recipeScaleInput').addEventListener('blur',e=>setRecipeFactor(e.target.value));
+document.getElementById('recipeScaleDown').onclick=()=>setRecipeFactor(activeRecipeFactor-.5);
+document.getElementById('recipeScaleUp').onclick=()=>setRecipeFactor(activeRecipeFactor+.5);
+document.getElementById('recipeScaleReset').onclick=()=>setRecipeFactor(1);
 function sendReport(){
   const ta=document.getElementById('reportText'); if(!ta || !TG) return; hap('ok');
   try{ TG.sendData(ta.value); }
@@ -771,26 +1047,28 @@ document.getElementById('resetBtn').onclick=()=>{
 
 // ===== FO'X App sections =====
 function setAppSection(section){
-  document.body.classList.remove('mode-hub','mode-checklists','mode-banquets');
+  document.body.classList.remove('mode-hub','mode-checklists','mode-banquets','mode-receipts');
   document.body.classList.add('mode-'+section);
 
   document.getElementById('hubScreen').classList.toggle('active', section==='hub');
   document.getElementById('checklistsScreen').classList.toggle('active', section==='checklists');
   document.getElementById('banquetsScreen').classList.toggle('active', section==='banquets');
+  document.getElementById('receiptsScreen').classList.toggle('active', section==='receipts');
 
   const sub = document.getElementById('appSubtitle');
   if(section==='hub') sub.textContent = 'Единое мини-приложение';
   if(section==='checklists') sub.textContent = 'Подготовка бара к вечерней посадке';
   if(section==='banquets') sub.textContent = 'Календарь банкетов и фото заказов';
+  if(section==='receipts') sub.textContent = 'Сканер документов и кассовых чеков';
 
   if(section==='banquets') renderBanquets();
+  if(section==='receipts') openReceiptsSection();
   window.scrollTo({top:0,behavior:'smooth'});
 }
 document.querySelectorAll('[data-open-section]').forEach(btn=>{
   btn.addEventListener('click',()=>{ hap('sel'); setAppSection(btn.dataset.openSection); });
 });
-document.getElementById('backBtn').onclick=()=>{ hap('light'); setAppSection('hub');
-loadBanquets(); };
+document.getElementById('backBtn').onclick=()=>{ hap('light'); setAppSection('hub'); };
 
 
 // ===== Банкетный календарь v2: общая база Google Sheets + Cloudinary =====
@@ -827,6 +1105,12 @@ function getTgUserName(){
   const u=getTgUser();
   if(!u) return '';
   return [u.first_name,u.last_name].filter(Boolean).join(' ') || u.username || String(u.id||'');
+}
+function getTgChatId(){
+  try{
+    const c=TG&&TG.initDataUnsafe&&TG.initDataUnsafe.chat?TG.initDataUnsafe.chat:null;
+    return c&&c.id?String(c.id):'';
+  }catch(e){return '';}
 }
 function isBanqAdmin(){
   const id=getTgUserId();
@@ -1334,6 +1618,273 @@ window.showMyId=function(){
   alert('Ваш Telegram user_id: '+id);
 };
 
+
+
+// ===== FO’X v15 — общий сканер документов и чеков =====
+// После публикации Apps Script вставь сюда URL нового Web App.
+const STOCK_API_URL = 'https://script.google.com/macros/s/AKfycbx9XlQG6kCvWVU6OekcWAmHAVnjFXfG-_UD_pKQrQqYaWNyHzmXsmB_2LGohxETrrfTpA/exec';
+const RECEIPT_MESSAGE_DOC_TYPE = 'Счёт на оплату';
+
+let receiptPages = [];
+let receiptPdfBlob = null;
+let receiptJobId = '';
+let receiptResult = null;
+let receiptCatalog = [];
+let receiptPollingToken = 0;
+let receiptReshootIndex = -1;
+
+function isStockApiConfigured(){
+  return STOCK_API_URL && !STOCK_API_URL.includes('PASTE_STOCK_APPS_SCRIPT_WEB_APP_URL_HERE');
+}
+function getReceiptMode(){
+  const el=document.getElementById('receiptMode');
+  return el&&el.value==='check'?'check':'document';
+}
+function receiptAuthParams(){
+  return {
+    telegramUserId:getTgUserId(),
+    telegramUserName:getTgUserName(),
+    telegramChatId:getTgChatId(),
+    telegramInitData:TG ? (TG.initData || '') : ''
+  };
+}
+function openReceiptsSection(){
+  document.getElementById('receiptAdminBlock').hidden=false;
+  document.getElementById('receiptAccessDenied').hidden=true;
+  document.getElementById('receiptStatus').hidden=false;
+  updateReceiptModeUi(false);
+  if(!isStockApiConfigured()){
+    setReceiptStatus('warn','Сканер подготовлен, но STOCK_API_URL ещё не вставлен в index.html.',0);
+    return;
+  }
+  if(!receiptCatalog.length) loadReceiptCatalog();
+}
+function setReceiptStatus(type,text,progress){
+  const el=document.getElementById('receiptStatus');
+  if(!el) return;
+  el.className='receipt-status '+(type||'');
+  el.innerHTML=escapeHtml(text||'')+'<div class="receipt-progress"><i id="receiptProgress"></i></div>';
+  const inner=document.getElementById('receiptProgress');
+  if(inner) inner.style.width=Math.max(0,Math.min(100,Math.round((Number(progress)||0)*100)))+'%';
+}
+function updateReceiptModeUi(resetResult){
+  const mode=getReceiptMode();
+  const isCheck=mode==='check';
+  document.getElementById('receiptModeNote').textContent=isCheck
+    ? 'Кассовый, фискальный или онлайн-чек. Несколько кадров одного длинного чека объединятся в один PDF.'
+    : 'Накладная, счёт, УПД, ТТН или комплект документов одной поставки.';
+  document.getElementById('receiptScreenSub').textContent=isCheck
+    ? 'Сними весь чек → получи один PDF → проверь сообщение → отправь в Telegram'
+    : 'Сними все страницы → получи один PDF → проверь товары → подтверди сток';
+  document.getElementById('receiptCameraTitle').textContent=isCheck?'Сканировать / добавить части чека':'Сканировать / добавить страницы';
+  document.getElementById('receiptScan').textContent=isCheck?'Собрать PDF и распознать чек':'Собрать PDF и распознать';
+  if(resetResult){
+    receiptPdfBlob=null;receiptResult=null;receiptJobId='';
+    document.getElementById('receiptResultCard').hidden=true;
+    setReceiptStatus('',isCheck?'Добавь фото всего чека. Для длинного чека можно сделать несколько кадров.':'Добавь фотографии всех страниц одного документа.',0);
+  }
+}
+const receiptModeEl=document.getElementById('receiptMode');
+if(receiptModeEl){
+  receiptModeEl.addEventListener('change',()=>{
+    if((receiptPages.length||receiptResult)&&!confirm('Сменить режим? Текущие страницы останутся, но результат распознавания будет сброшен.')){
+      receiptModeEl.value=getReceiptMode()==='check'?'document':'check';
+      return;
+    }
+    updateReceiptModeUi(true);
+  });
+}
+async function loadReceiptCatalog(){
+  if(!isStockApiConfigured()) return;
+  try{
+    setReceiptStatus('', 'Загружаю каталог стока…', .08);
+    const res=await jsonp(STOCK_API_URL,Object.assign({action:'catalog'},receiptAuthParams()));
+    if(!res||!res.ok) throw new Error(res&&res.error?res.error:'Каталог не загрузился');
+    receiptCatalog=Array.isArray(res.items)?res.items:[];
+    setReceiptStatus('ok','Каталог стока подключён. Можно сканировать документы и чеки.',0);
+  }catch(err){setReceiptStatus('err',String(err&&err.message?err.message:err),0);}
+}
+function postReceipt(fields){
+  const fd=new FormData();
+  Object.keys(fields).forEach(k=>fd.append(k,fields[k]==null?'':fields[k]));
+  const auth=receiptAuthParams();
+  Object.keys(auth).forEach(k=>fd.append(k,auth[k]));
+  return fetch(STOCK_API_URL,{method:'POST',mode:'no-cors',body:fd});
+}
+const receiptCamera=document.getElementById('receiptCamera');
+if(receiptCamera){
+  receiptCamera.addEventListener('change',async()=>{
+    const files=Array.from(receiptCamera.files||[]);if(!files.length) return;
+    setReceiptStatus('', 'Подготавливаю страницы…', .05);
+    try{
+      for(const file of files){if(String(file.type||'').startsWith('image/')) receiptPages.push(await imageFileToReceiptPage(file));}
+      receiptPdfBlob=null;receiptResult=null;receiptJobId='';
+      document.getElementById('receiptResultCard').hidden=true;
+      renderReceiptPages();
+      setReceiptStatus('', 'Страницы готовы. Проверь порядок и нажми распознавание.',0);
+    }catch(err){setReceiptStatus('err',String(err&&err.message?err.message:err),0);}
+    finally{receiptCamera.value='';}
+  });
+}
+const receiptReshoot=document.getElementById('receiptReshoot');
+if(receiptReshoot){
+  receiptReshoot.addEventListener('change',async()=>{
+    const file=receiptReshoot.files&&receiptReshoot.files[0];const index=receiptReshootIndex;
+    receiptReshoot.value='';receiptReshootIndex=-1;
+    if(!file||index<0||index>=receiptPages.length) return;
+    try{
+      setReceiptStatus('', 'Переснимаю страницу '+(index+1)+'…', .05);
+      receiptPages[index]=await imageFileToReceiptPage(file);
+      receiptPdfBlob=null;receiptResult=null;receiptJobId='';
+      document.getElementById('receiptResultCard').hidden=true;
+      renderReceiptPages();setReceiptStatus('', 'Страница заменена. Проверь порядок.',0);
+    }catch(err){setReceiptStatus('err',String(err&&err.message?err.message:err),0);}
+  });
+}
+document.getElementById('receiptReset').onclick=()=>{
+  if(receiptPages.length&&!confirm('Удалить все отсканированные страницы?')) return;
+  resetReceiptScanner();
+};
+document.getElementById('receiptScan').onclick=startReceiptRecognition;
+document.getElementById('receiptConfirm').onclick=confirmReceiptStock;
+document.getElementById('receiptSend').onclick=sendReceiptToTelegram;
+document.getElementById('receiptOpenPdf').onclick=()=>{
+  const url=receiptResult&&receiptResult.pdfUrl;if(url){if(TG) TG.openLink(url);else window.open(url,'_blank');}
+};
+function resetReceiptScanner(){
+  receiptPollingToken++;receiptPages=[];receiptPdfBlob=null;receiptJobId='';receiptResult=null;receiptReshootIndex=-1;
+  document.getElementById('receiptResultCard').hidden=true;renderReceiptPages();updateReceiptModeUi(true);
+}
+async function imageFileToReceiptPage(file){
+  const raw=await readFileAsDataUrl(file);
+  return await new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onload=()=>{try{
+      const maxSide=1800;let w=img.naturalWidth||img.width;let h=img.naturalHeight||img.height;
+      const k=Math.min(1,maxSide/Math.max(w,h));w=Math.max(1,Math.round(w*k));h=Math.max(1,Math.round(h*k));
+      const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+      const ctx=canvas.getContext('2d',{alpha:false});ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);
+      resolve({id:'p'+Date.now()+Math.random().toString(36).slice(2,7),name:file.name,width:w,height:h,dataUrl:canvas.toDataURL('image/jpeg',.76)});
+    }catch(err){reject(err);}};
+    img.onerror=()=>reject(new Error('Не удалось открыть фото. Используй JPG/PNG или сделай скриншот.'));img.src=raw;
+  });
+}
+function readFileAsDataUrl(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result||''));r.onerror=()=>reject(new Error('Не удалось прочитать файл'));r.readAsDataURL(file);});}
+function renderReceiptPages(){
+  const root=document.getElementById('receiptPages');const summary=document.getElementById('receiptPageSummary');const scan=document.getElementById('receiptScan');
+  if(!root) return;root.innerHTML='';
+  receiptPages.forEach((p,i)=>{
+    const card=document.createElement('div');card.className='receipt-page';
+    card.innerHTML='<span class="receipt-page-num">'+(i+1)+'</span><img src="'+p.dataUrl+'" alt="Страница '+(i+1)+'">'+
+      '<div class="receipt-page-actions"><button type="button" data-up '+(i===0?'disabled':'')+'>↑</button><button type="button" data-down '+(i===receiptPages.length-1?'disabled':'')+'>↓</button><button type="button" data-reshoot title="Переснять страницу">↻</button><button type="button" class="del" data-del>✕</button></div>';
+    card.querySelector('[data-up]').onclick=()=>moveReceiptPage(i,-1);card.querySelector('[data-down]').onclick=()=>moveReceiptPage(i,1);
+    card.querySelector('[data-reshoot]').onclick=()=>{receiptReshootIndex=i;document.getElementById('receiptReshoot').click();};
+    card.querySelector('[data-del]').onclick=()=>{receiptPages.splice(i,1);receiptPdfBlob=null;renderReceiptPages();};root.appendChild(card);
+  });
+  scan.disabled=!receiptPages.length;
+  summary.textContent=receiptPages.length?('Страниц/кадров: '+receiptPages.length+'. Всё будет объединено в один PDF.'):'Страниц пока нет.';
+}
+function moveReceiptPage(index,delta){const to=index+delta;if(to<0||to>=receiptPages.length)return;const tmp=receiptPages[index];receiptPages[index]=receiptPages[to];receiptPages[to]=tmp;receiptPdfBlob=null;renderReceiptPages();hap('sel');}
+async function buildReceiptPdf(){
+  if(!receiptPages.length) throw new Error('Нет страниц.');
+  if(!window.jspdf||!window.jspdf.jsPDF) throw new Error('Библиотека PDF не загрузилась. Проверь интернет и открой приложение заново.');
+  const {jsPDF}=window.jspdf;const firstLandscape=receiptPages[0].width>receiptPages[0].height;
+  const doc=new jsPDF({orientation:firstLandscape?'landscape':'portrait',unit:'pt',format:'a4',compress:true});
+  receiptPages.forEach((p,i)=>{const landscape=p.width>p.height;if(i>0)doc.addPage('a4',landscape?'landscape':'portrait');const pageW=doc.internal.pageSize.getWidth();const pageH=doc.internal.pageSize.getHeight();const scale=Math.min(pageW/p.width,pageH/p.height);const w=p.width*scale,h=p.height*scale;doc.addImage(p.dataUrl,'JPEG',(pageW-w)/2,(pageH-h)/2,w,h,undefined,'FAST');});
+  return doc.output('blob');
+}
+function blobToBase64(blob){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result||'').split(',')[1]||'');r.onerror=()=>reject(new Error('Не удалось подготовить PDF'));r.readAsDataURL(blob);});}
+async function startReceiptRecognition(){
+  if(!isStockApiConfigured()){setReceiptStatus('warn','Сначала вставь STOCK_API_URL в index.html.',0);return;}
+  if(!receiptPages.length){setReceiptStatus('warn','Добавь хотя бы одну страницу.',0);return;}
+  const btn=document.getElementById('receiptScan');btn.disabled=true;
+  try{
+    const mode=getReceiptMode();setReceiptStatus('', 'Собираю все страницы в один PDF…', .08);
+    receiptPdfBlob=await buildReceiptPdf();if(receiptPdfBlob.size>15*1024*1024)throw new Error('PDF получился больше 15 МБ. Пересними страницы или уменьши их количество.');
+    const base64=await blobToBase64(receiptPdfBlob);receiptJobId='rx'+Date.now()+'_'+Math.random().toString(36).slice(2,8);receiptResult=null;
+    document.getElementById('receiptResultCard').hidden=true;setReceiptStatus('', mode==='check'?'Отправляю PDF и распознаю чек…':'Отправляю PDF и распознаю документы…', .12);
+    postReceipt({action:'scan',jobId:receiptJobId,scanMode:mode,warehouse:document.getElementById('receiptWarehouse').value,pagesCount:receiptPages.length,pdfBase64:base64,pdfName:'FO_X_'+receiptJobId+'.pdf'}).catch(()=>{});
+    const status=await pollReceiptJob(receiptJobId,['DONE','ERROR'],210000);if(status.status==='ERROR')throw new Error(status.error||'Ошибка распознавания');
+    receiptResult=status.result||{};receiptResult.pdfUrl=status.pdfUrl||receiptResult.pdfUrl||'';renderReceiptRecognition(receiptResult);
+    setReceiptStatus('ok',mode==='check'?'Чек распознан. Проверь текст сообщения и позиции.':'Документ распознан. Проверь каждую позицию перед внесением в сток.',1);hap('ok');
+  }catch(err){setReceiptStatus('err',String(err&&err.message?err.message:err),1);}
+  finally{btn.disabled=!receiptPages.length;}
+}
+async function pollReceiptJob(jobId,finalStatuses,maxMs){
+  const token=++receiptPollingToken;const started=Date.now();let notFoundCount=0;
+  while(Date.now()-started<maxMs){
+    if(token!==receiptPollingToken) throw new Error('Операция отменена.');
+    try{const res=await jsonp(STOCK_API_URL,Object.assign({action:'status',jobId},receiptAuthParams()));if(res&&res.ok){setReceiptStatus(res.status==='ERROR'?'err':'',res.step||'Обработка…',Number(res.progress)||.2);if(finalStatuses.includes(res.status))return res;}else{notFoundCount++;if(notFoundCount>12&&res&&res.error&&!String(res.error).includes('не найден'))throw new Error(res.error);}}catch(err){if(Date.now()-started>30000&&!String(err&&err.message||err).includes('timeout'))throw err;}await new Promise(r=>setTimeout(r,2200));
+  }
+  throw new Error('Сервер отвечает слишком долго. Повтори через минуту.');
+}
+function catalogOptionKey(sheet,name){return String(sheet||'')+'|||'+String(name||'');}
+function splitCatalogKey(v){const p=String(v||'').split('|||');return{sheet:p.shift()||'',name:p.join('|||')||''};}
+function applyReceiptModeResult(mode){
+  const isCheck=mode==='check';document.getElementById('receiptDocumentFields').hidden=isCheck;document.getElementById('receiptCheckFields').hidden=!isCheck;
+  document.getElementById('receiptReviewTitle').textContent=isCheck?'Проверка чека':'Проверка документа';
+  document.getElementById('receiptConfirm').textContent=isCheck?'📦 Внести выбранные товары в сток':'✅ Внести в сток';
+  document.getElementById('receiptActionHint').textContent=isCheck?'Отправить чек в чат можно сразу. Внесение товаров в сток — отдельное подтверждение.':'Для документа поставки сначала внеси позиции в сток, затем отправь PDF в чат.';
+}
+function renderReceiptRecognition(r){
+  const mode=r.scanMode==='check'?'check':'document';document.getElementById('receiptMode').value=mode;applyReceiptModeResult(mode);
+  document.getElementById('receiptResultCard').hidden=false;document.getElementById('receiptDateText').value=r.documentDate||'';document.getElementById('receiptTotal').value=Number(r.totalAmount)||0;
+  document.getElementById('receiptArrivalDate').value=r.receiptDate||r.documentDate||'';document.getElementById('receiptSupplierShort').value=r.supplierShort||'';document.getElementById('receiptSupplierFull').value=r.supplierFull||'';
+  document.getElementById('receiptRealTypes').value=(r.realDocumentTypes||[]).join(', ');document.getElementById('receiptDocNumber').value=r.documentNumber||'';
+  document.getElementById('receiptPaymentCard').value=r.paymentCard||'';document.getElementById('receiptPurchaseChannel').value=r.purchaseChannel||'Покупка в магазине';
+  document.getElementById('receiptPurchaseSummary').value=r.purchaseSummary||'';document.getElementById('receiptMerchant').value=r.merchant||'';
+  document.getElementById('receiptWarehouse').value=r.warehouse||document.getElementById('receiptWarehouse').value;renderReceiptItems(r.items||[]);refreshReceiptMessage();
+  ['receiptDateText','receiptSupplierShort','receiptWarehouse','receiptPaymentCard','receiptPurchaseChannel','receiptPurchaseSummary','receiptTotal'].forEach(id=>{const el=document.getElementById(id);el.oninput=refreshReceiptMessage;el.onchange=refreshReceiptMessage;});
+  const confirmBtn=document.getElementById('receiptConfirm');confirmBtn.disabled=false;
+  const sendBtn=document.getElementById('receiptSend');sendBtn.disabled=mode==='document';sendBtn.textContent='📨 Отправить PDF и сообщение в чат';
+  window.scrollTo({top:document.getElementById('receiptResultCard').offsetTop-70,behavior:'smooth'});
+}
+function stockOptionsHtml(selectedSheet,selectedName){let html='<option value="">— не выбрано —</option>';const groups={};receiptCatalog.forEach(x=>{(groups[x.sheet]||(groups[x.sheet]=[])).push(x);});Object.keys(groups).forEach(sheet=>{html+='<optgroup label="'+escapeHtml(sheet)+'">';groups[sheet].forEach(x=>{const key=catalogOptionKey(x.sheet,x.name);const sel=(x.sheet===selectedSheet&&x.name===selectedName)?' selected':'';html+='<option value="'+escapeHtml(key)+'"'+sel+'>'+escapeHtml(x.name)+'</option>';});html+='</optgroup>';});return html;}
+function renderReceiptItems(items){
+  const root=document.getElementById('receiptItems');root.innerHTML='';
+  items.forEach((item,i)=>{const card=document.createElement('div');card.className='receipt-item'+(item.needsReview?' need-review':'')+(item.excluded||item.isService?' excluded':'');card.dataset.index=String(i);const included=!!item.include&&!item.excluded&&!item.isService;const matchLabel=item.isService?'УСЛУГА':(item.matchSource||'НЕ СОПОСТАВЛЕНО');
+    card.innerHTML='<div class="receipt-item-head"><input type="checkbox" data-include '+(included?'checked':'')+' '+((item.excluded||item.isService)?'disabled':'')+'><div class="receipt-item-name">'+escapeHtml(item.rawName||'')+'<div class="receipt-item-meta">Из чека/документа: '+formatReceiptNumber(item.quantity)+' '+escapeHtml(item.unit||'')+' · цена '+formatReceiptMoney(item.unitPriceVat)+'</div></div><span class="receipt-match">'+escapeHtml(matchLabel)+'</span></div><div class="receipt-item-fields"><label class="full">Позиция FO’X<select data-stock>'+stockOptionsHtml(item.stockSheet,item.stockName)+'</select></label><label>В сток, количество<input data-qty type="number" inputmode="decimal" step="0.001" min="0" value="'+escapeHtml(String(item.stockQuantity??item.quantity??0))+'"></label><label>Единица<input data-unit type="text" value="'+escapeHtml(item.stockUnit||item.unit||'')+'"></label><label>Новая цена с НДС<input data-price type="number" inputmode="decimal" step="0.01" min="0" value="'+escapeHtml(String(item.stockUnitPrice??item.unitPriceVat??0))+'"></label><label>Сумма строки<input data-total type="number" inputmode="decimal" step="0.01" min="0" value="'+escapeHtml(String(item.totalVat??0))+'"></label></div>';
+    const select=card.querySelector('[data-stock]');select.onchange=()=>{const x=splitCatalogKey(select.value);item.stockSheet=x.sheet;item.stockName=x.name;};root.appendChild(card);
+  });
+  if(!items.length)root.innerHTML='<div class="banq-empty">Товарные позиции не найдены. Сообщение в Telegram всё равно можно проверить и отправить.</div>';
+}
+function formatReceiptNumber(v){const n=Number(v);return Number.isFinite(n)?n.toLocaleString('ru-RU',{maximumFractionDigits:3}):'0';}
+function formatReceiptMoney(v){const n=Number(v);return Number.isFinite(n)?n.toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₽':'0,00 ₽';}
+function formatTelegramAmount(v){const n=Number(v)||0;return n.toLocaleString('ru-RU',{minimumFractionDigits:Number.isInteger(n)?0:2,maximumFractionDigits:2});}
+function refreshReceiptMessage(){
+  const mode=getReceiptMode();let lines=[];
+  if(mode==='check'){
+    lines.push(document.getElementById('receiptDateText').value.trim());
+    const card=document.getElementById('receiptPaymentCard').value.trim();lines.push(card||'Карта не указана');
+    lines.push(document.getElementById('receiptPurchaseChannel').value.trim()||'Покупка в магазине');
+    lines.push(document.getElementById('receiptPurchaseSummary').value.trim()||'Покупка');
+    lines.push('Итого: '+formatTelegramAmount(document.getElementById('receiptTotal').value)+' руб');
+    lines.push(document.getElementById('receiptWarehouse').value);
+  }else{
+    lines=[document.getElementById('receiptDateText').value.trim(),document.getElementById('receiptSupplierShort').value.trim(),RECEIPT_MESSAGE_DOC_TYPE,document.getElementById('receiptWarehouse').value];
+  }
+  document.getElementById('receiptMessage').value=lines.filter(Boolean).join('\n');
+}
+function collectReceiptPayload(){
+  const items=(receiptResult&&receiptResult.items||[]).map((base,i)=>{const card=document.querySelector('.receipt-item[data-index="'+i+'"]');if(!card)return Object.assign({},base,{include:false});const selected=splitCatalogKey(card.querySelector('[data-stock]').value);return Object.assign({},base,{include:card.querySelector('[data-include]').checked,stockSheet:selected.sheet,stockName:selected.name,stockQuantity:Number(card.querySelector('[data-qty]').value)||0,stockUnit:card.querySelector('[data-unit]').value.trim(),stockUnitPrice:Number(card.querySelector('[data-price]').value)||0,totalVat:Number(card.querySelector('[data-total]').value)||0});});
+  return {jobId:receiptJobId,scanMode:getReceiptMode(),documentDate:document.getElementById('receiptDateText').value.trim(),receiptDate:document.getElementById('receiptArrivalDate').value.trim(),supplierShort:document.getElementById('receiptSupplierShort').value.trim(),supplierFull:document.getElementById('receiptSupplierFull').value.trim(),realDocumentTypes:document.getElementById('receiptRealTypes').value.split(',').map(x=>x.trim()).filter(Boolean),documentNumber:document.getElementById('receiptDocNumber').value.trim(),paymentCard:document.getElementById('receiptPaymentCard').value.trim(),purchaseChannel:document.getElementById('receiptPurchaseChannel').value.trim(),purchaseSummary:document.getElementById('receiptPurchaseSummary').value.trim(),merchant:document.getElementById('receiptMerchant').value.trim(),totalAmount:Number(document.getElementById('receiptTotal').value)||0,warehouse:document.getElementById('receiptWarehouse').value,messageText:document.getElementById('receiptMessage').value.trim(),items};
+}
+async function confirmReceiptStock(){
+  if(!receiptJobId||!receiptResult){setReceiptStatus('warn','Сначала распознай документ или чек.',0);return;}
+  const payload=collectReceiptPayload();const selected=payload.items.filter(x=>x.include&&!x.isService);const invalid=selected.filter(x=>!x.stockSheet||!x.stockName||!(x.stockQuantity>0));
+  if(!selected.length){setReceiptStatus('warn','Выбери хотя бы одну товарную позицию. Для чека без товарного стока используй только кнопку отправки в чат.',0);return;}
+  if(invalid.length){setReceiptStatus('warn','У выбранных строк должна быть позиция FO’X и количество больше нуля.',0);return;}
+  if(!confirm('Внести '+selected.length+' позиций в '+payload.warehouse+' и обновить цены?'))return;
+  const btn=document.getElementById('receiptConfirm');btn.disabled=true;
+  try{setReceiptStatus('', 'Записываю подтверждённое поступление…', .15);postReceipt({action:'confirm',jobId:receiptJobId,payload:JSON.stringify(payload)}).catch(()=>{});const status=await pollReceiptJob(receiptJobId,['CONFIRMED','SENT','ERROR'],120000);if(status.status==='ERROR')throw new Error(status.error||'Ошибка записи');receiptResult=status.result||payload;setReceiptStatus('ok','Товары внесены. Остаток и последняя закупочная цена обновлены.',1);btn.textContent='✓ Внесено в сток';document.getElementById('receiptSend').disabled=false;hap('ok');}
+  catch(err){btn.disabled=false;setReceiptStatus('err',String(err&&err.message?err.message:err),1);}
+}
+async function sendReceiptToTelegram(){
+  if(!receiptJobId){setReceiptStatus('warn','Сначала распознай документ или чек.',0);return;}
+  const btn=document.getElementById('receiptSend');btn.disabled=true;
+  try{const message=document.getElementById('receiptMessage').value.trim();setReceiptStatus('', 'Отправляю единый PDF и сообщение в Telegram…', .2);postReceipt({action:'sendTelegram',jobId:receiptJobId,messageText:message}).catch(()=>{});const status=await pollReceiptJob(receiptJobId,['SENT','SENT_UNCONFIRMED','SEND_ERROR'],120000);if(status.status==='SEND_ERROR')throw new Error(status.error||'Ошибка Telegram');setReceiptStatus('ok','PDF и сообщение отправлены в Telegram.',1);btn.textContent='✓ Отправлено в чат';hap('ok');}
+  catch(err){btn.disabled=false;setReceiptStatus('err',String(err&&err.message?err.message:err),1);}
+}
 
 
 switchTab(DATA[0].id);
