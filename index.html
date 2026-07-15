@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.9 — HD-камера и вспышка</title>
+<title>FO'X App v15.10 — заготовки и статусы банкетов</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -213,17 +213,38 @@ body.mode-hub #backBtn{display:none}
 .day-head span{font-size:12px;color:var(--amber);font-weight:700}
 .banq-list{display:flex;flex-direction:column;gap:10px}
 .banq-empty{color:var(--muted);font-size:13px;line-height:1.5;padding:8px 2px}
-.banq-item{border:1px solid var(--line);background:var(--surface-2);border-radius:14px;padding:12px}
+.banq-item{border:1px solid var(--line);background:var(--surface-2);border-radius:14px;padding:12px;transition:border-color .2s,background .2s,opacity .2s}
+.banq-item.status-actual{border-color:var(--amber-line);background:linear-gradient(180deg,rgba(238,142,58,.10),var(--surface-2))}
+.banq-item.status-completed{border-color:rgba(95,191,143,.45);background:linear-gradient(180deg,rgba(95,191,143,.12),var(--surface-2));opacity:.86}
+.banq-item.status-completed .banq-name{color:#CFE8DB}
+.banq-item.status-cancelled{border-color:rgba(240,139,125,.38);background:rgba(240,139,125,.08);opacity:.68}
+.banq-item.status-cancelled .banq-name{text-decoration:line-through;text-decoration-color:rgba(240,139,125,.55)}
 .banq-item-head{display:flex;justify-content:space-between;gap:10px;margin-bottom:6px}
 .banq-time{font-family:"Unbounded",sans-serif;font-size:13px;color:var(--amber);font-weight:600}
-.banq-status{font-size:11px;color:var(--muted);border:1px solid var(--line-strong);border-radius:999px;padding:3px 8px;height:max-content}
+.banq-status{font-size:11px;color:var(--muted);border:1px solid var(--line-strong);border-radius:999px;padding:4px 9px;height:max-content;font-weight:700;white-space:nowrap}
+.banq-status.actual{color:var(--amber);border-color:var(--amber-line);background:var(--amber-soft)}
+.banq-status.completed{color:var(--done);border-color:rgba(95,191,143,.45);background:var(--done-soft)}
+.banq-status.cancelled{color:#F08B7D;border-color:rgba(240,139,125,.4);background:rgba(240,139,125,.10)}
 .banq-name{font-size:15px;font-weight:700;margin-bottom:3px}
 .banq-comment{font-size:13px;color:var(--muted);line-height:1.45;margin:5px 0 9px}
 .banq-img{display:block;width:100%;border-radius:12px;border:1px solid var(--line);margin-top:8px}
-.banq-actions{display:flex;gap:8px;margin-top:10px}
+.banq-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 .small-btn{border:1px solid var(--line-strong);background:transparent;color:var(--muted);
-  font-family:inherit;font-size:12px;font-weight:600;padding:8px 10px;border-radius:10px;cursor:pointer}
-.small-btn.danger{color:#F08B7D;border-color:rgba(240,139,125,.35)}
+  font-family:inherit;font-size:12px;font-weight:600;padding:9px 10px;border-radius:10px;cursor:pointer}
+.small-btn:active{transform:scale(.98)}
+.small-btn.status-actual{color:var(--amber);border-color:var(--amber-line);background:var(--amber-soft)}
+.small-btn.status-completed{color:var(--done);border-color:rgba(95,191,143,.45);background:var(--done-soft)}
+.small-btn.status-cancelled{color:#F08B7D;border-color:rgba(240,139,125,.35);background:rgba(240,139,125,.08)}
+.small-btn.active{box-shadow:inset 0 0 0 1px currentColor}
+.small-btn.danger{margin-left:auto;color:#F08B7D;border-color:rgba(240,139,125,.35)}
+.banq-status-legend{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 12px}
+.banq-status-legend span{font-size:11px;font-weight:700;padding:6px 9px;border-radius:999px;border:1px solid var(--line-strong)}
+.banq-status-legend .actual{color:var(--amber);border-color:var(--amber-line);background:var(--amber-soft)}
+.banq-status-legend .completed{color:var(--done);border-color:rgba(95,191,143,.45);background:var(--done-soft)}
+.banq-status-legend .cancelled{color:#F08B7D;border-color:rgba(240,139,125,.35);background:rgba(240,139,125,.08)}
+.cal-day.has-completed-only::after{background:var(--done)}
+.cal-day.has-cancelled-only::after{background:#F08B7D}
+.cal-day.has-mixed::after{width:16px;border-radius:4px;background:linear-gradient(90deg,var(--amber) 0 50%,var(--done) 50% 100%)}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .form-field{display:flex;flex-direction:column;gap:5px}
 .form-field.full{grid-column:1/-1}
@@ -465,6 +486,11 @@ body.mode-hub #backBtn{display:none}
   </div>
   <div class="sync-status" id="banqSyncStatus">Подключение к Google Sheets не настроено.</div>
   <div class="cloudinary-missing" id="cloudinaryWarn" hidden>Cloudinary пока не настроен: фото не будут загружаться. Заполни CLOUDINARY_CLOUD_NAME и CLOUDINARY_UPLOAD_PRESET в index.html.</div>
+  <div class="banq-status-legend" aria-label="Статусы банкетов">
+    <span class="actual">● Актуальный</span>
+    <span class="completed">✓ Пройден</span>
+    <span class="cancelled">× Отменён</span>
+  </div>
 
   <div class="banq-nav">
     <button class="icon-btn" id="banqPrev" type="button">‹</button>
@@ -536,7 +562,7 @@ body.mode-hub #backBtn{display:none}
     <div>
       <div class="receipt-title">Документы и чеки</div>
       <div class="receipt-sub" id="receiptScreenSub">Выбери режим → сними все страницы → получи один PDF → проверь результат</div>
-      <div class="receipt-version-badge">v15.9 · HD-камера · вспышка · ручная обрезка</div>
+      <div class="receipt-version-badge">v15.10 · HD-камера · статусы банкетов</div>
     </div>
   </div>
 
@@ -843,6 +869,8 @@ const DATA = [
           {l:"Лонг Айленд премикс"},
           {l:"Ванильный игристый Совиньон Блан", r:{ing:["Вино Совиньон Блан Мисти Клифф — 750 мл","Сироп ваниль Агробар — 80 мл","Молочная кислота — 20 мл"]}},
           {l:"Джин на изумрудном чае"},
+          {l:"Настойка джин на маракуйе"},
+          {l:"Сигарные соты"},
           {l:"Глинтвейн", n:"в наличии"},
           {l:"Премикс «Молоко единорога»", r:{ing:["Грушевый дистиллят — 15 мл","Персиковый ликёр — 20 мл","Калпис персик-груша — 80 мл","Цитрус-микс — 15 мл"]}},
           {l:"Калпис персик-груша", r:{ing:["Сироп персик Herbarista — 200 мл","Сироп груша Herbarista — 50 мл","Соевое молоко — 500 мл","Молочная кислота П/Ф — 150 мл"], method:"Все ингредиенты добавить в блендер и взбить, отфильтровать через супербэг."}},
@@ -1326,7 +1354,7 @@ async function loadBanquets(){
       time:String(x.time||''),
       name:String(x.name||''),
       comment:String(x.comment||''),
-      status:String(x.status||'Актуально'),
+      status:normalizeBanqStatus(x.status),
       photo:String(x.imageUrl||x.photo||''),
       fileId:String(x.fileId||''),
       imageUrls:(x.imageUrls||[]).map(String).filter(Boolean)
@@ -1344,6 +1372,18 @@ async function loadBanquets(){
 
 function saveLocalFallback(){
   localStorage.setItem(BANQ_LOCAL_FALLBACK_KEY, JSON.stringify(banquets));
+}
+function normalizeBanqStatus(status){
+  const value=String(status||'Актуально').trim().toLowerCase();
+  if(['выполнено','пройден','пройдено','завершено'].includes(value)) return 'Выполнено';
+  if(['отменено','отменён','отменен'].includes(value)) return 'Отменено';
+  return 'Актуально';
+}
+function getBanqStatusMeta(status){
+  const normalized=normalizeBanqStatus(status);
+  if(normalized==='Выполнено') return {value:'Выполнено',key:'completed',label:'✓ Пройден'};
+  if(normalized==='Отменено') return {value:'Отменено',key:'cancelled',label:'× Отменён'};
+  return {value:'Актуально',key:'actual',label:'● Актуальный'};
 }
 function banquetsByDate(){
   const map={};
@@ -1376,14 +1416,21 @@ function renderBanqCalendar(){
     const d=new Date(start);
     d.setDate(start.getDate()+i);
     const iso=isoDate(d);
-    const count=(map[iso]||[]).length;
+    const dayItems=map[iso]||[];
+    const count=dayItems.length;
+    const dayStatuses=new Set(dayItems.map(x=>normalizeBanqStatus(x.status)));
     const btn=document.createElement('button');
     btn.type='button';
     btn.className='cal-day';
     if(d.getMonth()!==month) btn.classList.add('muted');
     if(iso===todayIso) btn.classList.add('today');
     if(iso===selectedBanqDate) btn.classList.add('selected');
-    if(count>0) btn.classList.add('has-banquet');
+    if(count>0){
+      btn.classList.add('has-banquet');
+      if(dayStatuses.size>1) btn.classList.add('has-mixed');
+      else if(dayStatuses.has('Выполнено')) btn.classList.add('has-completed-only');
+      else if(dayStatuses.has('Отменено')) btn.classList.add('has-cancelled-only');
+    }
     btn.innerHTML='<span>'+d.getDate()+'</span>'+(count>1?'<span class="badge">'+count+'</span>':'');
     btn.onclick=()=>{
       selectedBanqDate=iso;
@@ -1407,16 +1454,29 @@ function renderBanqDay(){
 
   list.innerHTML='';
   items.forEach(b=>{
+    const meta=getBanqStatusMeta(b.status);
+    b.status=meta.value;
     const card=document.createElement('div');
-    card.className='banq-item';
+    card.className='banq-item status-'+meta.key;
     const safeName=escapeHtml(b.name||'Банкет');
     const safeComment=escapeHtml(b.comment||'');
+    const adminActions=isBanqAdmin() ?
+      '<div class="banq-actions">'+
+        '<button class="small-btn status-actual '+(meta.key==='actual'?'active':'')+'" type="button" data-status="Актуально">● Актуальный</button>'+ 
+        '<button class="small-btn status-completed '+(meta.key==='completed'?'active':'')+'" type="button" data-status="Выполнено">✓ Пройден</button>'+ 
+        '<button class="small-btn status-cancelled '+(meta.key==='cancelled'?'active':'')+'" type="button" data-status="Отменено">× Отменён</button>'+ 
+        '<button class="small-btn danger" type="button" data-del="'+escapeHtml(b.id)+'">Удалить</button>'+ 
+      '</div>' : '';
     card.innerHTML=
-      '<div class="banq-item-head"><div class="banq-time">'+escapeHtml(b.time||'')+'</div><div class="banq-status">'+escapeHtml(b.status||'Актуально')+'</div></div>'+
-      '<div class="banq-name">'+safeName+'</div>'+
+      '<div class="banq-item-head"><div class="banq-time">'+escapeHtml(b.time||'')+'</div><div class="banq-status '+meta.key+'">'+meta.label+'</div></div>'+ 
+      '<div class="banq-name">'+safeName+'</div>'+ 
       (safeComment?'<div class="banq-comment">'+safeComment+'</div>':'')+
-      renderBanqPhotoHtml(b)+
-      (isBanqAdmin()?'<div class="banq-actions"><button class="small-btn danger" type="button" data-del="'+escapeHtml(b.id)+'">Удалить</button></div>':'');
+      renderBanqPhotoHtml(b)+adminActions;
+
+    card.querySelectorAll('[data-status]').forEach(btn=>{
+      btn.onclick=()=>changeBanquetStatus(b,btn.dataset.status);
+    });
+
     const del=card.querySelector('[data-del]');
     if(del){
       del.onclick=async ()=>{
@@ -1435,6 +1495,33 @@ function renderBanqDay(){
     list.appendChild(card);
     attachBanqImageFallbacks(card);
   });
+}
+
+async function changeBanquetStatus(banquet,nextStatus){
+  if(!isBanqAdmin()) return;
+  const normalized=normalizeBanqStatus(nextStatus);
+  const previous=normalizeBanqStatus(banquet.status);
+  if(normalized===previous) return;
+
+  banquet.status=normalized;
+  renderBanquets();
+  setSyncStatus('', 'Сохраняю статус банкета…');
+
+  try{
+    if(isApiConfigured()){
+      await postBanqForm({action:'updateStatus',id:banquet.id,status:normalized});
+      setSyncStatus('ok','Статус сохранён: '+getBanqStatusMeta(normalized).label+'.');
+      setTimeout(loadBanquets,900);
+    }else{
+      saveLocalFallback();
+      setSyncStatus('warn','Статус изменён только на этом устройстве.');
+    }
+    hap('ok');
+  }catch(err){
+    banquet.status=previous;
+    renderBanquets();
+    setSyncStatus('err','Не удалось сохранить статус банкета.');
+  }
 }
 
 function getBanqImageUrls(b){
@@ -1741,7 +1828,7 @@ window.showMyId=function(){
 
 
 
-// ===== FO’X v15.9 — HD-снимок + вспышка + ручная обрезка =====
+// ===== FO’X v15.10 — HD-снимок + вспышка + статусы банкетов =====
 // После публикации Apps Script вставь сюда URL нового Web App.
 const STOCK_API_URL = 'https://script.google.com/macros/s/AKfycbx9XlQG6kCvWVU6OekcWAmHAVnjFXfG-_UD_pKQrQqYaWNyHzmXsmB_2LGohxETrrfTpA/exec';
 const RECEIPT_MESSAGE_DOC_TYPE = 'Счёт на оплату';
