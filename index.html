@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.10 — заготовки и статусы банкетов</title>
+<title>FO'X App v15.11 — банкетный резерв</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -242,6 +242,22 @@ body.mode-hub #backBtn{display:none}
 .banq-status-legend .actual{color:var(--amber);border-color:var(--amber-line);background:var(--amber-soft)}
 .banq-status-legend .completed{color:var(--done);border-color:rgba(95,191,143,.45);background:var(--done-soft)}
 .banq-status-legend .cancelled{color:#F08B7D;border-color:rgba(240,139,125,.35);background:rgba(240,139,125,.08)}
+
+.banq-reserve{margin-top:10px;padding:11px 12px;border:1px solid rgba(238,142,58,.28);background:rgba(238,142,58,.07);border-radius:12px}
+.banq-reserve.ok{border-color:rgba(95,191,143,.34);background:rgba(95,191,143,.08)}
+.banq-reserve.sent{border-color:rgba(95,191,143,.48);background:var(--done-soft)}
+.banq-reserve.warn{border-color:rgba(230,180,80,.34);background:var(--warn-soft)}
+.banq-reserve-title{font-size:12px;font-weight:800;color:var(--text);display:flex;align-items:center;gap:7px}
+.banq-reserve-meta{font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.45}
+.banq-reserve details{margin-top:7px}
+.banq-reserve summary{font-size:11.5px;color:var(--amber);font-weight:700;cursor:pointer}
+.banq-reserve-lines{display:flex;flex-direction:column;gap:5px;margin-top:7px}
+.banq-reserve-line{display:flex;justify-content:space-between;gap:10px;font-size:11.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:5px}
+.banq-reserve-line b{color:var(--text);font-weight:600;min-width:0}
+.small-btn.order{color:var(--amber);border-color:var(--amber-line);background:var(--amber-soft)}
+.small-btn.order.sent{color:var(--done);border-color:rgba(95,191,143,.45);background:var(--done-soft)}
+.small-btn.reserve-scan{color:#D8C6F5;border-color:rgba(184,151,231,.35);background:rgba(184,151,231,.08)}
+.small-btn[disabled]{opacity:.42;cursor:not-allowed}
 .cal-day.has-completed-only::after{background:var(--done)}
 .cal-day.has-cancelled-only::after{background:#F08B7D}
 .cal-day.has-mixed::after{width:16px;border-radius:4px;background:linear-gradient(90deg,var(--amber) 0 50%,var(--done) 50% 100%)}
@@ -562,7 +578,7 @@ body.mode-hub #backBtn{display:none}
     <div>
       <div class="receipt-title">Документы и чеки</div>
       <div class="receipt-sub" id="receiptScreenSub">Выбери режим → сними все страницы → получи один PDF → проверь результат</div>
-      <div class="receipt-version-badge">v15.10 · HD-камера · статусы банкетов</div>
+      <div class="receipt-version-badge">v15.11 · банкетный резерв · заказ отправлен</div>
     </div>
   </div>
 
@@ -1357,10 +1373,17 @@ async function loadBanquets(){
       status:normalizeBanqStatus(x.status),
       photo:String(x.imageUrl||x.photo||''),
       fileId:String(x.fileId||''),
-      imageUrls:(x.imageUrls||[]).map(String).filter(Boolean)
+      imageUrls:(x.imageUrls||[]).map(String).filter(Boolean),
+      reserve:null
     })).filter(x=>x.id && x.date);
     banqSharedMode=true;
-    setSyncStatus('ok','Общая база подключена. Банкеты и фото видны всем пользователям.');
+    const reserveConnected=await loadBanquetReserveSummaries_();
+    setSyncStatus(
+      reserveConnected?'ok':'warn',
+      reserveConnected
+        ? 'Общая база и банкетный резерв подключены.'
+        : 'База банкетов подключена. Банкетный резерв пока недоступен — сами банкеты работают.'
+    );
     renderBanquets();
   }catch(e){
     banqSharedMode=false;
@@ -1368,6 +1391,105 @@ async function loadBanquets(){
     setSyncStatus('err','Не удалось загрузить общую базу. Проверь URL Web App и доступы. Сейчас показан локальный резерв.');
     renderBanquets();
   }
+}
+
+
+async function loadBanquetReserveSummaries_(){
+  if(!isBanqAdmin() || !isStockApiConfigured()) return false;
+  try{
+    const res=await jsonp(STOCK_API_URL,Object.assign({action:'banquetSummaries'},receiptAuthParams()));
+    if(!res||!res.ok) throw new Error(res&&res.error?res.error:'Резерв не загрузился');
+    const map=res.items&&typeof res.items==='object'?res.items:{};
+    banquets.forEach(b=>{b.reserve=map[b.id]||null;});
+    return true;
+  }catch(err){
+    console.warn('Banquet reserve summaries:',err);
+    return false;
+  }
+}
+function formatBanquetReserveQty_(value){
+  const n=Number(value)||0;
+  return n.toLocaleString('ru-RU',{maximumFractionDigits:3});
+}
+function renderBanqReserveHtml_(b){
+  if(!isBanqAdmin()) return '';
+  const r=b.reserve;
+  if(!r||!r.recognized){
+    return '<div class="banq-reserve warn"><div class="banq-reserve-title">📦 Банкетный резерв</div><div class="banq-reserve-meta">'+
+      (b.photo?'Фото ещё не распознано для стока.':'Нет фото заказа — резерв не создан.')+
+      '</div></div>';
+  }
+  const cls=r.orderSent?' sent':(r.pendingPositions>0?' ok':'');
+  const statusText=r.orderSent
+    ? ('Заказ отправлен'+(r.orderSentAt?' · '+escapeHtml(r.orderSentAt):''))
+    : (r.pendingPositions>0?'К заказу: '+r.pendingPositions+' поз.':'К заказу сейчас ничего нет');
+  const items=Array.isArray(r.items)?r.items:[];
+  const lines=items.map(x=>{
+    const qty=r.orderSent?(x.required||0):(x.pending||0);
+    const label=r.orderSent?'заказано':'к заказу';
+    return '<div class="banq-reserve-line"><b>'+escapeHtml(x.stockName||'')+'</b><span>'+label+': '+formatBanquetReserveQty_(qty)+' '+escapeHtml(x.unit||'')+'</span></div>';
+  }).join('');
+  return '<div class="banq-reserve'+cls+'"><div class="banq-reserve-title">📦 Банкетный резерв</div>'+ 
+    '<div class="banq-reserve-meta">Сопоставлено: '+Number(r.matchedCount||0)+' поз. · '+statusText+
+    (Number(r.ignoredCount||0)>0?' · пропущено: '+Number(r.ignoredCount||0):'')+'</div>'+ 
+    (lines?'<details><summary>Показать позиции</summary><div class="banq-reserve-lines">'+lines+'</div></details>':'')+
+    '</div>';
+}
+function sleepBanq_(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
+async function pollBanquetReserveJob_(jobId){
+  const started=Date.now();
+  while(Date.now()-started<120000){
+    const res=await jsonp(STOCK_API_URL,Object.assign({action:'banquetReserveJob',jobId},receiptAuthParams()));
+    if(res&&res.ok){
+      setSyncStatus('',res.step||'Распознаю банкетный резерв…');
+      if(res.status==='DONE') return res;
+      if(res.status==='ERROR') throw new Error(res.error||'Ошибка распознавания банкета');
+    }
+    await sleepBanq_(1800);
+  }
+  throw new Error('Распознавание банкета занимает слишком много времени. Повтори позже.');
+}
+async function runBanquetReserveScan_(banquet,options){
+  options=options||{};
+  if(!isBanqAdmin()) return null;
+  if(!isStockApiConfigured()) throw new Error('Backend стока не подключён.');
+  if(!banquet||!banquet.photo) throw new Error('У банкета нет фото заказа.');
+  if(options.manual&&banquet.reserve&&banquet.reserve.recognized&&!confirm('Перераспознать фото и пересчитать резерв этого банкета?')) return null;
+  const jobId='BANQ-'+Date.now()+'-'+Math.random().toString(36).slice(2,8);
+  setSyncStatus('',options.manual?'Перераспознаю позиции банкета…':'Банкет сохранён. Распознаю позиции для стока…');
+  postReceipt({
+    action:'banquetScan',jobId,
+    banquetId:banquet.id,
+    banquetDate:banquet.date,
+    banquetName:banquet.name,
+    banquetStatus:banquet.status||'Актуально',
+    imageUrl:banquet.photo
+  }).catch(()=>{});
+  const result=await pollBanquetReserveJob_(jobId);
+  const summary=result.result&&result.result.summary?result.result.summary:null;
+  if(summary) banquet.reserve=summary;
+  setSyncStatus('ok','Резерв сохранён: '+Number(summary&&summary.matchedCount||0)+' позиций сопоставлено со стоком.');
+  hap('ok');
+  return summary;
+}
+async function toggleBanquetOrderSent_(banquet){
+  if(!isBanqAdmin()||!banquet||!banquet.reserve||!banquet.reserve.matchedCount)return;
+  if(normalizeBanqStatus(banquet.status)!=='Актуально'){
+    alert('Сначала верни банкет в статус «Актуальный».');
+    return;
+  }
+  const next=!banquet.reserve.orderSent;
+  const question=next
+    ? 'Отметить заказ по этому банкету отправленным? Позиции исчезнут из колонки «Банкеты».'
+    : 'Вернуть позиции этого банкета в заказ?';
+  if(!confirm(question))return;
+  setSyncStatus('',next?'Снимаю позиции банкета из заказа…':'Возвращаю позиции банкета в заказ…');
+  await postReceipt({action:'banquetOrder',banquetId:banquet.id,sent:next?'true':'false'});
+  await sleepBanq_(500);
+  await loadBanquetReserveSummaries_();
+  renderBanquets();
+  setSyncStatus('ok',next?'Заказ по банкету отмечен отправленным.':'Позиции банкета возвращены в заказ.');
+  hap('ok');
 }
 
 function saveLocalFallback(){
@@ -1460,22 +1582,48 @@ function renderBanqDay(){
     card.className='banq-item status-'+meta.key;
     const safeName=escapeHtml(b.name||'Банкет');
     const safeComment=escapeHtml(b.comment||'');
+    const reserve=b.reserve||null;
+    const hasMatchedReserve=!!(reserve&&Number(reserve.matchedCount)>0);
+    const orderLabel=reserve&&reserve.orderSent?'↩ Вернуть в заказ':'📦 Заказ отправлен';
+    const orderClass=reserve&&reserve.orderSent?' sent':'';
+    const orderDisabled=(!hasMatchedReserve||meta.key!=='actual')?' disabled':'';
+    const scanLabel=reserve&&reserve.recognized?'🔄 Пересчитать резерв':'✨ Распознать резерв';
     const adminActions=isBanqAdmin() ?
       '<div class="banq-actions">'+
         '<button class="small-btn status-actual '+(meta.key==='actual'?'active':'')+'" type="button" data-status="Актуально">● Актуальный</button>'+ 
         '<button class="small-btn status-completed '+(meta.key==='completed'?'active':'')+'" type="button" data-status="Выполнено">✓ Пройден</button>'+ 
         '<button class="small-btn status-cancelled '+(meta.key==='cancelled'?'active':'')+'" type="button" data-status="Отменено">× Отменён</button>'+ 
+        (b.photo?'<button class="small-btn reserve-scan" type="button" data-reserve-scan>'+scanLabel+'</button>':'')+
+        '<button class="small-btn order'+orderClass+'" type="button" data-order-sent'+orderDisabled+'>'+orderLabel+'</button>'+ 
         '<button class="small-btn danger" type="button" data-del="'+escapeHtml(b.id)+'">Удалить</button>'+ 
       '</div>' : '';
     card.innerHTML=
       '<div class="banq-item-head"><div class="banq-time">'+escapeHtml(b.time||'')+'</div><div class="banq-status '+meta.key+'">'+meta.label+'</div></div>'+ 
       '<div class="banq-name">'+safeName+'</div>'+ 
       (safeComment?'<div class="banq-comment">'+safeComment+'</div>':'')+
-      renderBanqPhotoHtml(b)+adminActions;
+      renderBanqPhotoHtml(b)+renderBanqReserveHtml_(b)+adminActions;
 
     card.querySelectorAll('[data-status]').forEach(btn=>{
       btn.onclick=()=>changeBanquetStatus(b,btn.dataset.status);
     });
+
+    const reserveScan=card.querySelector('[data-reserve-scan]');
+    if(reserveScan){
+      reserveScan.onclick=async()=>{
+        reserveScan.disabled=true;
+        try{await runBanquetReserveScan_(b,{manual:true});await loadBanquetReserveSummaries_();renderBanquets();}
+        catch(err){setSyncStatus('err',String(err&&err.message?err.message:err));}
+        finally{reserveScan.disabled=false;}
+      };
+    }
+    const orderSent=card.querySelector('[data-order-sent]');
+    if(orderSent&&!orderSent.disabled){
+      orderSent.onclick=async()=>{
+        orderSent.disabled=true;
+        try{await toggleBanquetOrderSent_(b);}catch(err){setSyncStatus('err',String(err&&err.message?err.message:err));}
+        finally{orderSent.disabled=false;}
+      };
+    }
 
     const del=card.querySelector('[data-del]');
     if(del){
@@ -1483,6 +1631,9 @@ function renderBanqDay(){
         if(!confirm('Удалить этот банкет?')) return;
         if(isApiConfigured()){
           await postBanqForm({action:'delete',id:b.id});
+          if(isStockApiConfigured()){
+            try{await postReceipt({action:'banquetDelete',banquetId:b.id});}catch(_){ }
+          }
           await loadBanquets();
         }else{
           banquets=banquets.filter(x=>x.id!==b.id);
@@ -1510,8 +1661,13 @@ async function changeBanquetStatus(banquet,nextStatus){
   try{
     if(isApiConfigured()){
       await postBanqForm({action:'updateStatus',id:banquet.id,status:normalized});
-      setSyncStatus('ok','Статус сохранён: '+getBanqStatusMeta(normalized).label+'.');
-      setTimeout(loadBanquets,900);
+      if(isStockApiConfigured()){
+        try{await postReceipt({action:'banquetStatusUpdate',banquetId:banquet.id,status:normalized});}
+        catch(stockErr){console.warn('Banquet reserve status:',stockErr);}
+      }
+      await sleepBanq_(500);
+      await loadBanquets();
+      setSyncStatus('ok','Статус сохранён: '+getBanqStatusMeta(normalized).label+'. Банкетный резерв пересчитан.');
     }else{
       saveLocalFallback();
       setSyncStatus('warn','Статус изменён только на этом устройстве.');
@@ -1800,7 +1956,11 @@ document.getElementById('banqForm').onsubmit=async e=>{
       saveBtn.textContent='Добавить банкет';
     }
     hap('ok');
-    setTimeout(loadBanquets, 1200);
+    if(item.photo&&isStockApiConfigured()){
+      try{await runBanquetReserveScan_(item,{manual:false});}
+      catch(scanErr){setSyncStatus('warn','Банкет сохранён, но резерв не распознан: '+String(scanErr&&scanErr.message?scanErr.message:scanErr));}
+    }
+    await loadBanquets();
   }else{
     banquets.push(item);
     saveLocalFallback();
@@ -1828,7 +1988,7 @@ window.showMyId=function(){
 
 
 
-// ===== FO’X v15.10 — HD-снимок + вспышка + статусы банкетов =====
+// ===== FO’X v15.11 — банкетный резерв + кнопка «Заказ отправлен» =====
 // После публикации Apps Script вставь сюда URL нового Web App.
 const STOCK_API_URL = 'https://script.google.com/macros/s/AKfycbx9XlQG6kCvWVU6OekcWAmHAVnjFXfG-_UD_pKQrQqYaWNyHzmXsmB_2LGohxETrrfTpA/exec';
 const RECEIPT_MESSAGE_DOC_TYPE = 'Счёт на оплату';
