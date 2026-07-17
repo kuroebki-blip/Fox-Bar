@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.12.2 — кассовый отчёт</title>
+<title>FO'X App v15.12.3 — UI CLEANUP</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -561,9 +561,6 @@ body.mode-cash-report #backBtn{display:inline-flex}
     <button class="banq-refresh" id="banqRefresh" type="button">Обновить</button>
   </div>
 
-  <div class="local-warn" id="banqStorageWarn">
-    Загружаю банкеты из общей базы…
-  </div>
   <div class="sync-status" id="banqSyncStatus">Подключение к Google Sheets не настроено.</div>
   <div class="cloudinary-missing" id="cloudinaryWarn" hidden>Cloudinary пока не настроен: фото не будут загружаться. Заполни CLOUDINARY_CLOUD_NAME и CLOUDINARY_UPLOAD_PRESET в index.html.</div>
   <div class="banq-status-legend" aria-label="Статусы банкетов">
@@ -642,7 +639,6 @@ body.mode-cash-report #backBtn{display:inline-flex}
     <div>
       <div class="receipt-title">Документы и чеки</div>
       <div class="receipt-sub" id="receiptScreenSub">Выбери режим → сними все страницы → получи один PDF → проверь результат</div>
-      <div class="receipt-version-badge">v15.12 · кассовый отчёт · банкетный резерв</div>
     </div>
   </div>
 
@@ -789,7 +785,6 @@ body.mode-cash-report #backBtn{display:inline-flex}
   <div>
     <div class="cash-title">Кассовый отчёт</div>
     <div class="cash-sub">Сфотографируй отчёт iiko и все сводные слипы терминалов. Их можно разместить на одном фото или добавить несколькими страницами.</div>
-    <div class="cash-version">v15.12.2 · инкассация с конверта</div>
   </div>
 
   <div class="cash-status" id="cashReportStatus">
@@ -1100,20 +1095,9 @@ DATA.forEach(sec=>{
 
 // ---- panels ----
 const main=document.getElementById('main');
-const legend=document.createElement('div');
-legend.className='legend';
-legend.innerHTML='Отмечай <b>✓ то, что есть</b> на баре. Что не отметишь — попадёт в отчёт как <b>отсутствующее</b>.';
-main.appendChild(legend);
-
 DATA.forEach(sec=>{
   const panel=document.createElement('section');
   panel.className='panel'; panel.id='panel-'+sec.id;
-
-  if(sec.banner){
-    const b=document.createElement('div'); b.className='banner';
-    b.innerHTML='<span class="ico">⚠️</span><div class="b-txt">'+sec.banner+'</div>';
-    panel.appendChild(b);
-  }
 
   const renderList=(items,label)=>{
     if(label){ const gl=document.createElement('div'); gl.className='group-label'; gl.textContent=label; panel.appendChild(gl); }
