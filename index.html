@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.12 — кассовый отчёт</title>
+<title>FO'X App v15.12.2 — кассовый отчёт</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -789,7 +789,7 @@ body.mode-cash-report #backBtn{display:inline-flex}
   <div>
     <div class="cash-title">Кассовый отчёт</div>
     <div class="cash-sub">Сфотографируй отчёт iiko и все сводные слипы терминалов. Их можно разместить на одном фото или добавить несколькими страницами.</div>
-    <div class="cash-version">v15.12 · PDF напрямую в Gemini · без хранения фото</div>
+    <div class="cash-version">v15.12.2 · инкассация с конверта</div>
   </div>
 
   <div class="cash-status" id="cashReportStatus">
@@ -842,6 +842,8 @@ body.mode-cash-report #backBtn{display:inline-flex}
     <div class="cash-grid">
       <div class="cash-field"><label>Расход</label><input id="cashReportExpense" type="number" inputmode="decimal" step="0.01" value="0"></div>
       <div class="cash-field"><label>Комментарий к расходу</label><input id="cashReportExpenseComment" type="text" placeholder="Необязательно"></div>
+      <div class="cash-field"><label>Инкассация с конверта</label><input id="cashReportCollection" type="number" inputmode="decimal" step="0.01" placeholder="Например 71938"></div>
+      <div class="cash-field"><label>Значение в скобках</label><input id="cashReportCollectionActual" type="number" inputmode="decimal" step="0.01" placeholder="Например 71940"></div>
       <div class="cash-field"><label>На утро в кассе</label><input id="cashReportMorningCash" type="number" inputmode="decimal" step="0.01" value="0"></div>
       <div class="cash-field"><label>Неизменный размен</label><input id="cashReportChangeFund" type="number" inputmode="decimal" step="0.01" value="70000"></div>
     </div>
@@ -2968,7 +2970,7 @@ function renderCashReportResult(r){
   cashInputValue('cashReportTotalRevenue',r.totalRevenue);cashInputValue('cashReportBankCards',r.bankCards);cashInputValue('cashReportBankCards2',r.bankCards2);
   cashInputValue('cashReportCashNonFiscal',r.cashNonFiscal);cashInputValue('cashReportCashFiscal',r.cashFiscal);cashInputValue('cashReportCash2',r.cash2);
   cashInputValue('cashReportTapper',r.tapper);cashInputValue('cashReportSettlement',r.settlementAccount);cashInputValue('cashReportSettlement2',r.settlementAccount2);cashInputValue('cashReportOnlineCashbox2',r.onlineCashbox2);
-  document.getElementById('cashReportExpense').value='0';document.getElementById('cashReportExpenseComment').value='';document.getElementById('cashReportMorningCash').value='0';document.getElementById('cashReportChangeFund').value='70000';
+  document.getElementById('cashReportExpense').value='0';document.getElementById('cashReportExpenseComment').value='';cashInputValue('cashReportCollection',r.collectionAmount);cashInputValue('cashReportCollectionActual',r.collectionActual);document.getElementById('cashReportMorningCash').value='0';document.getElementById('cashReportChangeFund').value='70000';
   cashReportTerminalSlips=Array.isArray(r.terminalSlips)?r.terminalSlips.map((x,i)=>({label:String(x.label||('Терминал '+(i+1))),amount:Number(x.amount)||0})).filter(x=>x.amount>0):[];
   cashReportPrepayments=[];renderCashTerminalSlips();renderCashPrepayments();bindCashReportInputs();refreshCashReportMessage();
   window.scrollTo({top:document.getElementById('cashReportResultCard').offsetTop-70,behavior:'smooth'});
@@ -2998,16 +3000,17 @@ function updateCashComparison(){
   const plus=diff>0;el.className='cash-compare err';el.textContent='⚠️ '+(plus?'Плюс':'Минус')+' по терминалам: '+formatCashMoney(Math.abs(diff))+' · Терминалы: '+formatCashMoney(terminalTotal)+' · iiko: '+formatCashMoney(iiko);return {terminalTotal,diff,text:(plus?'Плюс':'Минус')+' '+formatCashMoney(Math.abs(diff))};
 }
 function refreshCashReportMessage(){
-  const date=document.getElementById('cashReportDate').value.trim();const expense=cashNumber('cashReportExpense');const collection=cashNumber('cashReportCashNonFiscal')+cashNumber('cashReportCashFiscal')-expense;
-  const lines=['FO’X','','🦊 АЛЛЕЯ 🌳','👨‍💻 ОТЧЕТ КАССОВОЙ СМЕНЫ','ДАТА '+date,'','Общая выручка: '+formatCashMoney(cashNumber('cashReportTotalRevenue')),'',
+  const date=document.getElementById('cashReportDate').value.trim();const expense=cashNumber('cashReportExpense');const collection=cashNumber('cashReportCollection');const actualCollection=cashNumber('cashReportCollectionActual');
+  const collectionLine='Инкассация:'+(collection?' '+formatCashPlain(collection):'')+(actualCollection?' ('+formatCashPlain(actualCollection)+')':'');
+  const lines=["🔤🔤'🔤",'', '🦊 АЛЛЕЯ 🌳','👨‍💻 ОТЧЕТ КАССОВОЙ СМЕНЫ','ДАТА '+date,'','Общая выручка: '+formatCashMoney(cashNumber('cashReportTotalRevenue')),'',
     cashLine('Безнал',cashNumber('cashReportBankCards')),cashLine('Безнал 2',cashNumber('cashReportBankCards2')),cashLine('Нал',cashNumber('cashReportCashNonFiscal')),cashLine('Нал Фискал',cashNumber('cashReportCashFiscal')),cashLine('Нал2',cashNumber('cashReportCash2')),cashLine('Tapper',cashNumber('cashReportTapper')),cashLine('Расчётный счёт',cashNumber('cashReportSettlement')),cashLine('Расчётный счёт 2',cashNumber('cashReportSettlement2')),cashLine('Онлайн-Касса 2',cashNumber('cashReportOnlineCashbox2')),'','Расход: '+formatCashPlain(expense)];
   const expenseComment=document.getElementById('cashReportExpenseComment').value.trim();if(expenseComment)lines.push('Комментарий к расходу: '+expenseComment);
-  lines.push('','Инкассация: '+formatCashPlain(collection),'На утро в кассе ['+formatCashPlain(cashNumber('cashReportMorningCash'))+']','Неизменный размен ['+formatCashPlain(cashNumber('cashReportChangeFund'))+']');
+  lines.push('',collectionLine,'На утро в кассе ['+formatCashPlain(cashNumber('cashReportMorningCash'))+']','Неизменный размен ['+formatCashPlain(cashNumber('cashReportChangeFund'))+']');
   cashReportPrepayments.filter(p=>p.date&&Number(p.amount)>0).forEach(p=>{lines.push('','🟢 Предоплата: '+shortCashDate(p.date),formatCashPlain(p.amount)+' '+cashPaymentPhrase(p.method));});
   document.getElementById('cashReportMessage').value=lines.join('\n');updateCashComparison();
 }
 function bindCashReportInputs(){
-  ['cashReportDate','cashReportTotalRevenue','cashReportBankCards','cashReportBankCards2','cashReportCashNonFiscal','cashReportCashFiscal','cashReportCash2','cashReportTapper','cashReportSettlement','cashReportSettlement2','cashReportOnlineCashbox2','cashReportExpense','cashReportExpenseComment','cashReportMorningCash','cashReportChangeFund'].forEach(id=>{const el=document.getElementById(id);el.oninput=refreshCashReportMessage;el.onchange=refreshCashReportMessage;});
+  ['cashReportDate','cashReportTotalRevenue','cashReportBankCards','cashReportBankCards2','cashReportCashNonFiscal','cashReportCashFiscal','cashReportCash2','cashReportTapper','cashReportSettlement','cashReportSettlement2','cashReportOnlineCashbox2','cashReportExpense','cashReportExpenseComment','cashReportCollection','cashReportCollectionActual','cashReportMorningCash','cashReportChangeFund'].forEach(id=>{const el=document.getElementById(id);el.oninput=refreshCashReportMessage;el.onchange=refreshCashReportMessage;});
 }
 async function sendCashReportToTelegram(){
   if(!cashReportJobId){setCashReportStatus('warn','Сначала распознай кассовый отчёт.',0);return;}
