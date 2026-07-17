@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.11 — банкетный резерв</title>
+<title>FO'X App v15.12 — кассовый отчёт</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -439,6 +439,65 @@ body.mode-hub #backBtn{display:none}
 @keyframes receiptFlash{0%{opacity:.9}100%{opacity:0}}
 @media (max-width:420px){.receipt-pages{grid-template-columns:1fr}.receipt-grid{grid-template-columns:1fr}.receipt-field.full{grid-column:auto}}
 
+
+/* ===== FO’X v15.12 — кассовый отчёт ===== */
+body.mode-cash-report .report-bar,
+body.mode-cash-report .overall{display:none}
+body.mode-cash-report #resetBtn{display:none}
+body.mode-cash-report #backBtn{display:inline-flex}
+.cash-title{font-family:"Unbounded",sans-serif;font-size:18px;font-weight:600}
+.cash-sub{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.45}
+.cash-version{display:inline-flex;margin-top:8px;border:1px solid rgba(95,191,143,.35);background:var(--done-soft);
+  color:#C9E8D8;border-radius:999px;padding:5px 9px;font-size:10px;font-weight:800}
+.cash-status{font-size:13px;line-height:1.5;color:var(--muted);background:var(--surface);border:1px solid var(--line);
+  border-radius:14px;padding:12px 14px;margin:14px 0;overflow:hidden}
+.cash-status.ok{color:#C9E8D8;border-color:rgba(95,191,143,.35);background:var(--done-soft)}
+.cash-status.warn{color:#EAD9B0;border-color:rgba(230,180,80,.3);background:var(--warn-soft)}
+.cash-status.err{color:#F0B0A7;border-color:rgba(240,139,125,.35);background:rgba(240,139,125,.12)}
+.cash-progress{height:4px;border-radius:4px;background:var(--surface-2);overflow:hidden;margin-top:9px}
+.cash-progress i{display:block;width:0;height:100%;background:var(--amber);transition:width .25s ease}
+.cash-card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:14px}
+.cash-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cash-field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.cash-field.full{grid-column:1/-1}
+.cash-field label,.cash-field>span{font-size:11px;color:var(--muted-2);font-weight:700;text-transform:uppercase;letter-spacing:.7px}
+.cash-field input,.cash-field textarea,.cash-field select{width:100%;border:1px solid var(--line-strong);background:var(--bg);
+  color:var(--text);border-radius:12px;padding:12px;font-family:inherit;font-size:14px}
+.cash-field textarea{min-height:245px;resize:vertical;line-height:1.5}
+.cash-field input:focus,.cash-field textarea:focus,.cash-field select:focus{outline:2px solid var(--amber-line);border-color:var(--amber)}
+.cash-actions{display:flex;gap:9px;margin-top:12px;flex-wrap:wrap}
+.cash-primary,.cash-secondary,.cash-danger{flex:1;min-width:150px;border-radius:12px;padding:13px 12px;font-family:inherit;
+  font-size:13px;font-weight:800;cursor:pointer}
+.cash-primary{border:none;background:var(--amber);color:#1A1208}
+.cash-secondary{border:1px solid var(--amber-line);background:var(--amber-soft);color:var(--amber)}
+.cash-danger{border:1px solid rgba(240,139,125,.35);background:transparent;color:#F0B0A7}
+.cash-primary:disabled,.cash-secondary:disabled{opacity:.5;cursor:wait}
+.cash-source-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cash-source-btn{display:flex;align-items:center;gap:11px;text-align:left;border:1px solid var(--amber-line);background:var(--amber-soft);
+  color:var(--text);border-radius:14px;padding:13px;cursor:pointer;font-family:inherit}
+.cash-source-btn.alt{border-color:var(--line-strong);background:var(--surface-2)}
+.cash-source-btn b{display:block;font-size:13px}.cash-source-btn span small{display:block;color:var(--muted);font-size:11px;margin-top:2px;line-height:1.35}
+.cash-source-ico{font-size:24px;flex:0 0 auto}.cash-file-input{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}
+.cash-pages{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+.cash-page{position:relative;border:1px solid var(--line);background:var(--surface-2);border-radius:13px;padding:7px;overflow:hidden}
+.cash-page img{display:block;width:100%;height:180px;object-fit:contain;background:#0c0a08;border-radius:9px}
+.cash-page-num{position:absolute;left:12px;top:12px;background:rgba(0,0,0,.72);color:#fff;border-radius:999px;padding:3px 7px;font-size:10px;font-weight:800}
+.cash-page-actions{display:flex;gap:5px;margin-top:7px}.cash-page-actions button{flex:1;min-width:0;border:1px solid var(--line-strong);
+  background:var(--bg);color:var(--text);border-radius:8px;padding:8px 4px;font-size:14px;cursor:pointer}.cash-page-actions button.del{color:#F0B0A7}
+.cash-summary{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.45}
+.cash-compare{border:1px solid var(--line-strong);background:var(--surface-2);border-radius:13px;padding:12px;margin:12px 0;font-size:13px;line-height:1.5}
+.cash-compare.ok{border-color:rgba(95,191,143,.4);background:var(--done-soft);color:#C9E8D8}
+.cash-compare.warn{border-color:rgba(230,180,80,.4);background:var(--warn-soft);color:#EAD9B0}
+.cash-compare.err{border-color:rgba(240,139,125,.4);background:rgba(240,139,125,.12);color:#F0B0A7}
+.cash-slip,.cash-prepayment{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;margin-top:8px}
+.cash-slip input{width:100%;border:1px solid var(--line-strong);background:var(--bg);color:var(--text);border-radius:10px;padding:11px;font-family:inherit}
+.cash-row-remove{width:42px;height:42px;border:1px solid rgba(240,139,125,.35);background:transparent;color:#F0B0A7;border-radius:10px;font-size:17px;cursor:pointer}
+.cash-prepayment{grid-template-columns:1fr 1fr 1.4fr auto;border:1px solid var(--line);background:var(--surface-2);border-radius:12px;padding:9px}
+.cash-prepayment input,.cash-prepayment select{width:100%;border:1px solid var(--line-strong);background:var(--bg);color:var(--text);border-radius:9px;padding:10px;font-family:inherit;font-size:12px}
+.cash-note{font-size:12px;color:var(--muted);line-height:1.45;margin-top:9px}
+@media(max-width:520px){.cash-grid,.cash-source-actions{grid-template-columns:1fr}.cash-field.full{grid-column:auto}.cash-pages{grid-template-columns:1fr}
+  .cash-prepayment{grid-template-columns:1fr 1fr}.cash-prepayment select{grid-column:1/-1}.cash-prepayment .cash-row-remove{grid-column:2;grid-row:1}}
+
 </style>
 </head>
 <body class="mode-hub">
@@ -476,6 +535,11 @@ body.mode-hub #backBtn{display:none}
       <div class="hc-ico">📦</div>
       <div class="hc-title">Документы и чеки</div>
       <div class="hc-sub">Сканирование поставок и кассовых чеков, единый PDF, сток и отправка в Telegram.</div>
+    </button>
+    <button class="hub-card" data-open-section="cash-report">
+      <div class="hc-ico">💰</div>
+      <div class="hc-title">Кассовый отчёт</div>
+      <div class="hc-sub">Распознавание отчёта iiko и терминальных слипов, сверка безнала и отправка отчёта в Telegram.</div>
     </button>
   </div>
   <div class="hub-note">
@@ -578,7 +642,7 @@ body.mode-hub #backBtn{display:none}
     <div>
       <div class="receipt-title">Документы и чеки</div>
       <div class="receipt-sub" id="receiptScreenSub">Выбери режим → сними все страницы → получи один PDF → проверь результат</div>
-      <div class="receipt-version-badge">v15.11 · банкетный резерв · заказ отправлен</div>
+      <div class="receipt-version-badge">v15.12 · кассовый отчёт · банкетный резерв</div>
     </div>
   </div>
 
@@ -717,6 +781,81 @@ body.mode-hub #backBtn{display:none}
       </div>
       <div class="receipt-summary" id="receiptActionHint"></div>
     </div>
+  </div>
+</section>
+
+
+<section class="app-screen" id="cashReportScreen">
+  <div>
+    <div class="cash-title">Кассовый отчёт</div>
+    <div class="cash-sub">Сфотографируй отчёт iiko и все сводные слипы терминалов. Их можно разместить на одном фото или добавить несколькими страницами.</div>
+    <div class="cash-version">v15.12 · PDF напрямую в Gemini · без хранения фото</div>
+  </div>
+
+  <div class="cash-status" id="cashReportStatus">
+    Добавь фото отчёта iiko и терминальных слипов.
+    <div class="cash-progress"><i id="cashReportProgress"></i></div>
+  </div>
+
+  <div class="cash-card">
+    <input id="cashReportCameraFallback" class="cash-file-input" type="file" accept="image/*" capture="environment">
+    <input id="cashReportGallery" class="cash-file-input" type="file" accept="image/*" multiple>
+    <div class="cash-source-actions">
+      <button class="cash-source-btn" id="cashReportCameraOpen" type="button">
+        <span class="cash-source-ico">📷</span><span><b>Сфотографировать</b><small>Встроенная HD-камера FO’X со вспышкой.</small></span>
+      </button>
+      <label class="cash-source-btn alt" for="cashReportGallery">
+        <span class="cash-source-ico">🖼️</span><span><b>Выбрать готовые фото</b><small>Можно выбрать несколько изображений сразу.</small></span>
+      </label>
+    </div>
+    <div class="cash-pages" id="cashReportPages"></div>
+    <div class="cash-actions">
+      <button class="cash-danger" id="cashReportReset" type="button">Очистить</button>
+      <button class="cash-primary" id="cashReportRecognize" type="button" disabled>Распознать кассовый отчёт</button>
+    </div>
+    <div class="cash-summary" id="cashReportPageSummary">Фотографий пока нет.</div>
+    <div class="cash-note">Фотографии и PDF не записываются в Google Sheets и Google Drive. PDF передаётся из приложения прямо в Gemini и удаляется из памяти после обработки.</div>
+  </div>
+
+  <div class="cash-card" id="cashReportResultCard" hidden>
+    <div class="group-label" style="margin-top:0">Проверь распознанные значения</div>
+    <div class="cash-grid">
+      <div class="cash-field"><label>Дата смены</label><input id="cashReportDate" type="text" inputmode="numeric" placeholder="ДД.ММ.ГГГГ"></div>
+      <div class="cash-field"><label>Общая выручка</label><input id="cashReportTotalRevenue" type="number" inputmode="decimal" step="0.01"></div>
+      <div class="cash-field"><label>Безнал — Банковские карты</label><input id="cashReportBankCards" type="number" inputmode="decimal" step="0.01"></div>
+      <div class="cash-field"><label>Безнал 2 — Банковские карты 2</label><input id="cashReportBankCards2" type="number" inputmode="decimal" step="0.01"></div>
+      <div class="cash-field"><label>Нал — Наличка, нефискальный тип</label><input id="cashReportCashNonFiscal" type="number" inputmode="decimal" step="0.01"></div>
+      <div class="cash-field"><label>Нал Фискал — наличные, фискальный тип</label><input id="cashReportCashFiscal" type="number" inputmode="decimal" step="0.01"></div>
+      <div class="cash-field"><label>Нал2 — Наличные 2</label><input id="cashReportCash2" type="number" inputmode="decimal" step="0.01"></div>
+      <div class="cash-field"><label>Tapper</label><input id="cashReportTapper" type="number" inputmode="decimal" step="0.01"></div>
+      <div class="cash-field"><label>Расчётный счёт</label><input id="cashReportSettlement" type="number" inputmode="decimal" step="0.01"></div>
+      <div class="cash-field"><label>Расчётный счёт 2</label><input id="cashReportSettlement2" type="number" inputmode="decimal" step="0.01"></div>
+      <div class="cash-field full"><label>Онлайн-Касса 2</label><input id="cashReportOnlineCashbox2" type="number" inputmode="decimal" step="0.01"></div>
+    </div>
+
+    <div class="group-label">Сводные слипы терминалов</div>
+    <div id="cashReportTerminalSlips"></div>
+    <div class="cash-actions"><button class="cash-secondary" id="cashReportAddSlip" type="button">＋ Добавить сумму терминала</button></div>
+    <div class="cash-compare" id="cashReportComparison">После распознавания здесь появится сверка безнала.</div>
+
+    <div class="group-label">Расход и касса</div>
+    <div class="cash-grid">
+      <div class="cash-field"><label>Расход</label><input id="cashReportExpense" type="number" inputmode="decimal" step="0.01" value="0"></div>
+      <div class="cash-field"><label>Комментарий к расходу</label><input id="cashReportExpenseComment" type="text" placeholder="Необязательно"></div>
+      <div class="cash-field"><label>На утро в кассе</label><input id="cashReportMorningCash" type="number" inputmode="decimal" step="0.01" value="0"></div>
+      <div class="cash-field"><label>Неизменный размен</label><input id="cashReportChangeFund" type="number" inputmode="decimal" step="0.01" value="70000"></div>
+    </div>
+
+    <div class="group-label">Предоплаты</div>
+    <div id="cashReportPrepayments"></div>
+    <div class="cash-actions"><button class="cash-secondary" id="cashReportAddPrepayment" type="button">＋ Добавить предоплату</button></div>
+
+    <div class="group-label">Готовое сообщение</div>
+    <div class="cash-field full"><textarea id="cashReportMessage"></textarea></div>
+    <div class="cash-actions">
+      <button class="cash-primary" id="cashReportSend" type="button">📨 Отправить отчёт в чат</button>
+    </div>
+    <div class="cash-summary" id="cashReportActionHint">Все суммы можно исправить вручную перед отправкой.</div>
   </div>
 </section>
 
@@ -1212,22 +1351,25 @@ document.getElementById('resetBtn').onclick=()=>{
 
 // ===== FO'X App sections =====
 function setAppSection(section){
-  document.body.classList.remove('mode-hub','mode-checklists','mode-banquets','mode-receipts');
+  document.body.classList.remove('mode-hub','mode-checklists','mode-banquets','mode-receipts','mode-cash-report');
   document.body.classList.add('mode-'+section);
 
   document.getElementById('hubScreen').classList.toggle('active', section==='hub');
   document.getElementById('checklistsScreen').classList.toggle('active', section==='checklists');
   document.getElementById('banquetsScreen').classList.toggle('active', section==='banquets');
   document.getElementById('receiptsScreen').classList.toggle('active', section==='receipts');
+  document.getElementById('cashReportScreen').classList.toggle('active', section==='cash-report');
 
   const sub = document.getElementById('appSubtitle');
   if(section==='hub') sub.textContent = 'Единое мини-приложение';
   if(section==='checklists') sub.textContent = 'Подготовка бара к вечерней посадке';
   if(section==='banquets') sub.textContent = 'Календарь банкетов и фото заказов';
   if(section==='receipts') sub.textContent = 'Сканер документов и кассовых чеков';
+  if(section==='cash-report') sub.textContent = 'Кассовый отчёт iiko и терминалов';
 
   if(section==='banquets') renderBanquets();
   if(section==='receipts') openReceiptsSection();
+  if(section==='cash-report') openCashReportSection();
   window.scrollTo({top:0,behavior:'smooth'});
 }
 document.querySelectorAll('[data-open-section]').forEach(btn=>{
@@ -2008,6 +2150,7 @@ let receiptCameraImageCapture = null;
 let receiptCameraReplaceIndex = -1;
 let receiptCameraSessionShots = 0;
 let receiptCameraDirty = false;
+let receiptCameraPurpose = 'receipt';
 let receiptEditorPageIndex = -1;
 let receiptEditorSourceImage = null;
 let receiptEditorRect = null;
@@ -2134,8 +2277,13 @@ function closeReceiptCamera(){
   receiptCameraReplaceIndex=-1;
   if(receiptCameraDirty){
     receiptCameraDirty=false;
-    renderReceiptPages();
-    setReceiptStatus('', 'Снимки готовы. Автообрезка отключена — при необходимости используй кнопку ✂.',0);
+    if(receiptCameraPurpose==='cash-report'){
+      renderCashReportPages();
+      setCashReportStatus('', 'Снимки готовы. Проверь страницы и нажми распознавание.',0);
+    }else{
+      renderReceiptPages();
+      setReceiptStatus('', 'Снимки готовы. Автообрезка отключена — при необходимости используй кнопку ✂.',0);
+    }
   }
 }
 function nextAnimationFrame_(){return new Promise(resolve=>requestAnimationFrame(()=>resolve()));}
@@ -2201,29 +2349,41 @@ async function startReceiptCameraStream(){
     }
   }catch(_){}
 }
-async function openReceiptCamera(replaceIndex=-1){
+async function openReceiptCamera(replaceIndex=-1,purpose='receipt'){
+  receiptCameraPurpose=purpose==='cash-report'?'cash-report':'receipt';
   receiptCameraReplaceIndex=Number.isInteger(replaceIndex)?replaceIndex:-1;
   receiptCameraSessionShots=0;
   receiptCameraDirty=false;
   const overlay=document.getElementById('receiptCameraOverlay');
   const heading=document.getElementById('receiptCameraHeading');
   const hint=document.getElementById('receiptCameraHint');
-  if(heading) heading.textContent=receiptCameraReplaceIndex>=0?'Переснять страницу '+(receiptCameraReplaceIndex+1):(getReceiptMode()==='check'?'Съёмка чека':'Съёмка документа');
-  if(hint) hint.textContent='HD-снимок сохраняется в максимальном доступном качестве. Края можно поправить кнопкой ✂';
+  if(heading){
+    if(receiptCameraPurpose==='cash-report') heading.textContent='Съёмка кассового отчёта';
+    else heading.textContent=receiptCameraReplaceIndex>=0?'Переснять страницу '+(receiptCameraReplaceIndex+1):(getReceiptMode()==='check'?'Съёмка чека':'Съёмка документа');
+  }
+  if(hint) hint.textContent=receiptCameraPurpose==='cash-report'
+    ? 'Сними отчёт iiko и все терминальные слипы. Можно сделать несколько кадров.'
+    : 'HD-снимок сохраняется в максимальном доступном качестве. Края можно поправить кнопкой ✂';
   updateReceiptCameraCount();
   overlay.hidden=false;
   try{
     await startReceiptCameraStream();
   }catch(err){
     const fallbackReplaceIndex=receiptCameraReplaceIndex;
+    const purposeNow=receiptCameraPurpose;
     closeReceiptCamera();
     const msg=String(err&&err.message?err.message:err);
-    setReceiptStatus('warn',msg+' Открываю системную камеру как запасной вариант.',0);
-    if(fallbackReplaceIndex>=0){
-      receiptReshootIndex=fallbackReplaceIndex;
-      document.getElementById('receiptReshootFallback').click();
+    if(purposeNow==='cash-report'){
+      setCashReportStatus('warn',msg+' Открываю системную камеру как запасной вариант.',0);
+      document.getElementById('cashReportCameraFallback').click();
     }else{
-      document.getElementById('receiptCameraFallback').click();
+      setReceiptStatus('warn',msg+' Открываю системную камеру как запасной вариант.',0);
+      if(fallbackReplaceIndex>=0){
+        receiptReshootIndex=fallbackReplaceIndex;
+        document.getElementById('receiptReshootFallback').click();
+      }else{
+        document.getElementById('receiptCameraFallback').click();
+      }
     }
   }
 }
@@ -2328,7 +2488,11 @@ async function captureReceiptCameraFrame(){
     const page=await cameraFrameToReceiptPage();
     const flash=document.getElementById('receiptCameraFlash');
     flash.classList.remove('show');void flash.offsetWidth;flash.classList.add('show');
-    if(receiptCameraReplaceIndex>=0){
+    if(receiptCameraPurpose==='cash-report'){
+      cashReportPages.push(page);
+      cashReportPdfBlob=null;cashReportResult=null;cashReportJobId='';
+      document.getElementById('cashReportResultCard').hidden=true;
+    }else if(receiptCameraReplaceIndex>=0){
       receiptPages[receiptCameraReplaceIndex]=page;
       receiptPdfBlob=null;receiptResult=null;receiptJobId='';
       document.getElementById('receiptResultCard').hidden=true;
@@ -2336,33 +2500,38 @@ async function captureReceiptCameraFrame(){
       closeReceiptCamera();
       setReceiptStatus('', 'Страница заменена. Автообрезка не применялась.',0);
       return;
+    }else{
+      receiptPages.push(page);
+      receiptPdfBlob=null;receiptResult=null;receiptJobId='';
+      document.getElementById('receiptResultCard').hidden=true;
     }
-    receiptPages.push(page);
     receiptCameraSessionShots++;
-    receiptPdfBlob=null;receiptResult=null;receiptJobId='';
-    document.getElementById('receiptResultCard').hidden=true;
     receiptCameraDirty=true;
     updateReceiptCameraCount();
-    if(hint) hint.textContent='Снимок сохранён. Можно снять следующую страницу.';
+    if(hint) hint.textContent='Снимок сохранён. Можно снять следующий кадр.';
     hap('ok');
-  }catch(err){setReceiptStatus('err',String(err&&err.message?err.message:err),0);}
-  finally{
+  }catch(err){
+    if(receiptCameraPurpose==='cash-report') setCashReportStatus('err',String(err&&err.message?err.message:err),0);
+    else setReceiptStatus('err',String(err&&err.message?err.message:err),0);
+  }finally{
     if(shot) shot.disabled=false;
     setTimeout(()=>{
       const overlay=document.getElementById('receiptCameraOverlay');
-      if(hint&&overlay&&!overlay.hidden) hint.textContent='HD-снимок сохраняется без автообрезки. При необходимости используй ✂';
+      if(hint&&overlay&&!overlay.hidden) hint.textContent=receiptCameraPurpose==='cash-report'
+        ? 'Сними отчёт iiko и все терминальные слипы. Можно сделать несколько кадров.'
+        : 'HD-снимок сохраняется без автообрезки. При необходимости используй ✂';
     },800);
   }
 }
 const receiptCameraOpen=document.getElementById('receiptCameraOpen');
-if(receiptCameraOpen) receiptCameraOpen.addEventListener('click',()=>openReceiptCamera(-1));
+if(receiptCameraOpen) receiptCameraOpen.addEventListener('click',()=>openReceiptCamera(-1,'receipt'));
 document.getElementById('receiptCameraClose').addEventListener('click',closeReceiptCamera);
 document.getElementById('receiptCameraDone').addEventListener('click',closeReceiptCamera);
 document.getElementById('receiptCameraShot').addEventListener('click',captureReceiptCameraFrame);
 document.getElementById('receiptCameraTorch').addEventListener('click',async()=>{
   const track=receiptCameraStream&&receiptCameraStream.getVideoTracks()[0];
   if(!track||!receiptCameraTorchSupported){
-    setReceiptStatus('warn','На этой камере вспышка недоступна.',0);
+    if(receiptCameraPurpose==='cash-report') setCashReportStatus('warn','На этой камере вспышка недоступна.',0); else setReceiptStatus('warn','На этой камере вспышка недоступна.',0);
     return;
   }
   const next=!receiptCameraTorchOn;
@@ -2375,13 +2544,13 @@ document.getElementById('receiptCameraTorch').addEventListener('click',async()=>
   }catch(err){
     receiptCameraTorchOn=false;
     updateReceiptTorchButton_();
-    setReceiptStatus('warn','Телефон не разрешил включить вспышку в Telegram.',0);
+    if(receiptCameraPurpose==='cash-report') setCashReportStatus('warn','Телефон не разрешил включить вспышку в Telegram.',0); else setReceiptStatus('warn','Телефон не разрешил включить вспышку в Telegram.',0);
   }
 });
 document.getElementById('receiptCameraSwitch').addEventListener('click',async()=>{
   receiptCameraFacing=receiptCameraFacing==='environment'?'user':'environment';
   try{await startReceiptCameraStream();}
-  catch(err){setReceiptStatus('warn','Не удалось переключить камеру: '+String(err&&err.message?err.message:err),0);}
+  catch(err){if(receiptCameraPurpose==='cash-report') setCashReportStatus('warn','Не удалось переключить камеру: '+String(err&&err.message?err.message:err),0); else setReceiptStatus('warn','Не удалось переключить камеру: '+String(err&&err.message?err.message:err),0);}
 });
 document.addEventListener('visibilitychange',()=>{if(document.hidden) stopReceiptCamera();});
 window.addEventListener('orientationchange',()=>{
@@ -2693,6 +2862,170 @@ async function sendReceiptToTelegram(){
   catch(err){btn.disabled=false;setReceiptStatus('err',String(err&&err.message?err.message:err),1);}
 }
 
+
+
+// ===== FO’X v15.12 — кассовый отчёт iiko + терминальные слипы =====
+let cashReportPages=[];
+let cashReportPdfBlob=null;
+let cashReportJobId='';
+let cashReportResult=null;
+let cashReportTerminalSlips=[];
+let cashReportPrepayments=[];
+let cashReportPollingToken=0;
+
+function openCashReportSection(){
+  if(!isStockApiConfigured()){
+    setCashReportStatus('warn','Backend сканера не подключён. Проверь STOCK_API_URL.',0);
+    return;
+  }
+  if(!cashReportPages.length&&!cashReportResult) setCashReportStatus('', 'Добавь фото отчёта iiko и всех сводных слипов терминалов.',0);
+}
+function setCashReportStatus(type,text,progress){
+  const el=document.getElementById('cashReportStatus');if(!el)return;
+  el.className='cash-status '+(type||'');
+  el.innerHTML=escapeHtml(text||'')+'<div class="cash-progress"><i id="cashReportProgress"></i></div>';
+  const p=document.getElementById('cashReportProgress');if(p)p.style.width=Math.max(0,Math.min(100,Math.round((Number(progress)||0)*100)))+'%';
+}
+async function appendCashReportFiles(files){
+  files=Array.from(files||[]).filter(file=>String(file.type||'').startsWith('image/'));
+  if(!files.length)return;
+  setCashReportStatus('', 'Подготавливаю фотографии…',.05);
+  try{
+    for(const file of files) cashReportPages.push(await imageFileToReceiptPage(file));
+    cashReportPdfBlob=null;cashReportResult=null;cashReportJobId='';
+    document.getElementById('cashReportResultCard').hidden=true;
+    renderCashReportPages();
+    setCashReportStatus('', 'Фотографии готовы. Проверь порядок и нажми распознавание.',0);
+  }catch(err){setCashReportStatus('err',String(err&&err.message?err.message:err),0);}
+}
+function renderCashReportPages(){
+  const root=document.getElementById('cashReportPages');const summary=document.getElementById('cashReportPageSummary');const btn=document.getElementById('cashReportRecognize');
+  if(!root)return;root.innerHTML='';
+  cashReportPages.forEach((p,i)=>{
+    const card=document.createElement('div');card.className='cash-page';
+    card.innerHTML='<span class="cash-page-num">'+(i+1)+'</span><img src="'+p.dataUrl+'" alt="Фото '+(i+1)+'"><div class="cash-page-actions">'+
+      '<button type="button" data-up '+(i===0?'disabled':'')+' title="Выше">↑</button><button type="button" data-down '+(i===cashReportPages.length-1?'disabled':'')+' title="Ниже">↓</button>'+
+      '<button type="button" data-rotate title="Повернуть">↻</button><button type="button" class="del" data-del title="Удалить">✕</button></div>';
+    card.querySelector('[data-up]').onclick=()=>moveCashReportPage(i,-1);card.querySelector('[data-down]').onclick=()=>moveCashReportPage(i,1);
+    card.querySelector('[data-rotate]').onclick=()=>rotateCashReportPage(i);card.querySelector('[data-del]').onclick=()=>{cashReportPages.splice(i,1);cashReportPdfBlob=null;cashReportResult=null;cashReportJobId='';document.getElementById('cashReportResultCard').hidden=true;renderCashReportPages();};
+    root.appendChild(card);
+  });
+  if(summary)summary.textContent=cashReportPages.length?('Фотографий: '+cashReportPages.length+'. Можно распознавать.'):'Фотографий пока нет.';
+  if(btn)btn.disabled=!cashReportPages.length;
+}
+function moveCashReportPage(index,delta){const to=index+delta;if(to<0||to>=cashReportPages.length)return;const p=cashReportPages[index];cashReportPages[index]=cashReportPages[to];cashReportPages[to]=p;cashReportPdfBlob=null;renderCashReportPages();hap('sel');}
+async function rotateCashReportPage(index){
+  const p=cashReportPages[index];if(!p)return;
+  try{setCashReportStatus('', 'Поворачиваю фото…',.05);const rotated=await rotateDataUrlClockwise(p.dataUrl,.94);p.dataUrl=rotated.dataUrl;p.originalDataUrl=rotated.dataUrl;p.width=rotated.width;p.height=rotated.height;p.orientation=p.width>p.height?'landscape':'portrait';cashReportPdfBlob=null;renderCashReportPages();setCashReportStatus('', 'Фото повёрнуто.',0);}catch(err){setCashReportStatus('err',String(err&&err.message?err.message:err),0);}
+}
+function resetCashReport(){
+  closeReceiptCamera();cashReportPollingToken++;cashReportPages=[];cashReportPdfBlob=null;cashReportJobId='';cashReportResult=null;cashReportTerminalSlips=[];cashReportPrepayments=[];
+  document.getElementById('cashReportResultCard').hidden=true;renderCashReportPages();setCashReportStatus('', 'Добавь фото отчёта iiko и всех сводных слипов терминалов.',0);
+}
+async function buildCashReportPdf(){
+  if(!cashReportPages.length)throw new Error('Нет фотографий.');
+  if(!window.jspdf||!window.jspdf.jsPDF)throw new Error('Библиотека PDF не загрузилась. Открой приложение заново.');
+  const {jsPDF}=window.jspdf;const firstLandscape=cashReportPages[0].width>cashReportPages[0].height;
+  const doc=new jsPDF({orientation:firstLandscape?'landscape':'portrait',unit:'pt',format:'a4',compress:true,putOnlyUsedFonts:true});
+  cashReportPages.forEach((p,i)=>{const landscape=p.width>p.height;if(i>0)doc.addPage('a4',landscape?'landscape':'portrait');const pageW=doc.internal.pageSize.getWidth(),pageH=doc.internal.pageSize.getHeight(),margin=18;const scale=Math.min((pageW-margin*2)/p.width,(pageH-margin*2)/p.height);const w=p.width*scale,h=p.height*scale;doc.addImage(p.dataUrl,'JPEG',(pageW-w)/2,(pageH-h)/2,w,h,undefined,'FAST');});
+  const blob=new Blob([doc.output('arraybuffer')],{type:'application/pdf'});await assertReceiptPdfBlob(blob);return blob;
+}
+async function startCashReportRecognition(){
+  if(!isStockApiConfigured()){setCashReportStatus('warn','Backend сканера не подключён.',0);return;}
+  if(!cashReportPages.length){setCashReportStatus('warn','Добавь хотя бы одно фото.',0);return;}
+  const btn=document.getElementById('cashReportRecognize');btn.disabled=true;
+  try{
+    setCashReportStatus('', 'Собираю фотографии в PDF…',.08);cashReportPdfBlob=await buildCashReportPdf();
+    if(cashReportPdfBlob.size>15*1024*1024)throw new Error('PDF больше 15 МБ. Уменьши количество фотографий.');
+    const base64=await blobToBase64(cashReportPdfBlob);cashReportJobId='cash'+Date.now()+'_'+Math.random().toString(36).slice(2,8);cashReportResult=null;
+    document.getElementById('cashReportResultCard').hidden=true;
+    setCashReportStatus('', 'Передаю PDF напрямую в Gemini. Файл не сохраняется…',.12);
+    postReceipt({action:'cashReportScan',jobId:cashReportJobId,pagesCount:cashReportPages.length,pdfBase64:base64}).catch(()=>{});
+    const status=await pollCashReportJob(cashReportJobId,['DONE','ERROR'],210000);
+    if(status.status==='ERROR')throw new Error(status.error||'Ошибка распознавания');
+    cashReportResult=status.result||{};renderCashReportResult(cashReportResult);setCashReportStatus('ok','Отчёт распознан. Проверь суммы и сверку терминалов.',1);hap('ok');
+    cashReportPdfBlob=null;
+  }catch(err){setCashReportStatus('err',String(err&&err.message?err.message:err),1);}
+  finally{btn.disabled=!cashReportPages.length;}
+}
+async function pollCashReportJob(jobId,finalStatuses,maxMs){
+  const token=++cashReportPollingToken;const started=Date.now();let notFound=0;
+  while(Date.now()-started<maxMs){
+    if(token!==cashReportPollingToken)throw new Error('Операция отменена.');
+    try{
+      const res=await jsonp(STOCK_API_URL,Object.assign({action:'status',jobId},receiptAuthParams()));
+      if(res&&res.ok){setCashReportStatus(res.status==='ERROR'||res.status==='SEND_ERROR'?'err':'',res.step||'Обработка…',Number(res.progress)||.2);if(finalStatuses.includes(res.status))return res;}
+      else{notFound++;if(notFound>12&&res&&res.error&&!String(res.error).includes('не найден'))throw new Error(res.error);}
+    }catch(err){if(Date.now()-started>30000&&!String(err&&err.message||err).includes('timeout'))throw err;}
+    await new Promise(resolve=>setTimeout(resolve,2200));
+  }
+  throw new Error('Сервер отвечает слишком долго. Повтори через минуту.');
+}
+function cashInputValue(id,value){const el=document.getElementById(id);if(!el)return;const n=Number(value)||0;el.value=n?String(n):'';}
+function renderCashReportResult(r){
+  document.getElementById('cashReportResultCard').hidden=false;
+  document.getElementById('cashReportDate').value=r.reportDate||'';
+  cashInputValue('cashReportTotalRevenue',r.totalRevenue);cashInputValue('cashReportBankCards',r.bankCards);cashInputValue('cashReportBankCards2',r.bankCards2);
+  cashInputValue('cashReportCashNonFiscal',r.cashNonFiscal);cashInputValue('cashReportCashFiscal',r.cashFiscal);cashInputValue('cashReportCash2',r.cash2);
+  cashInputValue('cashReportTapper',r.tapper);cashInputValue('cashReportSettlement',r.settlementAccount);cashInputValue('cashReportSettlement2',r.settlementAccount2);cashInputValue('cashReportOnlineCashbox2',r.onlineCashbox2);
+  document.getElementById('cashReportExpense').value='0';document.getElementById('cashReportExpenseComment').value='';document.getElementById('cashReportMorningCash').value='0';document.getElementById('cashReportChangeFund').value='70000';
+  cashReportTerminalSlips=Array.isArray(r.terminalSlips)?r.terminalSlips.map((x,i)=>({label:String(x.label||('Терминал '+(i+1))),amount:Number(x.amount)||0})).filter(x=>x.amount>0):[];
+  cashReportPrepayments=[];renderCashTerminalSlips();renderCashPrepayments();bindCashReportInputs();refreshCashReportMessage();
+  window.scrollTo({top:document.getElementById('cashReportResultCard').offsetTop-70,behavior:'smooth'});
+}
+function renderCashTerminalSlips(){
+  const root=document.getElementById('cashReportTerminalSlips');root.innerHTML='';
+  cashReportTerminalSlips.forEach((slip,i)=>{const row=document.createElement('div');row.className='cash-slip';row.innerHTML='<div class="cash-field"><label>'+escapeHtml(slip.label||('Терминал '+(i+1)))+'</label><input type="number" inputmode="decimal" step="0.01" value="'+escapeHtml(String(slip.amount||''))+'"></div><button class="cash-row-remove" type="button" title="Удалить">✕</button>';const input=row.querySelector('input');input.oninput=()=>{slip.amount=Number(input.value)||0;refreshCashReportMessage();};row.querySelector('button').onclick=()=>{cashReportTerminalSlips.splice(i,1);renderCashTerminalSlips();refreshCashReportMessage();};root.appendChild(row);});
+  if(!cashReportTerminalSlips.length)root.innerHTML='<div class="cash-summary">Суммы терминальных слипов не найдены. Добавь их вручную.</div>';
+}
+function addCashTerminalSlip(){cashReportTerminalSlips.push({label:'Терминал '+(cashReportTerminalSlips.length+1),amount:0});renderCashTerminalSlips();refreshCashReportMessage();}
+function renderCashPrepayments(){
+  const root=document.getElementById('cashReportPrepayments');root.innerHTML='';
+  cashReportPrepayments.forEach((p,i)=>{const row=document.createElement('div');row.className='cash-prepayment';row.innerHTML='<input data-date type="text" inputmode="numeric" placeholder="ДД.ММ.ГГГГ" value="'+escapeHtml(p.date||'')+'"><input data-amount type="number" inputmode="decimal" step="0.01" placeholder="Сумма" value="'+escapeHtml(p.amount?String(p.amount):'')+'"><select data-method><option value="cash">Наличными в ресторане</option><option value="online">Онлайн-касса</option><option value="card">Картой в ресторане</option><option value="account">Расчётный счёт</option></select><button class="cash-row-remove" type="button">✕</button>';row.querySelector('[data-method]').value=p.method||'online';row.querySelector('[data-date]').oninput=e=>{p.date=e.target.value;refreshCashReportMessage();};row.querySelector('[data-amount]').oninput=e=>{p.amount=Number(e.target.value)||0;refreshCashReportMessage();};row.querySelector('[data-method]').onchange=e=>{p.method=e.target.value;refreshCashReportMessage();};row.querySelector('button').onclick=()=>{cashReportPrepayments.splice(i,1);renderCashPrepayments();refreshCashReportMessage();};root.appendChild(row);});
+  if(!cashReportPrepayments.length)root.innerHTML='<div class="cash-summary">Предоплат нет. При необходимости нажми «Добавить предоплату».</div>';
+}
+function addCashPrepayment(){cashReportPrepayments.push({date:document.getElementById('cashReportDate').value||'',amount:0,method:'online'});renderCashPrepayments();refreshCashReportMessage();}
+function cashNumber(id){const el=document.getElementById(id);return Number(el&&el.value)||0;}
+function formatCashMoney(value,blankWhenZero=false){const n=Number(value)||0;if(blankWhenZero&&!n)return '';return n.toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function formatCashPlain(value){const n=Number(value)||0;return n.toLocaleString('ru-RU',{minimumFractionDigits:Number.isInteger(n)?0:2,maximumFractionDigits:2});}
+function shortCashDate(value){const m=String(value||'').match(/^(\d{2})\.(\d{2})\.(\d{4})$/);return m?(m[1]+'.'+m[2]+'.'+m[3].slice(-2)):String(value||'');}
+function cashPaymentPhrase(method){return {cash:'наличными в ресторане',online:'оплата по ссылке',card:'картой в ресторане',account:'расчётный счёт'}[method]||'оплата';}
+function cashLine(label,value){const formatted=formatCashMoney(value,true);return '🟢'+label+':'+(formatted?' '+formatted:'');}
+function updateCashComparison(){
+  const terminalTotal=cashReportTerminalSlips.reduce((sum,x)=>sum+(Number(x.amount)||0),0);const iiko=cashNumber('cashReportBankCards');const diff=terminalTotal-iiko;const el=document.getElementById('cashReportComparison');
+  if(!cashReportTerminalSlips.length){el.className='cash-compare warn';el.textContent='⚠️ Терминальные слипы не распознаны. Добавь суммы вручную.';return {terminalTotal,diff:null,text:'Слипы не указаны'};}
+  if(Math.abs(diff)<0.01){el.className='cash-compare ok';el.textContent='✅ Безнал совпадает. Терминалы: '+formatCashMoney(terminalTotal)+' · iiko: '+formatCashMoney(iiko);return {terminalTotal,diff:0,text:'Совпадает'};}
+  const plus=diff>0;el.className='cash-compare err';el.textContent='⚠️ '+(plus?'Плюс':'Минус')+' по терминалам: '+formatCashMoney(Math.abs(diff))+' · Терминалы: '+formatCashMoney(terminalTotal)+' · iiko: '+formatCashMoney(iiko);return {terminalTotal,diff,text:(plus?'Плюс':'Минус')+' '+formatCashMoney(Math.abs(diff))};
+}
+function refreshCashReportMessage(){
+  const date=document.getElementById('cashReportDate').value.trim();const expense=cashNumber('cashReportExpense');const collection=cashNumber('cashReportCashNonFiscal')+cashNumber('cashReportCashFiscal')-expense;
+  const lines=['FO’X','','🦊 АЛЛЕЯ 🌳','👨‍💻 ОТЧЕТ КАССОВОЙ СМЕНЫ','ДАТА '+date,'','Общая выручка: '+formatCashMoney(cashNumber('cashReportTotalRevenue')),'',
+    cashLine('Безнал',cashNumber('cashReportBankCards')),cashLine('Безнал 2',cashNumber('cashReportBankCards2')),cashLine('Нал',cashNumber('cashReportCashNonFiscal')),cashLine('Нал Фискал',cashNumber('cashReportCashFiscal')),cashLine('Нал2',cashNumber('cashReportCash2')),cashLine('Tapper',cashNumber('cashReportTapper')),cashLine('Расчётный счёт',cashNumber('cashReportSettlement')),cashLine('Расчётный счёт 2',cashNumber('cashReportSettlement2')),cashLine('Онлайн-Касса 2',cashNumber('cashReportOnlineCashbox2')),'','Расход: '+formatCashPlain(expense)];
+  const expenseComment=document.getElementById('cashReportExpenseComment').value.trim();if(expenseComment)lines.push('Комментарий к расходу: '+expenseComment);
+  lines.push('','Инкассация: '+formatCashPlain(collection),'На утро в кассе ['+formatCashPlain(cashNumber('cashReportMorningCash'))+']','Неизменный размен ['+formatCashPlain(cashNumber('cashReportChangeFund'))+']');
+  cashReportPrepayments.filter(p=>p.date&&Number(p.amount)>0).forEach(p=>{lines.push('','🟢 Предоплата: '+shortCashDate(p.date),formatCashPlain(p.amount)+' '+cashPaymentPhrase(p.method));});
+  document.getElementById('cashReportMessage').value=lines.join('\n');updateCashComparison();
+}
+function bindCashReportInputs(){
+  ['cashReportDate','cashReportTotalRevenue','cashReportBankCards','cashReportBankCards2','cashReportCashNonFiscal','cashReportCashFiscal','cashReportCash2','cashReportTapper','cashReportSettlement','cashReportSettlement2','cashReportOnlineCashbox2','cashReportExpense','cashReportExpenseComment','cashReportMorningCash','cashReportChangeFund'].forEach(id=>{const el=document.getElementById(id);el.oninput=refreshCashReportMessage;el.onchange=refreshCashReportMessage;});
+}
+async function sendCashReportToTelegram(){
+  if(!cashReportJobId){setCashReportStatus('warn','Сначала распознай кассовый отчёт.',0);return;}
+  const message=document.getElementById('cashReportMessage').value.trim();if(!message){setCashReportStatus('warn','Сообщение пустое.',0);return;}
+  const comparison=updateCashComparison();if(comparison.diff!==null&&Math.abs(comparison.diff)>=.01&&!confirm('Есть расхождение по терминалам: '+comparison.text+'. Всё равно отправить отчёт?'))return;
+  const btn=document.getElementById('cashReportSend');btn.disabled=true;
+  try{setCashReportStatus('', 'Отправляю кассовый отчёт в Telegram…',.25);postReceipt({action:'cashReportSend',jobId:cashReportJobId,messageText:message}).catch(()=>{});const status=await pollCashReportJob(cashReportJobId,['CASH_SENT','SEND_ERROR'],120000);if(status.status==='SEND_ERROR')throw new Error(status.error||'Ошибка Telegram');setCashReportStatus('ok','Кассовый отчёт отправлен в Telegram.',1);btn.textContent='✓ Отправлено в чат';hap('ok');}
+  catch(err){btn.disabled=false;setCashReportStatus('err',String(err&&err.message?err.message:err),1);}
+}
+
+const cashCameraOpen=document.getElementById('cashReportCameraOpen');if(cashCameraOpen)cashCameraOpen.addEventListener('click',()=>openReceiptCamera(-1,'cash-report'));
+const cashCameraFallback=document.getElementById('cashReportCameraFallback');if(cashCameraFallback)cashCameraFallback.addEventListener('change',async()=>{const files=Array.from(cashCameraFallback.files||[]);cashCameraFallback.value='';await appendCashReportFiles(files);});
+const cashGallery=document.getElementById('cashReportGallery');if(cashGallery)cashGallery.addEventListener('change',async()=>{const files=Array.from(cashGallery.files||[]);cashGallery.value='';await appendCashReportFiles(files);});
+document.getElementById('cashReportReset').addEventListener('click',()=>{if(cashReportPages.length&&!confirm('Удалить фотографии кассового отчёта?'))return;resetCashReport();});
+document.getElementById('cashReportRecognize').addEventListener('click',startCashReportRecognition);
+document.getElementById('cashReportAddSlip').addEventListener('click',addCashTerminalSlip);
+document.getElementById('cashReportAddPrepayment').addEventListener('click',addCashPrepayment);
+document.getElementById('cashReportSend').addEventListener('click',sendCashReportToTelegram);
 
 switchTab(DATA[0].id);
 refresh();
