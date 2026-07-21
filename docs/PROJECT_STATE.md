@@ -20,6 +20,7 @@
 
 - `frontend/candidate/index.html`: v15.13.3 SCANNER JOB SAFETY.
 - `apps-script/stock-scanner/candidate/Code.gs`: v9.4.4 CASH REPORT SOURCE RULES FIX.
+- `frontend/tatooine/`: v1.0.0 CASH REPORT ONLY, отдельный modular frontend на существующем backend v9.4.4.
 
 Candidate включает:
 
@@ -44,6 +45,7 @@ Candidate включает:
 3. Новые позиции банкета иногда не добавляются в `Банкеты_Резерв`.
 4. Сканер документов требует замеров скорости на реальном Android.
 5. Production v15.13.3/v9.4.4 требует живого Telegram-теста на реальных фото.
+6. Tatooine v1.0.0 требует отдельного GitHub Pages URL и живого теста из существующего Telegram-бота.
 
 ## Architecture decision
 

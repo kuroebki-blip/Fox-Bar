@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0e1116">
+  <title>Tatooine Cash Report v1.0.0</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Unbounded:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-mark" aria-hidden="true">T</div>
+    <div>
+      <div class="brand">Tatooine</div>
+      <div class="brand-sub">Кассовый отчёт iiko и терминалов</div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="intro">
+      <span class="version" id="appVersion">v1.0.0</span>
+      <h1>Кассовый отчёт</h1>
+      <p>Добавьте длинный отчёт iiko, конверт и все сводные слипы терминалов. На одной фотографии может быть несколько документов.</p>
+    </section>
+
+    <div class="status" id="cashReportStatus" aria-live="polite">
+      Добавьте фотографии отчёта iiko и всех терминальных слипов.
+      <div class="progress"><i id="cashReportProgress"></i></div>
+    </div>
+
+    <section class="card">
+      <input id="cashReportCamera" class="file-input" type="file" accept="image/*" capture="environment">
+      <input id="cashReportGallery" class="file-input" type="file" accept="image/*" multiple>
+      <div class="source-grid">
+        <label class="source primary" for="cashReportCamera">
+          <span class="source-icon">📷</span>
+          <span><b>Сфотографировать</b><small>Откроется основная камера телефона.</small></span>
+        </label>
+        <label class="source" for="cashReportGallery">
+          <span class="source-icon">🖼️</span>
+          <span><b>Выбрать фотографии</b><small>Можно выбрать несколько файлов сразу.</small></span>
+        </label>
+      </div>
+      <div class="pages" id="cashReportPages"></div>
+      <div class="actions">
+        <button class="danger" id="cashReportReset" type="button">Очистить</button>
+        <button class="button primary" id="cashReportRecognize" type="button" disabled>Распознать отчёт</button>
+      </div>
+      <div class="summary" id="cashReportPageSummary">Фотографий пока нет.</div>
+      <div class="note">Фотографии не записываются в Google Sheets и Google Drive. Для OCR в существующий обработчик передаются только уменьшенные JPEG-копии. «Оплата QR» учитывается обработчиком при проверке терминалов.</div>
+    </section>
+
+    <section class="card result" id="cashReportResultCard" hidden>
+      <h2>Проверьте распознанные данные</h2>
+      <div class="grid">
+        <label class="field"><span>Дата смены</span><input id="cashReportDate" type="text" inputmode="numeric" placeholder="ДД.ММ.ГГГГ"></label>
+        <label class="field"><span>Общая выручка</span><input id="cashReportTotalRevenue" type="number" inputmode="decimal" step="0.01"></label>
+        <label class="field"><span>Безнал — Банковские карты</span><input id="cashReportBankCards" type="number" inputmode="decimal" step="0.01"></label>
+        <label class="field"><span>Безнал 2</span><input id="cashReportBankCards2" type="number" inputmode="decimal" step="0.01"></label>
+        <label class="field"><span>Нал — нефискальный</span><input id="cashReportCashNonFiscal" type="number" inputmode="decimal" step="0.01"></label>
+        <label class="field"><span>Нал Фискал</span><input id="cashReportCashFiscal" type="number" inputmode="decimal" step="0.01"></label>
+        <label class="field"><span>Нал 2</span><input id="cashReportCash2" type="number" inputmode="decimal" step="0.01"></label>
+        <label class="field"><span>Tapper</span><input id="cashReportTapper" type="number" inputmode="decimal" step="0.01"></label>
+        <label class="field"><span>Расчётный счёт</span><input id="cashReportSettlement" type="number" inputmode="decimal" step="0.01"></label>
+        <label class="field"><span>Расчётный счёт 2</span><input id="cashReportSettlement2" type="number" inputmode="decimal" step="0.01"></label>
+        <label class="field full"><span>Онлайн-Касса 2</span><input id="cashReportOnlineCashbox2" type="number" inputmode="decimal" step="0.01"></label>
+      </div>
+
+      <h3>Терминальные слипы</h3>
+      <div id="cashReportTerminalSlips"></div>
+      <button class="button secondary wide" id="cashReportAddSlip" type="button">＋ Добавить сумму терминала</button>
+      <div class="comparison" id="cashReportComparison">После распознавания появится сверка безнала.</div>
+
+      <h3>Касса</h3>
+      <div class="grid">
+        <label class="field"><span>Расход</span><input id="cashReportExpense" type="number" inputmode="decimal" step="0.01" value="0"></label>
+        <label class="field"><span>Комментарий к расходу</span><input id="cashReportExpenseComment" type="text" placeholder="Необязательно"></label>
+        <label class="field"><span>Инкассация с конверта</span><input id="cashReportCollection" type="number" inputmode="decimal" step="0.01"></label>
+        <label class="field"><span>Значение в скобках</span><input id="cashReportCollectionActual" type="number" inputmode="decimal" step="0.01"></label>
+        <label class="field"><span>На утро в кассе</span><input id="cashReportMorningCash" type="number" inputmode="decimal" step="0.01" value="0"></label>
+        <label class="field"><span>Неизменный размен</span><input id="cashReportChangeFund" type="number" inputmode="decimal" step="0.01"></label>
+      </div>
+
+      <h3>Предоплаты</h3>
+      <div id="cashReportPrepayments"></div>
+      <button class="button secondary wide" id="cashReportAddPrepayment" type="button">＋ Добавить предоплату</button>
+
+      <label class="field message"><span>Сообщение в Telegram</span><textarea id="cashReportMessage"></textarea></label>
+      <button class="button primary wide send" id="cashReportSend" type="button">📨 Отправить отчёт в чат</button>
+      <div class="summary">После отправки текст можно исправить и отправить повторно.</div>
+    </section>
+  </main>
+
+  <div class="confirm" id="cashConfirm" hidden>
+    <div class="confirm-card" role="dialog" aria-modal="true" aria-labelledby="cashConfirmTitle">
+      <h2 id="cashConfirmTitle">Подтверждение</h2>
+      <p id="cashConfirmMessage"></p>
+      <div class="actions">
+        <button class="button secondary" id="cashConfirmCancel" type="button">Отмена</button>
+        <button class="button primary" id="cashConfirmOk" type="button">Всё равно отправить</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
