@@ -1,4 +1,4 @@
-# FO’X v15.13.2 / backend v9.4.4 — FAST SCANNER
+# FO’X v15.13.3 / backend v9.4.4 — FAST SCANNER
 
 ## Файлы
 
@@ -39,7 +39,7 @@
 
 1. Заменить весь `index.html` файлом `frontend/candidate/index.html`.
 2. Commit changes.
-3. Открыть Mini App с `?v=15.13`.
+3. Открыть Mini App с `?v=15.13.3`.
 
 ## Тест
 

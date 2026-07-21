@@ -12,8 +12,8 @@ Telegram Mini App для работы бара:
 
 Папка `candidate/` содержит последнюю подготовленную, но не подтверждённую как опубликованная версию:
 
-- frontend: `v15.13.2 CASH REPORT VALIDATION UI`;
-- stock/scanner backend: `v9.4.3 CASH REPORT VALIDATION FIX`.
+- frontend: `v15.13.3 SCANNER JOB SAFETY`;
+- stock/scanner backend: `v9.4.4 CASH REPORT SOURCE RULES FIX`.
 
 Перед изменениями необходимо получить фактически опубликованные файлы:
 
