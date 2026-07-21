@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.13.1 — FAST SCANNER + RESEND</title>
+<title>FO'X App v15.13.2 — CASH VALIDATION UI</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -495,6 +495,16 @@ body.mode-cash-report #backBtn{display:inline-flex}
 .cash-prepayment{grid-template-columns:1fr 1fr 1.4fr auto;border:1px solid var(--line);background:var(--surface-2);border-radius:12px;padding:9px}
 .cash-prepayment input,.cash-prepayment select{width:100%;border:1px solid var(--line-strong);background:var(--bg);color:var(--text);border-radius:9px;padding:10px;font-family:inherit;font-size:12px}
 .cash-note{font-size:12px;color:var(--muted);line-height:1.45;margin-top:9px}
+.fox-confirm-overlay{position:fixed;inset:0;z-index:140;background:rgba(0,0,0,.68);display:none;
+  align-items:center;justify-content:center;padding:20px}
+.fox-confirm-overlay.show{display:flex;animation:fade .16s ease}
+.fox-confirm-box{width:min(100%,480px);background:#18232d;border:1px solid rgba(255,255,255,.12);
+  border-radius:18px;padding:22px 20px 16px;box-shadow:0 22px 65px rgba(0,0,0,.55)}
+.fox-confirm-message{font-size:17px;line-height:1.48;color:#f4f6f8;white-space:pre-wrap}
+.fox-confirm-actions{display:flex;justify-content:flex-end;gap:12px;margin-top:22px}
+.fox-confirm-actions button{min-width:104px;border:0;background:transparent;color:#69b8ff;
+  font-family:inherit;font-size:16px;font-weight:700;padding:11px 14px;border-radius:10px;cursor:pointer}
+.fox-confirm-actions button:active{background:rgba(105,184,255,.12)}
 @media(max-width:520px){.cash-grid,.cash-source-actions{grid-template-columns:1fr}.cash-field.full{grid-column:auto}.cash-pages{grid-template-columns:1fr}
   .cash-prepayment{grid-template-columns:1fr 1fr}.cash-prepayment select{grid-column:1/-1}.cash-prepayment .cash-row-remove{grid-column:2;grid-row:1}}
 
@@ -901,6 +911,16 @@ body.mode-cash-report #backBtn{display:inline-flex}
     </div>
   </div>
   <div class="receipt-editor-hint">Перетащи рамку или круглые точки по углам. Нажми «Готово», чтобы обрезать.</div>
+</div>
+
+<div class="fox-confirm-overlay" id="foxCashConfirmOverlay" hidden role="dialog" aria-modal="true" aria-label="Подтверждение отправки">
+  <div class="fox-confirm-box">
+    <div class="fox-confirm-message" id="foxCashConfirmMessage"></div>
+    <div class="fox-confirm-actions">
+      <button id="foxCashConfirmCancel" type="button">Отмена</button>
+      <button id="foxCashConfirmOk" type="button">ОК</button>
+    </div>
+  </div>
 </div>
 
 <div class="report-bar"><button class="report-btn" id="reportBtn">📋 Сформировать общий отчёт</button></div>
@@ -2918,7 +2938,7 @@ async function sendReceiptToTelegram(){
 
 
 
-// ===== FO’X v15.13.1 — FAST IMAGE SCANNER + повторная отправка отчёта =====
+// ===== FO’X v15.13.2 — FAST IMAGE SCANNER + cash validation UI =====
 let cashReportPages=[];
 let cashReportPdfBlob=null;
 let cashReportJobId='';
@@ -3070,10 +3090,40 @@ function refreshCashReportMessage(){
 function bindCashReportInputs(){
   ['cashReportDate','cashReportTotalRevenue','cashReportBankCards','cashReportBankCards2','cashReportCashNonFiscal','cashReportCashFiscal','cashReportCash2','cashReportTapper','cashReportSettlement','cashReportSettlement2','cashReportOnlineCashbox2','cashReportExpense','cashReportExpenseComment','cashReportCollection','cashReportCollectionActual','cashReportMorningCash','cashReportChangeFund'].forEach(id=>{const el=document.getElementById(id);el.oninput=refreshCashReportMessage;el.onchange=refreshCashReportMessage;});
 }
+function foxCashConfirm(message){
+  return new Promise(resolve=>{
+    const overlay=document.getElementById('foxCashConfirmOverlay');
+    const messageEl=document.getElementById('foxCashConfirmMessage');
+    const cancelBtn=document.getElementById('foxCashConfirmCancel');
+    const okBtn=document.getElementById('foxCashConfirmOk');
+    if(!overlay||!messageEl||!cancelBtn||!okBtn){resolve(false);return;}
+    let settled=false;
+    const finish=value=>{
+      if(settled)return;
+      settled=true;
+      overlay.classList.remove('show');
+      overlay.hidden=true;
+      cancelBtn.onclick=null;
+      okBtn.onclick=null;
+      overlay.onclick=null;
+      resolve(Boolean(value));
+    };
+    messageEl.textContent=String(message||'');
+    overlay.hidden=false;
+    overlay.classList.add('show');
+    cancelBtn.onclick=()=>finish(false);
+    okBtn.onclick=()=>finish(true);
+    overlay.onclick=e=>{if(e.target===overlay)finish(false);};
+  });
+}
 async function sendCashReportToTelegram(){
   if(!cashReportJobId){setCashReportStatus('warn','Сначала распознай кассовый отчёт.',0);return;}
   const message=document.getElementById('cashReportMessage').value.trim();if(!message){setCashReportStatus('warn','Сообщение пустое.',0);return;}
-  const comparison=updateCashComparison();if(comparison.diff!==null&&Math.abs(comparison.diff)>=.01&&!confirm('Есть расхождение по терминалам: '+comparison.text+'. Всё равно отправить отчёт?'))return;
+  const comparison=updateCashComparison();
+  if(comparison.diff!==null&&Math.abs(comparison.diff)>=.01){
+    const approved=await foxCashConfirm('Есть расхождение по терминалам: '+comparison.text+'. Всё равно отправить отчёт?');
+    if(!approved)return;
+  }
   const btn=document.getElementById('cashReportSend');btn.disabled=true;btn.textContent='Отправляю…';
   try{
     setCashReportStatus('', 'Отправляю кассовый отчёт в Telegram…',.25);
