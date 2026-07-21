@@ -1,0 +1,11 @@
+.DS_Store
+.env
+.env.*
+secrets/
+credentials/
+script-properties*.json
+*.key
+*.pem
+node_modules/
+dist/
+coverage/

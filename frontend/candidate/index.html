@@ -1,0 +1,3160 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>FO'X App v15.13.2 — CASH VALIDATION UI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<style>
+
+  :root{
+    --bg:#14110D; --surface:#1E1913; --surface-2:#28221A;
+    --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.14);
+    --text:#F3ECE1; --muted:#9D9081; --muted-2:#6E6356;
+    --amber:#EE8E3A; --amber-soft:rgba(238,142,58,.16); --amber-line:rgba(238,142,58,.4);
+    --done:#5FBF8F; --done-soft:rgba(95,191,143,.14);
+    --warn:#E6B450; --warn-soft:rgba(230,180,80,.12);
+    --radius:16px; --tap:54px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    font-size:16px;line-height:1.4;-webkit-font-smoothing:antialiased;padding-bottom:120px}
+  header{position:sticky;top:0;z-index:40;background:linear-gradient(180deg,#1A150F,#14110D);
+    border-bottom:1px solid var(--line);padding:calc(env(safe-area-inset-top) + 14px) 18px 0}
+  .head-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .wordmark{font-family:"Unbounded",sans-serif;font-weight:800;font-size:24px;letter-spacing:.5px;line-height:1}
+  .wordmark .dot{color:var(--amber)}
+  .subtitle{font-size:12px;color:var(--muted);font-weight:500;margin-top:3px}
+  .reset{border:1px solid var(--line-strong);background:transparent;color:var(--muted);
+    font-family:inherit;font-size:12px;font-weight:600;padding:9px 12px;border-radius:10px;cursor:pointer}
+  .reset:active{background:var(--surface-2)}
+  .overall{margin-top:14px;padding-bottom:14px}
+  .overall-meta{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--muted);margin-bottom:6px}
+  .overall-meta b{color:var(--amber);font-weight:700;font-family:"Unbounded",sans-serif;font-size:13px}
+  .bar-track{height:6px;border-radius:6px;background:var(--surface-2);overflow:hidden}
+  .bar-fill{height:100%;width:0;background:linear-gradient(90deg,var(--amber),#F4A95C);border-radius:6px;transition:width .35s ease}
+  .tabs{position:sticky;top:0;z-index:30;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;
+    padding:12px 18px;background:rgba(20,17,13,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{flex:0 0 auto;display:flex;flex-direction:column;gap:2px;align-items:flex-start;
+    border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:8px 13px;cursor:pointer;min-width:92px;
+    transition:border-color .2s,background .2s}
+  .tab .t-name{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap}
+  .tab .t-count{font-size:11px;color:var(--muted-2);font-variant-numeric:tabular-nums}
+  .tab.active{border-color:var(--amber-line);background:var(--amber-soft)}
+  .tab.active .t-name{color:var(--amber)}
+  .tab.done .t-count{color:var(--done)}
+  main{padding:16px 14px 0;max-width:680px;margin:0 auto}
+  .legend{display:block;font-size:12.5px;line-height:1.5;color:var(--muted);
+    background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:11px 14px;margin:0 4px 16px}
+  .legend b{color:var(--text);font-weight:600}
+  .panel{display:none}
+  .panel.active{display:block;animation:fade .25s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .group-label{font-family:"Unbounded",sans-serif;font-size:11px;font-weight:600;letter-spacing:1.5px;
+    text-transform:uppercase;color:var(--muted-2);margin:22px 4px 10px}
+  .group-label:first-child{margin-top:4px}
+  .banner{display:flex;gap:11px;align-items:flex-start;background:var(--warn-soft);
+    border:1px solid rgba(230,180,80,.3);border-radius:14px;padding:13px 14px;margin-bottom:4px}
+  .banner .ico{font-size:18px;line-height:1.2}
+  .banner .b-txt{font-size:13.5px;color:#EAD9B0;line-height:1.45}
+  .banner .b-txt b{color:var(--warn);font-weight:700}
+  .list{display:flex;flex-direction:column;gap:8px}
+  .item{display:flex;align-items:center;gap:13px;min-height:var(--tap);background:var(--surface);
+    border:1px solid var(--line);border-radius:var(--radius);padding:10px 14px;cursor:pointer;
+    transition:background .15s,border-color .15s;user-select:none}
+  .item:active{background:var(--surface-2)}
+  .check{flex:0 0 auto;width:26px;height:26px;border-radius:50%;border:2px solid var(--line-strong);position:relative;transition:all .18s}
+  .check::after{content:"";position:absolute;left:8px;top:4px;width:6px;height:11px;
+    border:solid var(--bg);border-width:0 2.5px 2.5px 0;transform:rotate(45deg) scale(0);transition:transform .18s}
+  .item-body{flex:1;min-width:0}
+  .item-label{font-size:15px;font-weight:500;color:var(--text);transition:color .18s}
+  .item-note{font-size:12px;color:var(--muted);margin-top:2px}
+  .item.checked{border-color:rgba(95,191,143,.35);background:var(--done-soft)}
+  .item.checked .check{background:var(--done);border-color:var(--done)}
+  .item.checked .check::after{transform:rotate(45deg) scale(1)}
+  .item.checked .item-label{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--muted-2)}
+  .stepper{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+  .stepper .lbl{font-size:11px;color:var(--muted-2);margin-right:2px}
+  .step-btn{width:34px;height:34px;border-radius:9px;border:1px solid var(--line-strong);background:var(--surface-2);
+    color:var(--text);font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;font-family:inherit}
+  .step-btn:active{background:var(--amber-soft);border-color:var(--amber-line)}
+  .qty-in{width:46px;height:34px;text-align:center;border-radius:9px;border:1px solid var(--line-strong);
+    background:var(--bg);color:var(--text);font-family:inherit;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+  .qty-in:focus{outline:2px solid var(--amber-line);outline-offset:0;border-color:var(--amber)}
+  .item.has-qty[data-needed="1"]{border-color:var(--amber-line)}
+  .item.has-qty[data-needed="1"] .qty-in{color:var(--amber)}
+  .comment-area{width:100%;min-height:90px;background:var(--surface);border:1px solid var(--line);border-radius:14px;
+    padding:12px 14px;color:var(--text);font-family:inherit;font-size:14px;line-height:1.5;resize:vertical}
+  .comment-area:focus{outline:2px solid var(--amber-line);border-color:var(--amber)}
+  .comment-area::placeholder{color:var(--muted-2)}
+  .all-done{display:none;align-items:center;gap:12px;margin:18px 4px 0;background:var(--done-soft);
+    border:1px solid rgba(95,191,143,.4);border-radius:16px;padding:16px}
+  .all-done.show{display:flex;animation:fade .3s ease}
+  .all-done .fox{font-size:26px}
+  .all-done .ad-txt b{font-family:"Unbounded",sans-serif;color:var(--done);font-size:15px;display:block}
+  .all-done .ad-txt span{font-size:13px;color:var(--muted)}
+  .foot{text-align:center;color:var(--muted-2);font-size:11px;padding:28px 0 10px}
+  .report-bar{position:fixed;left:0;right:0;bottom:0;z-index:50;display:flex;justify-content:center;
+    padding:14px 14px calc(env(safe-area-inset-bottom) + 14px);pointer-events:none;
+    background:linear-gradient(180deg,rgba(20,17,13,0),var(--bg) 32%)}
+  .report-btn{width:100%;max-width:652px;pointer-events:auto;background:var(--amber);color:#1A1208;border:none;
+    border-radius:14px;font-family:"Unbounded",sans-serif;font-weight:600;font-size:14px;letter-spacing:.3px;
+    padding:16px;cursor:pointer;box-shadow:0 10px 30px rgba(0,0,0,.5);transition:transform .1s,filter .2s}
+  .report-btn:active{transform:scale(.99);filter:brightness(1.05)}
+  .overlay{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.62);display:none;align-items:flex-end;justify-content:center}
+  .overlay.show{display:flex;animation:fade .2s ease}
+  .sheet{width:100%;max-width:680px;background:var(--surface);border:1px solid var(--amber-line);border-bottom:none;
+    border-radius:18px 18px 0 0;max-height:86vh;display:flex;flex-direction:column;animation:slideup .26s cubic-bezier(.2,.8,.2,1)}
+  @keyframes slideup{from{transform:translateY(100%)}to{transform:none}}
+  .sheet-head{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 4px}
+  .sheet-head h3{margin:0;font-family:"Unbounded",sans-serif;font-size:15px;font-weight:600}
+  .sheet-head .cnt{font-size:12px;color:var(--amber);font-weight:600}
+  .sheet textarea{flex:1;min-height:180px;border:none;background:transparent;color:var(--text);
+    font-family:"Inter",monospace;font-size:14px;line-height:1.65;padding:8px 16px;resize:none}
+  .sheet textarea:focus{outline:none}
+  .sheet-actions{display:flex;gap:9px;padding:10px 16px calc(env(safe-area-inset-bottom) + 16px)}
+  .btn-ghost{flex:1;border:1px solid var(--line-strong);background:var(--surface-2);color:var(--text);
+    font-family:inherit;font-weight:600;font-size:13px;padding:13px;border-radius:11px;cursor:pointer}
+  .btn-ghost:active{background:var(--amber-soft)}
+  .btn-ghost.copied{border-color:var(--done);color:var(--done)}
+  .btn-ghost.btn-send{border-color:var(--amber-line);color:var(--amber)}
+  .recipe-btn{flex:0 0 auto;width:38px;height:38px;border-radius:10px;border:1px solid var(--amber-line);
+    background:var(--amber-soft);color:var(--amber);font-size:17px;line-height:1;display:flex;
+    align-items:center;justify-content:center;cursor:pointer}
+  .recipe-btn:active{background:rgba(238,142,58,.28)}
+  .recipe-body{flex:1;overflow-y:auto;padding:6px 18px 4px}
+  .rcp-ing{list-style:none;margin:4px 0;padding:0}
+  .rcp-ing li{display:flex;justify-content:space-between;gap:12px;padding:11px 0;
+    border-bottom:1px solid var(--line);font-size:14.5px;color:var(--text)}
+  .rcp-ing li:last-child{border-bottom:none}
+  .rcp-ing li span{flex:1}
+  .rcp-ing li i{font-style:normal;color:var(--amber);font-weight:600;white-space:nowrap}
+  .rcp-steps{margin:6px 0;padding-left:22px}
+  .rcp-steps li{padding:6px 0;font-size:14.5px;color:var(--text);line-height:1.45}
+  .rcp-method{margin-top:12px;padding:12px 14px;background:var(--surface-2);border-radius:12px;
+    font-size:13.5px;color:var(--muted);line-height:1.5}
+  .recipe-scale{display:flex;align-items:center;gap:8px;margin:8px 18px 6px;padding:10px 11px;
+    background:var(--surface-2);border:1px solid var(--line);border-radius:13px}
+  .recipe-scale[hidden]{display:none!important}
+  .recipe-scale-label{font-size:12px;color:var(--muted);font-weight:700;flex:1;min-width:0}
+  .recipe-scale-btn{width:38px;height:38px;border-radius:10px;border:1px solid var(--line-strong);
+    background:var(--bg);color:var(--text);font-family:inherit;font-size:19px;font-weight:700;cursor:pointer}
+  .recipe-scale-btn:active{background:var(--amber-soft);border-color:var(--amber-line)}
+  .recipe-scale-input-wrap{display:flex;align-items:center;gap:4px;height:38px;padding:0 9px;border-radius:10px;
+    background:var(--bg);border:1px solid var(--amber-line);color:var(--amber);font-weight:800}
+  .recipe-scale-input{width:58px;border:none;outline:none;background:transparent;color:var(--amber);
+    font-family:inherit;font-size:15px;font-weight:800;text-align:center;font-variant-numeric:tabular-nums}
+  .recipe-scale-reset{height:38px;border-radius:10px;border:1px solid var(--line-strong);background:transparent;
+    color:var(--muted);font-family:inherit;font-size:12px;font-weight:800;padding:0 10px;cursor:pointer}
+  .recipe-scale-reset:active{background:var(--surface);color:var(--text)}
+  @media (max-width:390px){.recipe-scale{gap:6px;margin-left:12px;margin-right:12px}.recipe-scale-label{display:none}.recipe-scale-input{width:52px}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+
+/* ===== FO'X HUB + Банкетный календарь ===== */
+body.mode-hub .report-bar,
+body.mode-banquets .report-bar,
+body.mode-receipts .report-bar{display:none}
+body.mode-hub .overall,
+body.mode-banquets .overall,
+body.mode-receipts .overall{display:none}
+body.mode-hub #resetBtn,
+body.mode-banquets #resetBtn,
+body.mode-receipts #resetBtn{display:none}
+body.mode-checklists #backBtn,
+body.mode-banquets #backBtn,
+body.mode-receipts #backBtn{display:inline-flex}
+body.mode-hub #backBtn{display:none}
+.back-btn{border:1px solid var(--line-strong);background:transparent;color:var(--muted);
+  font-family:inherit;font-size:12px;font-weight:600;padding:9px 12px;border-radius:10px;cursor:pointer;align-items:center;gap:6px}
+.back-btn:active{background:var(--surface-2)}
+.app-screen{display:none;max-width:680px;margin:0 auto;padding:16px 14px 0}
+.app-screen.active{display:block;animation:fade .25s ease}
+#checklistsScreen{max-width:none;padding:0}
+.hub-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:6px}
+.hub-card{width:100%;text-align:left;border:1px solid var(--line);background:var(--surface);
+  color:var(--text);border-radius:18px;padding:18px 16px;cursor:pointer;font-family:inherit}
+.hub-card:active{background:var(--surface-2)}
+.hub-card .hc-ico{font-size:26px;margin-bottom:8px}
+.hub-card .hc-title{font-family:"Unbounded",sans-serif;font-size:16px;font-weight:600;margin-bottom:4px}
+.hub-card .hc-sub{font-size:13px;color:var(--muted);line-height:1.45}
+.hub-note{margin-top:14px;background:var(--surface);border:1px solid var(--line);border-radius:14px;
+  padding:13px 14px;color:var(--muted);font-size:13px;line-height:1.5}
+.banq-top{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:12px}
+.banq-title{font-family:"Unbounded",sans-serif;font-size:18px;font-weight:600}
+.banq-sub{font-size:12px;color:var(--muted);margin-top:3px}
+.banq-nav{display:flex;gap:8px;align-items:center;margin:12px 0}
+.banq-month{flex:1;text-align:center;font-family:"Unbounded",sans-serif;font-size:14px;font-weight:600;color:var(--text)}
+.icon-btn{width:42px;height:38px;border-radius:11px;border:1px solid var(--line-strong);
+  background:var(--surface);color:var(--text);font-family:inherit;font-size:18px;cursor:pointer}
+.icon-btn:active{background:var(--amber-soft);border-color:var(--amber-line)}
+.calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;background:var(--surface);
+  border:1px solid var(--line);border-radius:16px;padding:10px;margin-bottom:16px}
+.cal-wd{text-align:center;color:var(--muted-2);font-size:11px;font-weight:700;text-transform:uppercase;padding:5px 0}
+.cal-day{position:relative;min-height:44px;border-radius:12px;border:1px solid transparent;background:transparent;color:var(--text);
+  font-family:inherit;font-weight:600;cursor:pointer}
+.cal-day:active{background:var(--surface-2)}
+.cal-day.muted{color:var(--muted-2)}
+.cal-day.today{border-color:var(--line-strong)}
+.cal-day.selected{background:var(--amber-soft);border-color:var(--amber-line);color:var(--amber)}
+.cal-day.has-banquet::after{content:"";position:absolute;left:50%;bottom:6px;transform:translateX(-50%);
+  width:6px;height:6px;border-radius:50%;background:var(--amber)}
+.cal-day .badge{position:absolute;right:4px;top:3px;min-width:16px;height:16px;border-radius:8px;background:var(--amber);
+  color:#1A1208;font-size:10px;line-height:16px;text-align:center;font-weight:800}
+.day-card,.banq-form{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:14px}
+.day-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:10px}
+.day-head b{font-family:"Unbounded",sans-serif;font-size:14px}
+.day-head span{font-size:12px;color:var(--amber);font-weight:700}
+.banq-list{display:flex;flex-direction:column;gap:10px}
+.banq-empty{color:var(--muted);font-size:13px;line-height:1.5;padding:8px 2px}
+.banq-item{border:1px solid var(--line);background:var(--surface-2);border-radius:14px;padding:12px;transition:border-color .2s,background .2s,opacity .2s}
+.banq-item.status-actual{border-color:var(--amber-line);background:linear-gradient(180deg,rgba(238,142,58,.10),var(--surface-2))}
+.banq-item.status-completed{border-color:rgba(95,191,143,.45);background:linear-gradient(180deg,rgba(95,191,143,.12),var(--surface-2));opacity:.86}
+.banq-item.status-completed .banq-name{color:#CFE8DB}
+.banq-item.status-cancelled{border-color:rgba(240,139,125,.38);background:rgba(240,139,125,.08);opacity:.68}
+.banq-item.status-cancelled .banq-name{text-decoration:line-through;text-decoration-color:rgba(240,139,125,.55)}
+.banq-item-head{display:flex;justify-content:space-between;gap:10px;margin-bottom:6px}
+.banq-time{font-family:"Unbounded",sans-serif;font-size:13px;color:var(--amber);font-weight:600}
+.banq-status{font-size:11px;color:var(--muted);border:1px solid var(--line-strong);border-radius:999px;padding:4px 9px;height:max-content;font-weight:700;white-space:nowrap}
+.banq-status.actual{color:var(--amber);border-color:var(--amber-line);background:var(--amber-soft)}
+.banq-status.completed{color:var(--done);border-color:rgba(95,191,143,.45);background:var(--done-soft)}
+.banq-status.cancelled{color:#F08B7D;border-color:rgba(240,139,125,.4);background:rgba(240,139,125,.10)}
+.banq-name{font-size:15px;font-weight:700;margin-bottom:3px}
+.banq-comment{font-size:13px;color:var(--muted);line-height:1.45;margin:5px 0 9px}
+.banq-img{display:block;width:100%;border-radius:12px;border:1px solid var(--line);margin-top:8px}
+.banq-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.small-btn{border:1px solid var(--line-strong);background:transparent;color:var(--muted);
+  font-family:inherit;font-size:12px;font-weight:600;padding:9px 10px;border-radius:10px;cursor:pointer}
+.small-btn:active{transform:scale(.98)}
+.small-btn.status-actual{color:var(--amber);border-color:var(--amber-line);background:var(--amber-soft)}
+.small-btn.status-completed{color:var(--done);border-color:rgba(95,191,143,.45);background:var(--done-soft)}
+.small-btn.status-cancelled{color:#F08B7D;border-color:rgba(240,139,125,.35);background:rgba(240,139,125,.08)}
+.small-btn.active{box-shadow:inset 0 0 0 1px currentColor}
+.small-btn.danger{margin-left:auto;color:#F08B7D;border-color:rgba(240,139,125,.35)}
+.banq-status-legend{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 12px}
+.banq-status-legend span{font-size:11px;font-weight:700;padding:6px 9px;border-radius:999px;border:1px solid var(--line-strong)}
+.banq-status-legend .actual{color:var(--amber);border-color:var(--amber-line);background:var(--amber-soft)}
+.banq-status-legend .completed{color:var(--done);border-color:rgba(95,191,143,.45);background:var(--done-soft)}
+.banq-status-legend .cancelled{color:#F08B7D;border-color:rgba(240,139,125,.35);background:rgba(240,139,125,.08)}
+
+.banq-reserve{margin-top:10px;padding:11px 12px;border:1px solid rgba(238,142,58,.28);background:rgba(238,142,58,.07);border-radius:12px}
+.banq-reserve.ok{border-color:rgba(95,191,143,.34);background:rgba(95,191,143,.08)}
+.banq-reserve.sent{border-color:rgba(95,191,143,.48);background:var(--done-soft)}
+.banq-reserve.warn{border-color:rgba(230,180,80,.34);background:var(--warn-soft)}
+.banq-reserve-title{font-size:12px;font-weight:800;color:var(--text);display:flex;align-items:center;gap:7px}
+.banq-reserve-meta{font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.45}
+.banq-reserve details{margin-top:7px}
+.banq-reserve summary{font-size:11.5px;color:var(--amber);font-weight:700;cursor:pointer}
+.banq-reserve-lines{display:flex;flex-direction:column;gap:5px;margin-top:7px}
+.banq-reserve-line{display:flex;justify-content:space-between;gap:10px;font-size:11.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:5px}
+.banq-reserve-line b{color:var(--text);font-weight:600;min-width:0}
+.small-btn.order{color:var(--amber);border-color:var(--amber-line);background:var(--amber-soft)}
+.small-btn.order.sent{color:var(--done);border-color:rgba(95,191,143,.45);background:var(--done-soft)}
+.small-btn.reserve-scan{color:#D8C6F5;border-color:rgba(184,151,231,.35);background:rgba(184,151,231,.08)}
+.small-btn[disabled]{opacity:.42;cursor:not-allowed}
+.cal-day.has-completed-only::after{background:var(--done)}
+.cal-day.has-cancelled-only::after{background:#F08B7D}
+.cal-day.has-mixed::after{width:16px;border-radius:4px;background:linear-gradient(90deg,var(--amber) 0 50%,var(--done) 50% 100%)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.form-field{display:flex;flex-direction:column;gap:5px}
+.form-field.full{grid-column:1/-1}
+.form-field label{font-size:11px;color:var(--muted-2);font-weight:700;text-transform:uppercase;letter-spacing:.8px}
+.form-field input,.form-field textarea,.form-field select{width:100%;border:1px solid var(--line-strong);
+  background:var(--bg);color:var(--text);border-radius:12px;padding:12px 12px;font-family:inherit;font-size:14px}
+.form-field textarea{min-height:82px;resize:vertical}
+.form-field input:focus,.form-field textarea:focus,.form-field select:focus{outline:2px solid var(--amber-line);border-color:var(--amber)}
+.save-btn{width:100%;margin-top:12px;border:none;background:var(--amber);color:#1A1208;border-radius:13px;
+  font-family:"Unbounded",sans-serif;font-size:13px;font-weight:600;padding:14px;cursor:pointer}
+.save-btn:active{filter:brightness(1.05)}
+.local-warn{font-size:12.5px;line-height:1.45;color:#EAD9B0;background:var(--warn-soft);
+  border:1px solid rgba(230,180,80,.3);border-radius:13px;padding:11px 12px;margin-bottom:12px}
+@media (min-width:560px){.hub-grid{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}}
+
+
+/* ===== FO'X Банкетный календарь v2: shared storage + admin visibility ===== */
+.admin-hidden{display:none!important}
+.sync-status{font-size:12.5px;line-height:1.45;color:var(--muted);background:var(--surface);
+  border:1px solid var(--line);border-radius:13px;padding:11px 12px;margin-bottom:12px}
+.sync-status.ok{color:#C9E8D8;border-color:rgba(95,191,143,.35);background:var(--done-soft)}
+.sync-status.warn{color:#EAD9B0;border-color:rgba(230,180,80,.3);background:var(--warn-soft)}
+.sync-status.err{color:#F0B0A7;border-color:rgba(240,139,125,.35);background:rgba(240,139,125,.12)}
+
+
+.banq-refresh{border:1px solid var(--amber-line);background:var(--amber-soft);color:var(--amber);
+  font-family:inherit;font-size:12px;font-weight:700;padding:10px 12px;border-radius:11px;cursor:pointer}
+.banq-refresh:active{background:rgba(238,142,58,.28)}
+.banq-photo-link{display:inline-flex;margin-top:8px;border:1px solid var(--amber-line);background:var(--amber-soft);
+  color:var(--amber);text-decoration:none;font-family:inherit;font-size:12px;font-weight:700;padding:9px 10px;border-radius:10px}
+.banq-img.err{display:none}
+
+
+.photo-input-hidden{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}
+.photo-pick{display:flex;align-items:center;gap:12px;width:100%;min-height:64px;border:1px dashed var(--amber-line);
+  background:linear-gradient(180deg,rgba(238,142,58,.14),rgba(238,142,58,.06));border-radius:14px;
+  padding:13px 14px;cursor:pointer;color:var(--text)}
+.photo-pick:active{background:rgba(238,142,58,.22)}
+.photo-pick-ico{flex:0 0 auto;width:38px;height:38px;border-radius:12px;background:var(--amber);
+  color:#1A1208;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;line-height:1}
+.photo-pick-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.photo-pick-text b{font-size:14px;font-weight:700;color:var(--text)}
+.photo-pick-text i{font-style:normal;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.photo-preview{margin-top:10px;border:1px solid var(--line);background:var(--surface-2);border-radius:14px;padding:10px}
+.photo-preview img{display:block;width:100%;max-height:260px;object-fit:contain;border-radius:10px;background:#000}
+.photo-clear{margin-top:9px;width:100%;border:1px solid rgba(240,139,125,.35);background:transparent;color:#F0B0A7;
+  border-radius:10px;padding:10px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.photo-clear:active{background:rgba(240,139,125,.12)}
+.save-btn[disabled]{opacity:.62;cursor:wait;filter:saturate(.7)}
+
+
+.cloudinary-missing{font-size:12.5px;line-height:1.45;color:#EAD9B0;background:var(--warn-soft);
+  border:1px solid rgba(230,180,80,.3);border-radius:13px;padding:11px 12px;margin:0 0 12px}
+
+
+
+/* ===== FO’X v13 — сканер поступлений ===== */
+.receipt-top{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:12px}
+.receipt-title{font-family:"Unbounded",sans-serif;font-size:18px;font-weight:600}
+.receipt-sub{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.45}
+.receipt-card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:14px}
+.receipt-status{font-size:13px;line-height:1.45;color:var(--muted);background:var(--surface);border:1px solid var(--line);
+  border-radius:13px;padding:11px 12px;margin-bottom:12px}
+.receipt-status.ok{color:#C9E8D8;border-color:rgba(95,191,143,.35);background:var(--done-soft)}
+.receipt-status.warn{color:#EAD9B0;border-color:rgba(230,180,80,.3);background:var(--warn-soft)}
+.receipt-status.err{color:#F0B0A7;border-color:rgba(240,139,125,.35);background:rgba(240,139,125,.12)}
+.receipt-progress{height:5px;background:var(--surface-2);border-radius:999px;overflow:hidden;margin-top:8px}
+.receipt-progress>i{display:block;height:100%;width:0;background:var(--amber);transition:width .25s ease}
+.receipt-scan-input{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}
+.receipt-scan-btn{display:flex;align-items:center;gap:12px;width:100%;min-height:68px;border:1px dashed var(--amber-line);
+  background:linear-gradient(180deg,rgba(238,142,58,.16),rgba(238,142,58,.06));color:var(--text);border-radius:15px;padding:13px 14px;
+  cursor:pointer;font-family:inherit;text-align:left}
+.receipt-scan-btn:active{background:rgba(238,142,58,.24)}
+.receipt-scan-ico{width:42px;height:42px;flex:0 0 auto;border-radius:13px;background:var(--amber);color:#1A1208;
+  display:flex;align-items:center;justify-content:center;font-size:23px}
+.receipt-scan-text{display:flex;flex-direction:column;gap:3px}.receipt-scan-text b{font-size:14px}.receipt-scan-text span{font-size:12px;color:var(--muted)}
+.receipt-source-actions{display:grid;grid-template-columns:1fr;gap:9px}
+.receipt-scan-btn.alt{border-style:solid;border-color:var(--line-strong);background:var(--surface-2)}
+.receipt-scan-btn.alt .receipt-scan-ico{background:var(--surface);color:var(--amber);border:1px solid var(--amber-line)}
+.receipt-pages{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+.receipt-page{position:relative;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:8px;min-width:0}
+.receipt-page img{display:block;width:100%;height:164px;object-fit:contain;background:#0C0A08;border-radius:10px}
+.receipt-page-num{position:absolute;left:14px;top:14px;background:rgba(0,0,0,.72);color:#fff;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:700}
+.receipt-page-orientation{position:absolute;right:14px;top:14px;background:rgba(0,0,0,.72);color:#fff;border-radius:999px;padding:4px 8px;font-size:10px;font-weight:700}
+.receipt-page-actions{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:8px}
+.receipt-page-actions button{border:1px solid var(--line-strong);background:var(--bg);color:var(--muted);border-radius:9px;padding:8px 2px;font-size:13px;cursor:pointer}
+.receipt-page-actions button[data-rotate]{font-size:20px;line-height:1;color:var(--amber)}
+.receipt-page-actions button:disabled{opacity:.28}.receipt-page-actions .del{color:#F0B0A7}
+.receipt-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.receipt-primary,.receipt-secondary,.receipt-danger{border-radius:12px;padding:13px 14px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer}
+.receipt-primary{flex:1;border:none;background:var(--amber);color:#1A1208}
+.receipt-secondary{border:1px solid var(--line-strong);background:var(--surface-2);color:var(--text)}
+.receipt-danger{border:1px solid rgba(240,139,125,.35);background:transparent;color:#F0B0A7}
+.receipt-primary[disabled],.receipt-secondary[disabled]{opacity:.48;cursor:not-allowed}
+.receipt-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.receipt-field{display:flex;flex-direction:column;gap:5px}.receipt-field.full{grid-column:1/-1}
+.receipt-field label{font-size:11px;color:var(--muted-2);font-weight:700;text-transform:uppercase;letter-spacing:.7px}
+.receipt-field input,.receipt-field select,.receipt-field textarea{width:100%;border:1px solid var(--line-strong);background:var(--bg);color:var(--text);
+  border-radius:11px;padding:11px 12px;font-family:inherit;font-size:14px}
+.receipt-field textarea{min-height:100px;resize:vertical;line-height:1.5}
+.receipt-items{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+.receipt-item{border:1px solid var(--line);background:var(--surface-2);border-radius:14px;padding:12px}
+.receipt-item.need-review{border-color:rgba(230,180,80,.4)}
+.receipt-item.excluded{opacity:.72}
+.receipt-item-head{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px}
+.receipt-item-head input{width:21px;height:21px;accent-color:var(--amber);flex:0 0 auto}
+.receipt-item-name{font-size:14px;font-weight:700;line-height:1.35;flex:1}
+.receipt-item-meta{font-size:11px;color:var(--muted);margin-top:3px}
+.receipt-match{font-size:10px;font-weight:700;border:1px solid var(--line-strong);border-radius:999px;padding:3px 7px;color:var(--muted);white-space:nowrap}
+.receipt-item-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.receipt-item-fields .full{grid-column:1/-1}
+.receipt-item-fields label{display:flex;flex-direction:column;gap:4px;font-size:10px;color:var(--muted-2);font-weight:700;text-transform:uppercase}
+.receipt-item-fields input,.receipt-item-fields select{width:100%;min-width:0;border:1px solid var(--line-strong);background:var(--bg);color:var(--text);
+  border-radius:10px;padding:10px;font-family:inherit;font-size:13px}
+.receipt-summary{font-size:12px;color:var(--muted);line-height:1.5;margin-top:8px}
+.receipt-access-denied{padding:14px;border:1px solid rgba(240,139,125,.35);background:rgba(240,139,125,.12);color:#F0B0A7;border-radius:14px}
+.receipt-mode-note{font-size:12px;color:var(--muted);line-height:1.45;margin-top:6px}
+.receipt-check-only[hidden],.receipt-doc-only[hidden]{display:none!important}
+
+.receipt-version-badge{display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:5px 9px;border-radius:999px;
+  border:1px solid rgba(95,191,143,.35);background:var(--done-soft);color:#C9E8D8;font-size:10px;font-weight:800;letter-spacing:.2px}
+
+.receipt-editor-overlay{position:fixed;inset:0;z-index:130;background:#090806;display:flex;flex-direction:column;color:#fff}
+.receipt-editor-overlay[hidden]{display:none!important}
+.receipt-editor-head{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;padding:calc(env(safe-area-inset-top) + 10px) 10px 10px;background:#15110d;border-bottom:1px solid rgba(255,255,255,.1)}
+.receipt-editor-head b{font-family:"Unbounded",sans-serif;font-size:12px;text-align:center}
+.receipt-editor-head-actions{display:flex;gap:7px;align-items:center}
+.receipt-editor-btn{border:1px solid rgba(255,255,255,.24);background:rgba(255,255,255,.08);color:#fff;border-radius:10px;padding:9px 10px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.receipt-editor-btn.save{border:none;background:var(--amber);color:#1A1208}
+.receipt-editor-stage{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:12px;background:#050403}
+.receipt-editor-frame{position:relative;flex:0 0 auto;overflow:hidden;background:#111;box-shadow:0 8px 35px rgba(0,0,0,.55);user-select:none;-webkit-user-select:none}
+.receipt-editor-image{display:block;width:100%;height:100%;pointer-events:none}
+.receipt-crop-box{position:absolute;border:2px solid var(--amber);box-shadow:0 0 0 9999px rgba(0,0,0,.58);touch-action:none;cursor:move}
+.receipt-crop-box::before{content:"";position:absolute;inset:0;border:1px solid rgba(255,255,255,.55);pointer-events:none}
+.receipt-crop-handle{position:absolute;width:28px;height:28px;border:3px solid #fff;background:var(--amber);border-radius:50%;box-shadow:0 2px 10px rgba(0,0,0,.5);touch-action:none}
+.receipt-crop-handle[data-handle="nw"]{left:-15px;top:-15px;cursor:nwse-resize}
+.receipt-crop-handle[data-handle="ne"]{right:-15px;top:-15px;cursor:nesw-resize}
+.receipt-crop-handle[data-handle="se"]{right:-15px;bottom:-15px;cursor:nwse-resize}
+.receipt-crop-handle[data-handle="sw"]{left:-15px;bottom:-15px;cursor:nesw-resize}
+.receipt-editor-hint{padding:10px 14px calc(env(safe-area-inset-bottom) + 12px);background:#15110d;color:rgba(255,255,255,.75);font-size:12px;text-align:center;line-height:1.4}
+
+.receipt-camera-overlay{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;z-index:120;background:#000;
+  display:flex;flex-direction:column;overflow:hidden;overscroll-behavior:none}
+.receipt-camera-overlay[hidden]{display:none!important}
+.receipt-camera-head{flex:0 0 auto;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;
+  padding:calc(env(safe-area-inset-top) + 8px) 10px 8px;background:rgba(0,0,0,.78);color:#fff;z-index:3}
+.receipt-camera-head b{font-family:"Unbounded",sans-serif;font-size:12px;text-align:center;min-width:0}
+.receipt-camera-head-actions{display:flex;gap:6px;align-items:center}
+.receipt-camera-close,.receipt-camera-switch,.receipt-camera-torch{border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12);color:#fff;
+  border-radius:10px;padding:9px 10px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.receipt-camera-torch.active{background:rgba(238,142,58,.28);border-color:var(--amber);color:#FFD9B7}
+.receipt-camera-torch:disabled{opacity:.48;cursor:not-allowed}
+.receipt-camera-stage{position:relative;flex:1 1 auto;min-height:0;width:100%;overflow:hidden;background:#050505}
+.receipt-camera-video-bg{position:absolute;inset:-18px;width:calc(100% + 36px);height:calc(100% + 36px);object-fit:cover;object-position:center center;filter:blur(20px) brightness(.45);transform:scale(1.08);background:#050505;pointer-events:none}
+.receipt-camera-video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center center;background:transparent}
+.receipt-camera-video.front{transform:scaleX(-1)}
+.receipt-camera-guide{position:absolute;inset:12px;border:1px dashed rgba(255,255,255,.58);border-radius:14px;
+  box-shadow:none;pointer-events:none;transition:border-color .2s ease}
+.receipt-camera-guide.portrait,.receipt-camera-guide.landscape{inset:12px;aspect-ratio:auto}
+.receipt-camera-guide:before,.receipt-camera-guide:after{content:"";position:absolute;width:34px;height:34px;border-color:var(--amber);border-style:solid}
+.receipt-camera-guide:before{left:-2px;top:-2px;border-width:4px 0 0 4px;border-radius:12px 0 0 0}
+.receipt-camera-guide:after{right:-2px;bottom:-2px;border-width:0 4px 4px 0;border-radius:0 0 12px 0}
+.receipt-camera-bottom{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:12px 18px calc(env(safe-area-inset-bottom) + 14px);background:rgba(0,0,0,.84);color:#fff;z-index:3}
+.receipt-camera-count{min-width:78px;font-size:12px;color:rgba(255,255,255,.78)}
+.receipt-camera-shot{width:72px;height:72px;border-radius:50%;border:5px solid #fff;background:var(--amber);
+  box-shadow:0 0 0 3px rgba(255,255,255,.28);cursor:pointer;flex:0 0 auto}
+.receipt-camera-shot:disabled{opacity:.45;cursor:wait}
+.receipt-camera-done{min-width:78px;border:none;background:var(--done);color:#102019;border-radius:12px;padding:12px 13px;
+  font-family:inherit;font-size:13px;font-weight:800;cursor:pointer}
+.receipt-camera-hint{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);max-width:calc(100% - 28px);
+  background:rgba(0,0,0,.66);color:#fff;border-radius:12px;padding:7px 11px;font-size:11px;line-height:1.3;text-align:center;
+  white-space:normal;pointer-events:none}
+.receipt-camera-flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
+.receipt-camera-flash.show{animation:receiptFlash .22s ease}
+@keyframes receiptFlash{0%{opacity:.9}100%{opacity:0}}
+@media (max-width:420px){.receipt-pages{grid-template-columns:1fr}.receipt-grid{grid-template-columns:1fr}.receipt-field.full{grid-column:auto}}
+
+
+/* ===== FO’X v15.12 — кассовый отчёт ===== */
+body.mode-cash-report .report-bar,
+body.mode-cash-report .overall{display:none}
+body.mode-cash-report #resetBtn{display:none}
+body.mode-cash-report #backBtn{display:inline-flex}
+.cash-title{font-family:"Unbounded",sans-serif;font-size:18px;font-weight:600}
+.cash-sub{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.45}
+.cash-version{display:inline-flex;margin-top:8px;border:1px solid rgba(95,191,143,.35);background:var(--done-soft);
+  color:#C9E8D8;border-radius:999px;padding:5px 9px;font-size:10px;font-weight:800}
+.cash-status{font-size:13px;line-height:1.5;color:var(--muted);background:var(--surface);border:1px solid var(--line);
+  border-radius:14px;padding:12px 14px;margin:14px 0;overflow:hidden}
+.cash-status.ok{color:#C9E8D8;border-color:rgba(95,191,143,.35);background:var(--done-soft)}
+.cash-status.warn{color:#EAD9B0;border-color:rgba(230,180,80,.3);background:var(--warn-soft)}
+.cash-status.err{color:#F0B0A7;border-color:rgba(240,139,125,.35);background:rgba(240,139,125,.12)}
+.cash-progress{height:4px;border-radius:4px;background:var(--surface-2);overflow:hidden;margin-top:9px}
+.cash-progress i{display:block;width:0;height:100%;background:var(--amber);transition:width .25s ease}
+.cash-card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:14px}
+.cash-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cash-field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.cash-field.full{grid-column:1/-1}
+.cash-field label,.cash-field>span{font-size:11px;color:var(--muted-2);font-weight:700;text-transform:uppercase;letter-spacing:.7px}
+.cash-field input,.cash-field textarea,.cash-field select{width:100%;border:1px solid var(--line-strong);background:var(--bg);
+  color:var(--text);border-radius:12px;padding:12px;font-family:inherit;font-size:14px}
+.cash-field textarea{min-height:245px;resize:vertical;line-height:1.5}
+.cash-field input:focus,.cash-field textarea:focus,.cash-field select:focus{outline:2px solid var(--amber-line);border-color:var(--amber)}
+.cash-actions{display:flex;gap:9px;margin-top:12px;flex-wrap:wrap}
+.cash-primary,.cash-secondary,.cash-danger{flex:1;min-width:150px;border-radius:12px;padding:13px 12px;font-family:inherit;
+  font-size:13px;font-weight:800;cursor:pointer}
+.cash-primary{border:none;background:var(--amber);color:#1A1208}
+.cash-secondary{border:1px solid var(--amber-line);background:var(--amber-soft);color:var(--amber)}
+.cash-danger{border:1px solid rgba(240,139,125,.35);background:transparent;color:#F0B0A7}
+.cash-primary:disabled,.cash-secondary:disabled{opacity:.5;cursor:wait}
+.cash-source-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cash-source-btn{display:flex;align-items:center;gap:11px;text-align:left;border:1px solid var(--amber-line);background:var(--amber-soft);
+  color:var(--text);border-radius:14px;padding:13px;cursor:pointer;font-family:inherit}
+.cash-source-btn.alt{border-color:var(--line-strong);background:var(--surface-2)}
+.cash-source-btn b{display:block;font-size:13px}.cash-source-btn span small{display:block;color:var(--muted);font-size:11px;margin-top:2px;line-height:1.35}
+.cash-source-ico{font-size:24px;flex:0 0 auto}.cash-file-input{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}
+.cash-pages{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+.cash-page{position:relative;border:1px solid var(--line);background:var(--surface-2);border-radius:13px;padding:7px;overflow:hidden}
+.cash-page img{display:block;width:100%;height:180px;object-fit:contain;background:#0c0a08;border-radius:9px}
+.cash-page-num{position:absolute;left:12px;top:12px;background:rgba(0,0,0,.72);color:#fff;border-radius:999px;padding:3px 7px;font-size:10px;font-weight:800}
+.cash-page-actions{display:flex;gap:5px;margin-top:7px}.cash-page-actions button{flex:1;min-width:0;border:1px solid var(--line-strong);
+  background:var(--bg);color:var(--text);border-radius:8px;padding:8px 4px;font-size:14px;cursor:pointer}.cash-page-actions button.del{color:#F0B0A7}
+.cash-summary{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.45}
+.cash-compare{border:1px solid var(--line-strong);background:var(--surface-2);border-radius:13px;padding:12px;margin:12px 0;font-size:13px;line-height:1.5}
+.cash-compare.ok{border-color:rgba(95,191,143,.4);background:var(--done-soft);color:#C9E8D8}
+.cash-compare.warn{border-color:rgba(230,180,80,.4);background:var(--warn-soft);color:#EAD9B0}
+.cash-compare.err{border-color:rgba(240,139,125,.4);background:rgba(240,139,125,.12);color:#F0B0A7}
+.cash-slip,.cash-prepayment{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;margin-top:8px}
+.cash-slip input{width:100%;border:1px solid var(--line-strong);background:var(--bg);color:var(--text);border-radius:10px;padding:11px;font-family:inherit}
+.cash-row-remove{width:42px;height:42px;border:1px solid rgba(240,139,125,.35);background:transparent;color:#F0B0A7;border-radius:10px;font-size:17px;cursor:pointer}
+.cash-prepayment{grid-template-columns:1fr 1fr 1.4fr auto;border:1px solid var(--line);background:var(--surface-2);border-radius:12px;padding:9px}
+.cash-prepayment input,.cash-prepayment select{width:100%;border:1px solid var(--line-strong);background:var(--bg);color:var(--text);border-radius:9px;padding:10px;font-family:inherit;font-size:12px}
+.cash-note{font-size:12px;color:var(--muted);line-height:1.45;margin-top:9px}
+.fox-confirm-overlay{position:fixed;inset:0;z-index:140;background:rgba(0,0,0,.68);display:none;
+  align-items:center;justify-content:center;padding:20px}
+.fox-confirm-overlay.show{display:flex;animation:fade .16s ease}
+.fox-confirm-box{width:min(100%,480px);background:#18232d;border:1px solid rgba(255,255,255,.12);
+  border-radius:18px;padding:22px 20px 16px;box-shadow:0 22px 65px rgba(0,0,0,.55)}
+.fox-confirm-message{font-size:17px;line-height:1.48;color:#f4f6f8;white-space:pre-wrap}
+.fox-confirm-actions{display:flex;justify-content:flex-end;gap:12px;margin-top:22px}
+.fox-confirm-actions button{min-width:104px;border:0;background:transparent;color:#69b8ff;
+  font-family:inherit;font-size:16px;font-weight:700;padding:11px 14px;border-radius:10px;cursor:pointer}
+.fox-confirm-actions button:active{background:rgba(105,184,255,.12)}
+@media(max-width:520px){.cash-grid,.cash-source-actions{grid-template-columns:1fr}.cash-field.full{grid-column:auto}.cash-pages{grid-template-columns:1fr}
+  .cash-prepayment{grid-template-columns:1fr 1fr}.cash-prepayment select{grid-column:1/-1}.cash-prepayment .cash-row-remove{grid-column:2;grid-row:1}}
+
+</style>
+</head>
+<body class="mode-hub">
+
+<header>
+  <div class="head-row">
+    <button class="back-btn" id="backBtn">← Назад</button>
+    <div class="brand">
+      <div>
+        <div class="wordmark">FO<span class="dot">'</span>X</div>
+        <div class="subtitle" id="appSubtitle">Единое мини-приложение</div>
+      </div>
+    </div>
+    <button class="reset" id="resetBtn">Сбросить</button>
+  </div>
+  <div class="overall">
+    <div class="overall-meta"><span>Готовность смены</span><b id="overallPct">0%</b></div>
+    <div class="bar-track"><div class="bar-fill" id="overallBar"></div></div>
+  </div>
+</header>
+
+<section class="app-screen active" id="hubScreen">
+  <div class="hub-grid">
+    <button class="hub-card" data-open-section="checklists">
+      <div class="hc-ico">🧾</div>
+      <div class="hc-title">Чек-листы</div>
+      <div class="hc-sub">Подготовка бара к вечерней посадке, отчёт по отсутствующим позициям.</div>
+    </button>
+    <button class="hub-card" data-open-section="banquets">
+      <div class="hc-ico">🍽</div>
+      <div class="hc-title">Банкеты</div>
+      <div class="hc-sub">Календарь банкетов, фото заказов и список на выбранный день.</div>
+    </button>
+    <button class="hub-card" data-open-section="receipts">
+      <div class="hc-ico">📦</div>
+      <div class="hc-title">Документы и чеки</div>
+      <div class="hc-sub">Сканирование поставок и кассовых чеков, единый PDF, сток и отправка в Telegram.</div>
+    </button>
+    <button class="hub-card" data-open-section="cash-report">
+      <div class="hc-ico">💰</div>
+      <div class="hc-title">Кассовый отчёт</div>
+      <div class="hc-sub">Распознавание отчёта iiko и терминальных слипов, сверка безнала и отправка отчёта в Telegram.</div>
+    </button>
+  </div>
+  <div class="hub-note">
+    Это общий хаб: один Telegram-бот открывает один FO'X App, а внутри выбирается нужный раздел.
+  </div>
+</section>
+
+<section class="app-screen" id="checklistsScreen">
+  <nav class="tabs" id="tabs"></nav>
+  <main id="main"></main>
+</section>
+
+<section class="app-screen" id="banquetsScreen">
+  <div class="banq-top">
+    <div>
+      <div class="banq-title">Банкеты</div>
+      <div class="banq-sub">Выбери дату в календаре, чтобы увидеть заказы</div>
+    </div>
+    <button class="banq-refresh" id="banqRefresh" type="button">Обновить</button>
+  </div>
+
+  <div class="sync-status" id="banqSyncStatus">Подключение к Google Sheets не настроено.</div>
+  <div class="cloudinary-missing" id="cloudinaryWarn" hidden>Cloudinary пока не настроен: фото не будут загружаться. Заполни CLOUDINARY_CLOUD_NAME и CLOUDINARY_UPLOAD_PRESET в index.html.</div>
+  <div class="banq-status-legend" aria-label="Статусы банкетов">
+    <span class="actual">● Актуальный</span>
+    <span class="completed">✓ Пройден</span>
+    <span class="cancelled">× Отменён</span>
+  </div>
+
+  <div class="banq-nav">
+    <button class="icon-btn" id="banqPrev" type="button">‹</button>
+    <div class="banq-month" id="banqMonth"></div>
+    <button class="icon-btn" id="banqNext" type="button">›</button>
+  </div>
+  <div class="calendar" id="banqCalendar"></div>
+
+  <div class="day-card">
+    <div class="day-head">
+      <b id="banqSelectedTitle">Сегодня</b>
+      <span id="banqSelectedCount">0 заказов</span>
+    </div>
+    <div class="banq-list" id="banqList"></div>
+  </div>
+
+  <div id="banqAdminBlock" class="admin-hidden">
+    <div class="group-label">Добавить банкет</div>
+    <form class="banq-form" id="banqForm">
+    <div class="form-grid">
+      <div class="form-field">
+        <label>Дата</label>
+        <input id="banqDate" type="date" required>
+      </div>
+      <div class="form-field">
+        <label>Время</label>
+        <input id="banqTime" type="time" required>
+      </div>
+      <div class="form-field full">
+        <label>Название / клиент</label>
+        <input id="banqName" type="text" placeholder="Например: Банкет, 19:00" required>
+      </div>
+      <div class="form-field">
+        <label>Статус</label>
+        <select id="banqStatus">
+          <option value="Актуально">Актуально</option>
+          <option value="Выполнено">Выполнено</option>
+          <option value="Отменено">Отменено</option>
+        </select>
+      </div>
+      <div class="form-field full">
+        <label>Фото заказа</label>
+        <input id="banqPhoto" class="photo-input-hidden" type="file" accept="image/*">
+        <label for="banqPhoto" class="photo-pick" id="banqPhotoPick">
+          <span class="photo-pick-ico">＋</span>
+          <span class="photo-pick-text">
+            <b>Добавить фото заказа</b>
+            <i id="banqPhotoHint">Скрин или фото листа банкета</i>
+          </span>
+        </label>
+        <div class="photo-preview" id="banqPhotoPreview" hidden>
+          <img id="banqPhotoPreviewImg" alt="Предпросмотр фото">
+          <button type="button" class="photo-clear" id="banqPhotoClear">Убрать фото</button>
+        </div>
+      </div>
+      <div class="form-field full">
+        <label>Комментарий</label>
+        <textarea id="banqComment" placeholder="Зал, ответственный, уточнения по заказу…"></textarea>
+      </div>
+    </div>
+      <button class="save-btn" type="submit">Добавить банкет</button>
+    </form>
+  </div>
+</section>
+
+
+<section class="app-screen" id="receiptsScreen">
+  <div class="receipt-top">
+    <div>
+      <div class="receipt-title">Документы и чеки</div>
+      <div class="receipt-sub" id="receiptScreenSub">Выбери режим → сними все страницы → получи один PDF → проверь результат</div>
+    </div>
+  </div>
+
+  <div class="receipt-status" id="receiptStatus">
+    Сфотографируй страницы или выбери готовые фото. Края можно обрезать вручную перед распознаванием.
+    <div class="receipt-progress"><i id="receiptProgress"></i></div>
+  </div>
+
+  <div id="receiptAccessDenied" class="receipt-access-denied" hidden>
+    Раздел доступен всем пользователям FO’X внутри Telegram.
+  </div>
+
+  <div id="receiptAdminBlock">
+    <div class="receipt-card">
+      <div class="receipt-grid">
+        <div class="receipt-field full">
+          <label>Что сканируем</label>
+          <select id="receiptMode">
+            <option value="document">Документ поставки</option>
+            <option value="check">Кассовый / онлайн-чек</option>
+          </select>
+          <div class="receipt-mode-note" id="receiptModeNote">Накладная, счёт, УПД, ТТН или комплект документов одной поставки.</div>
+        </div>
+        <div class="receipt-field full">
+          <label>Подразделение / куда внести товар</label>
+          <select id="receiptWarehouse">
+            <option value="Бар">Бар</option>
+            <option value="Заготовочный">Заготовочный</option>
+          </select>
+        </div>
+      </div>
+
+      <input id="receiptCameraFallback" class="receipt-scan-input" type="file" accept="image/*" capture="environment">
+      <input id="receiptGallery" class="receipt-scan-input" type="file" accept="image/*" multiple>
+      <input id="receiptReshootFallback" class="receipt-scan-input" type="file" accept="image/*" capture="environment">
+      <div class="receipt-source-actions">
+        <button class="receipt-scan-btn" id="receiptCameraOpen" type="button">
+          <span class="receipt-scan-ico">📷</span>
+          <span class="receipt-scan-text">
+            <b id="receiptCameraTitle">Сфотографировать страницу</b>
+            <span>Камера откроется прямо внутри FO’X. Можно снять несколько страниц подряд.</span>
+          </span>
+        </button>
+        <label class="receipt-scan-btn alt" for="receiptGallery">
+          <span class="receipt-scan-ico">🖼️</span>
+          <span class="receipt-scan-text">
+            <b>Выбрать готовые фото</b>
+            <span>Можно выбрать сразу несколько изображений из галереи.</span>
+          </span>
+        </label>
+      </div>
+
+      <div class="receipt-pages" id="receiptPages"></div>
+
+      <div class="receipt-actions">
+        <button type="button" class="receipt-danger" id="receiptReset">Очистить</button>
+        <button type="button" class="receipt-primary" id="receiptScan" disabled>Собрать PDF и распознать</button>
+      </div>
+      <div class="receipt-summary" id="receiptPageSummary">Страниц пока нет.</div>
+    </div>
+
+    <div class="receipt-card" id="receiptResultCard" hidden>
+      <div class="group-label" id="receiptReviewTitle" style="margin-top:0">Проверка документа</div>
+
+      <div class="receipt-grid">
+        <div class="receipt-field">
+          <label>Дата для сообщения</label>
+          <input id="receiptDateText" type="text" inputmode="numeric" placeholder="ДД.ММ.ГГГГ">
+        </div>
+        <div class="receipt-field">
+          <label>Итоговая сумма</label>
+          <input id="receiptTotal" type="number" inputmode="decimal" step="0.01">
+        </div>
+      </div>
+
+      <div class="receipt-grid receipt-doc-only" id="receiptDocumentFields">
+        <div class="receipt-field">
+          <label>Поставщик коротко</label>
+          <input id="receiptSupplierShort" type="text">
+        </div>
+        <div class="receipt-field">
+          <label>Дата поступления</label>
+          <input id="receiptArrivalDate" type="text" inputmode="numeric" placeholder="ДД.ММ.ГГГГ">
+        </div>
+        <div class="receipt-field full">
+          <label>Поставщик полный</label>
+          <input id="receiptSupplierFull" type="text">
+        </div>
+        <div class="receipt-field">
+          <label>Реальный тип документа</label>
+          <input id="receiptRealTypes" type="text">
+        </div>
+        <div class="receipt-field">
+          <label>Номер документа</label>
+          <input id="receiptDocNumber" type="text">
+        </div>
+      </div>
+
+      <div class="receipt-grid receipt-check-only" id="receiptCheckFields" hidden>
+        <div class="receipt-field">
+          <label>Карта / способ оплаты</label>
+          <input id="receiptPaymentCard" type="text" placeholder="Например: Тинькофф 8064">
+        </div>
+        <div class="receipt-field">
+          <label>Место покупки</label>
+          <select id="receiptPurchaseChannel">
+            <option value="Покупка в магазине">Покупка в магазине</option>
+            <option value="Покупка в Ozon">Покупка в Ozon</option>
+            <option value="Покупка онлайн">Покупка онлайн</option>
+          </select>
+        </div>
+        <div class="receipt-field full">
+          <label>Товар и количество для сообщения</label>
+          <input id="receiptPurchaseSummary" type="text" placeholder="Например: Радебергер Пилснер 7,92 л">
+        </div>
+        <div class="receipt-field full">
+          <label>Магазин / продавец</label>
+          <input id="receiptMerchant" type="text" placeholder="Магнит, АТОЛ, Ozon…">
+        </div>
+      </div>
+
+      <div class="group-label">Позиции для возможного внесения в сток</div>
+      <div class="receipt-items" id="receiptItems"></div>
+
+      <div class="group-label">Сообщение в Telegram</div>
+      <div class="receipt-field full">
+        <textarea id="receiptMessage"></textarea>
+      </div>
+
+      <div class="receipt-actions">
+        <button type="button" class="receipt-secondary" id="receiptOpenPdf">Открыть PDF</button>
+        <button type="button" class="receipt-primary" id="receiptConfirm">✅ Внести в сток</button>
+      </div>
+      <div class="receipt-actions">
+        <button type="button" class="receipt-secondary" id="receiptSend">📨 Отправить PDF и сообщение в чат</button>
+      </div>
+      <div class="receipt-summary" id="receiptActionHint"></div>
+    </div>
+  </div>
+</section>
+
+
+<section class="app-screen" id="cashReportScreen">
+  <div>
+    <div class="cash-title">Кассовый отчёт</div>
+    <div class="cash-sub">Сфотографируй отчёт iiko и все сводные слипы терминалов. Их можно разместить на одном фото или добавить несколькими страницами.</div>
+  </div>
+
+  <div class="cash-status" id="cashReportStatus">
+    Добавь фото отчёта iiko и терминальных слипов.
+    <div class="cash-progress"><i id="cashReportProgress"></i></div>
+  </div>
+
+  <div class="cash-card">
+    <input id="cashReportCameraFallback" class="cash-file-input" type="file" accept="image/*" capture="environment">
+    <input id="cashReportGallery" class="cash-file-input" type="file" accept="image/*" multiple>
+    <div class="cash-source-actions">
+      <button class="cash-source-btn" id="cashReportCameraOpen" type="button">
+        <span class="cash-source-ico">📷</span><span><b>Сфотографировать</b><small>Встроенная HD-камера FO’X со вспышкой.</small></span>
+      </button>
+      <label class="cash-source-btn alt" for="cashReportGallery">
+        <span class="cash-source-ico">🖼️</span><span><b>Выбрать готовые фото</b><small>Можно выбрать несколько изображений сразу.</small></span>
+      </label>
+    </div>
+    <div class="cash-pages" id="cashReportPages"></div>
+    <div class="cash-actions">
+      <button class="cash-danger" id="cashReportReset" type="button">Очистить</button>
+      <button class="cash-primary" id="cashReportRecognize" type="button" disabled>Распознать кассовый отчёт</button>
+    </div>
+    <div class="cash-summary" id="cashReportPageSummary">Фотографий пока нет.</div>
+    <div class="cash-note">Фотографии и PDF не записываются в Google Sheets и Google Drive. PDF передаётся из приложения прямо в Gemini и удаляется из памяти после обработки.</div>
+  </div>
+
+  <div class="cash-card" id="cashReportResultCard" hidden>
+    <div class="group-label" style="margin-top:0">Проверь распознанные значения</div>
+    <div class="cash-grid">
+      <div class="cash-field"><label>Дата смены</label><input id="cashReportDate" type="text" inputmode="numeric" placeholder="ДД.ММ.ГГГГ"></div>
+      <div class="cash-field"><label>Общая выручка</label><input id="cashReportTotalRevenue" type="number" inputmode="decimal" step="0.01"></div>
+      <div class="cash-field"><label>Безнал — Банковские карты</label><input id="cashReportBankCards" type="number" inputmode="decimal" step="0.01"></div>
+      <div class="cash-field"><label>Безнал 2 — Банковские карты 2</label><input id="cashReportBankCards2" type="number" inputmode="decimal" step="0.01"></div>
+      <div class="cash-field"><label>Нал — Наличка, нефискальный тип</label><input id="cashReportCashNonFiscal" type="number" inputmode="decimal" step="0.01"></div>
+      <div class="cash-field"><label>Нал Фискал — наличные, фискальный тип</label><input id="cashReportCashFiscal" type="number" inputmode="decimal" step="0.01"></div>
+      <div class="cash-field"><label>Нал2 — Наличные 2</label><input id="cashReportCash2" type="number" inputmode="decimal" step="0.01"></div>
+      <div class="cash-field"><label>Tapper</label><input id="cashReportTapper" type="number" inputmode="decimal" step="0.01"></div>
+      <div class="cash-field"><label>Расчётный счёт</label><input id="cashReportSettlement" type="number" inputmode="decimal" step="0.01"></div>
+      <div class="cash-field"><label>Расчётный счёт 2</label><input id="cashReportSettlement2" type="number" inputmode="decimal" step="0.01"></div>
+      <div class="cash-field full"><label>Онлайн-Касса 2</label><input id="cashReportOnlineCashbox2" type="number" inputmode="decimal" step="0.01"></div>
+    </div>
+
+    <div class="group-label">Сводные слипы терминалов</div>
+    <div id="cashReportTerminalSlips"></div>
+    <div class="cash-actions"><button class="cash-secondary" id="cashReportAddSlip" type="button">＋ Добавить сумму терминала</button></div>
+    <div class="cash-compare" id="cashReportComparison">После распознавания здесь появится сверка безнала.</div>
+
+    <div class="group-label">Расход и касса</div>
+    <div class="cash-grid">
+      <div class="cash-field"><label>Расход</label><input id="cashReportExpense" type="number" inputmode="decimal" step="0.01" value="0"></div>
+      <div class="cash-field"><label>Комментарий к расходу</label><input id="cashReportExpenseComment" type="text" placeholder="Необязательно"></div>
+      <div class="cash-field"><label>Инкассация с конверта</label><input id="cashReportCollection" type="number" inputmode="decimal" step="0.01" placeholder="Например 71938"></div>
+      <div class="cash-field"><label>Значение в скобках</label><input id="cashReportCollectionActual" type="number" inputmode="decimal" step="0.01" placeholder="Например 71940"></div>
+      <div class="cash-field"><label>На утро в кассе</label><input id="cashReportMorningCash" type="number" inputmode="decimal" step="0.01" value="0"></div>
+      <div class="cash-field"><label>Неизменный размен</label><input id="cashReportChangeFund" type="number" inputmode="decimal" step="0.01" value="70000"></div>
+    </div>
+
+    <div class="group-label">Предоплаты</div>
+    <div id="cashReportPrepayments"></div>
+    <div class="cash-actions"><button class="cash-secondary" id="cashReportAddPrepayment" type="button">＋ Добавить предоплату</button></div>
+
+    <div class="group-label">Готовое сообщение</div>
+    <div class="cash-field full"><textarea id="cashReportMessage"></textarea></div>
+    <div class="cash-actions">
+      <button class="cash-primary" id="cashReportSend" type="button">📨 Отправить отчёт в чат</button>
+    </div>
+    <div class="cash-summary" id="cashReportActionHint">Все суммы можно исправить вручную перед отправкой.</div>
+  </div>
+</section>
+
+<div class="receipt-camera-overlay" id="receiptCameraOverlay" hidden role="dialog" aria-modal="true" aria-label="Камера документов">
+  <div class="receipt-camera-head">
+    <button class="receipt-camera-close" id="receiptCameraClose" type="button">Закрыть</button>
+    <b id="receiptCameraHeading">Съёмка страницы</b>
+    <div class="receipt-camera-head-actions">
+      <button class="receipt-camera-torch" id="receiptCameraTorch" type="button" disabled>⚡ Вспышка</button>
+      <button class="receipt-camera-switch" id="receiptCameraSwitch" type="button">↻ Камера</button>
+    </div>
+  </div>
+  <div class="receipt-camera-stage" id="receiptCameraStage">
+    <video class="receipt-camera-video-bg" id="receiptCameraVideoBg" autoplay playsinline muted aria-hidden="true"></video>
+    <video class="receipt-camera-video" id="receiptCameraVideo" autoplay playsinline muted></video>
+    <div class="receipt-camera-guide" id="receiptCameraGuide"></div>
+    <div class="receipt-camera-flash" id="receiptCameraFlash"></div>
+    <div class="receipt-camera-hint" id="receiptCameraHint">HD-снимок сохраняется без автообрезки. При необходимости используй ✂</div>
+  </div>
+  <div class="receipt-camera-bottom">
+    <div class="receipt-camera-count" id="receiptCameraCount">Снято: 0</div>
+    <button class="receipt-camera-shot" id="receiptCameraShot" type="button" aria-label="Сделать снимок"></button>
+    <button class="receipt-camera-done" id="receiptCameraDone" type="button">Готово</button>
+  </div>
+  <canvas id="receiptCameraCanvas" hidden></canvas>
+</div>
+
+<div class="receipt-editor-overlay" id="receiptEditorOverlay" hidden role="dialog" aria-modal="true" aria-label="Обрезка страницы">
+  <div class="receipt-editor-head">
+    <button class="receipt-editor-btn" id="receiptEditorCancel" type="button">Отмена</button>
+    <b id="receiptEditorTitle">Обрезать страницу</b>
+    <div class="receipt-editor-head-actions">
+      <button class="receipt-editor-btn" id="receiptEditorReset" type="button">Сбросить</button>
+      <button class="receipt-editor-btn save" id="receiptEditorSave" type="button">Готово</button>
+    </div>
+  </div>
+  <div class="receipt-editor-stage" id="receiptEditorStage">
+    <div class="receipt-editor-frame" id="receiptEditorFrame">
+      <img class="receipt-editor-image" id="receiptEditorImage" alt="Редактируемая страница">
+      <div class="receipt-crop-box" id="receiptCropBox">
+        <span class="receipt-crop-handle" data-handle="nw"></span>
+        <span class="receipt-crop-handle" data-handle="ne"></span>
+        <span class="receipt-crop-handle" data-handle="se"></span>
+        <span class="receipt-crop-handle" data-handle="sw"></span>
+      </div>
+    </div>
+  </div>
+  <div class="receipt-editor-hint">Перетащи рамку или круглые точки по углам. Нажми «Готово», чтобы обрезать.</div>
+</div>
+
+<div class="fox-confirm-overlay" id="foxCashConfirmOverlay" hidden role="dialog" aria-modal="true" aria-label="Подтверждение отправки">
+  <div class="fox-confirm-box">
+    <div class="fox-confirm-message" id="foxCashConfirmMessage"></div>
+    <div class="fox-confirm-actions">
+      <button id="foxCashConfirmCancel" type="button">Отмена</button>
+      <button id="foxCashConfirmOk" type="button">ОК</button>
+    </div>
+  </div>
+</div>
+
+<div class="report-bar"><button class="report-btn" id="reportBtn">📋 Сформировать общий отчёт</button></div>
+<div class="overlay" id="reportOverlay">
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-head"><h3>Отчёт по бару</h3><span class="cnt" id="reportCnt"></span></div>
+    <textarea id="reportText" readonly></textarea>
+    <div class="sheet-actions" id="reportActions"></div>
+  </div>
+</div>
+
+<div class="overlay" id="recipeOverlay">
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-head"><h3 id="recipeTitle">Раскладка</h3><span class="cnt" id="recipeScaleBadge">×1</span></div>
+    <div class="recipe-scale" id="recipeScaleControls" hidden>
+      <span class="recipe-scale-label">Коэффициент раскладки</span>
+      <button class="recipe-scale-btn" id="recipeScaleDown" type="button">−</button>
+      <label class="recipe-scale-input-wrap">×<input class="recipe-scale-input" id="recipeScaleInput" type="number" inputmode="decimal" min="0.1" max="100" step="0.1" value="1"></label>
+      <button class="recipe-scale-btn" id="recipeScaleUp" type="button">+</button>
+      <button class="recipe-scale-reset" id="recipeScaleReset" type="button">×1</button>
+    </div>
+    <div class="recipe-body" id="recipeBody"></div>
+    <div class="sheet-actions"><button class="btn-ghost" id="recipeClose">Закрыть</button></div>
+  </div>
+</div>
+
+<script>
+const DATA = [
+  {
+    id:"look", name:"Внешний вид", icon:"✨",
+    items:[
+      {l:"Экран на раздаче чистый"},
+      {l:"Барная стойка чистая"},
+      {l:"Пиалы для чаёв в наличии"},
+      {l:"Трубочки в органайзере в наличии"},
+      {l:"Салфетки на раздаче в наличии"},
+      {l:"Открытки для вина"},
+      {l:"Шпажки"},
+      {l:"Посуда с собой", n:"bubble · кофейные 0.4 · кофейные 0.2 и кружки к ним"},
+      {l:"Снеки к пиву"},
+      {l:"Конфеты-комплимент"},
+    ]
+  },
+  {
+    id:"soft", name:"Софты", icon:"🧊",
+    banner:"Сначала <b>перетарь софты из тепла в холодильник</b> — и только потом считай остатки. Иначе подсчёт будет неверным.",
+    groups:[
+      {
+        label:"Напитки, алкоголь, пюре",
+        qty:true,
+        items:[
+          {l:"Вода без газа 0.5"},{l:"Вода с газом 0.5"},
+          {l:"Вода без газа 0.85"},{l:"Вода с газом 0.85"},
+          {l:"Клаустайлер"},{l:"Циндао Стаут"},{l:"Циндао Вит"},
+          {l:"Радербергер"},{l:"Корона"},
+          {l:"Молоко"},{l:"Молоко кокосовое"},{l:"Молоко миндальное"},{l:"Молоко безлактозное"},
+          {l:"Сливки"},{l:"Халва"},
+          {l:"Монтефьоре Зибиббо"},{l:"Монтефьоре Совиньон Блан"},
+          {l:"Молд Грюнер"},{l:"Молд Цвайгельт"},{l:"Аромо Карменер"},
+          {l:"Странаменте"},{l:"Сладкая вата"},{l:"Стальная вата"},
+          {l:"Хаус игристое"},
+          {l:"Настойка вишня-корица"},{l:"Настойка Лимончелло"},{l:"Настойка Хреновуха"},
+          {l:"Сок томатный"},{l:"Сок яблочный"},{l:"Сок апельсиновый"},
+          {l:"Кола классик"},{l:"Кола Зеро"},{l:"Тоник Nunchi"},{l:"Ред Булл"},
+          {l:"Хаус водка"},{l:"Хаус ром"},{l:"Хаус джин"},{l:"Хаус текила"},
+          {l:"Трипл сек"},{l:"Апероль"},{l:"Джим Бим"},{l:"Ликёр йогурт"},
+          {l:"Пюре облепиха"},{l:"Пюре чёрная смородина"},{l:"Пюре малина"},
+          {l:"Пюре лайм"},{l:"Пюре манго"},{l:"Пюре маракуйя"},
+          {l:"Лёд с шишкой"},
+        ]
+      },
+      {
+        label:"Фрукты, сиропы, лёд, прочее",
+        qty:true,
+        items:[
+          {l:"Мёд"},{l:"Яблоки"},{l:"Морковь"},{l:"Лимон"},{l:"Сахар порционный"},
+          {l:"Лайм свежий"},{l:"Апельсин"},{l:"Грейпфрут"},{l:"Груша"},{l:"Морс"},
+          {l:"Лёд Кубы"},{l:"Лёд стики"},{l:"Лёд Лав Из"},{l:"Джем алоэ"},
+          {l:"Сироп клубника"},{l:"Сироп груша"},{l:"Сироп базилик"},{l:"Сироп ваниль"},
+          {l:"Сироп кедр"},{l:"Сироп малина"},{l:"Сироп поп-корн"},{l:"Сироп карамель"},
+          {l:"Сироп лесной орех"},{l:"Сироп солёная карамель"},
+          {l:"Конфеты с собой"},{l:"Снеки с собой"},
+          {l:"Кола розлив"},{l:"Маракуйя"},{l:"Какао"},
+        ]
+      }
+    ]
+  },
+  {
+    id:"prep", name:"Заготовки", icon:"🫙",
+    banner:"Пройди по списку: чего нет — заготовить по ТК. Премиксы проверь не только на наличие, но и что они <b>загазированы</b> где нужно. Раскладку смотри по кнопке 📖.",
+    groups:[
+      {
+        label:"Зелень — помыть, перебрать",
+        qty:false,
+        items:[ {l:"Мята"},{l:"Базилик"},{l:"Щавель"} ]
+      },
+      {
+        label:"Пены — наличие и консистенция",
+        qty:false,
+        items:[
+          {l:"Пена кокос", r:{ing:["Кокосовое молоко Aroy-D — 500 мл","Кокосовое молоко Alpro — 50 мл","Сахарный сироп П/Ф — 25 мл","Белок яичный пастеризованный — 20 мл","Ксантановая камедь — 1,2 г"]}},
+          {l:"Сырная пена", r:{ing:["Сливки 11% — 200 мл","Сыр Креметте — 300 г","Ксантан — 1 г"]}},
+          {l:"Пена эвкалипт", r:{ing:["Сироп Herbarista Эвкалипт — 20 мл","Сахарный сироп — 80 мл","Соевое молоко — 200 мл","Белок пастеризованный — 40 мл","Молочная кислота П/Ф — 60 мл"]}},
+        ]
+      },
+      {
+        label:"Премиксы и заготовки коктейлей",
+        qty:false,
+        items:[
+          {l:"Берри спритц премикс", n:"в наличии и загазирован"},
+          {l:"Лав Из", n:"в наличии и загазирован"},
+          {l:"Премикс «Нефритовый след»", r:{ing:["Джин киви-фейхоа — 150 мл","Тоник — 3 бутылки"]}},
+          {l:"Гарниш «Нефритовый след»"},
+          {l:"Премикс «Ночной двухслад»", r:{ing:["Морс Колд Брю — 900 мл","Сироп ирга — 90 мл"]}},
+          {l:"Сливочный улун + анчан", r:{ing:["Сливочный улун — 5 г","Анчан — 5 г"], method:"Заварить 20 минут, охладить, перелить."}},
+          {l:"Премикс «Поп-стар»", r:{ing:["Водка хаус — 30 мл","Мартини экстра драй — 20 мл","Сироп попкорн — 15 мл"]}},
+          {l:"Негрони премикс"},
+          {l:"Лонг Айленд премикс"},
+          {l:"Ванильный игристый Совиньон Блан", r:{ing:["Вино Совиньон Блан Мисти Клифф — 750 мл","Сироп ваниль Агробар — 80 мл","Молочная кислота — 20 мл"]}},
+          {l:"Джин на изумрудном чае"},
+          {l:"Настойка джин на маракуйе"},
+          {l:"Сигарные соты"},
+          {l:"Глинтвейн", n:"в наличии"},
+          {l:"Премикс «Молоко единорога»", r:{ing:["Грушевый дистиллят — 15 мл","Персиковый ликёр — 20 мл","Калпис персик-груша — 80 мл","Цитрус-микс — 15 мл"]}},
+          {l:"Калпис персик-груша", r:{ing:["Сироп персик Herbarista — 200 мл","Сироп груша Herbarista — 50 мл","Соевое молоко — 500 мл","Молочная кислота П/Ф — 150 мл"], method:"Все ингредиенты добавить в блендер и взбить, отфильтровать через супербэг."}},
+          {l:"ПФ жасминовый чай", r:{ing:["Жасминовый чай — 1000 мл","Джем алоэ — 300 г"]}},
+          {l:"Премикс «Сладкопряд»", r:{ing:["Водка Лаб 38 (ваниль, бобы тонка) — 50 мл","Ликёр Болс Бузина — 15 мл","Крем-сода — 20 мл","Сироп кокос — 10 мл","Молочная кислота — 15 мл"]}},
+          {l:"Джин киви-фейхоа"},
+          {l:"Лимонный фреш"},
+          {l:"Грейпфрутовый фреш"},
+          {l:"Цитрус-микс", r:{ing:["Фреш грейпфрута — 300 мл","Фреш лимона — 150 мл","Фреш лайма — 150 мл","Пюре юдзу Агробар — 150 мл"]}},
+          {l:"ПФ еловый сеятель"},
+          {l:"ПФ серебряник"},
+        ]
+      },
+      {
+        label:"Сиропы, сахар, тапиока",
+        qty:false,
+        items:[
+          {l:"Сироп лемонграсс", r:{ing:["Лемонграсс — 200 г","Сахарный сироп — 1000 мл"]}},
+          {l:"Ванильный сахар", r:{ing:["Сахар — 270 г","Ванилин — 30 г"], method:"Смешать до однородности, хранить в сухой закрытой ёмкости."}},
+          {l:"Тапиока", r:{steps:["Вскипятить воду — примерно 7 частей воды на 1 часть тапиоки.","Засыпать тапиоку в кипящую воду и сразу помешать, чтобы не слиплась и не прилипла ко дну.","Варить на среднем огне 20–25 минут, периодически помешивая, пока жемчужины не станут мягкими и полупрозрачными насквозь.","Снять с огня, накрыть крышкой и дать постоять 15–20 минут.","Откинуть на сито и промыть холодной водой.","Залить сахарным сиропом или мёдом, чтобы не слипалась — хранить в сиропе."], method:"Лучше использовать в течение 3–4 часов после варки."}},
+        ]
+      }
+    ]
+  },
+  {
+    id:"tea", name:"Чаи", icon:"🍵",
+    items:[
+      {l:"Ассам"},{l:"Эрл Грей"},{l:"Дянь Хун"},{l:"Ли Джи"},
+      {l:"Тибетская ромашка"},{l:"Гречишный"},{l:"Шу Пуэр"},{l:"Цветы розы"},
+      {l:"Чабрец"},{l:"Моли Ча Ван"},{l:"Сливочный улун"},{l:"Габа Эфир"},{l:"Си Ху Лун Цзин"},
+    ]
+  }
+];
+
+let uid=0;
+const state={};
+DATA.forEach(sec=>{
+  sec._items=[];
+  const push=(arr,qty)=>arr.forEach(it=>{ const id="i"+(uid++); it._id=id; it._qty=qty;
+    state[id]={checked:false,qty:0}; sec._items.push(it); });
+  if(sec.items) push(sec.items,false);
+  if(sec.groups) sec.groups.forEach(g=>push(g.items,g.qty));
+});
+
+let activeId=DATA[0].id;
+
+// ---- Telegram Mini App ----
+const TG = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+function hap(kind){ try{ if(!TG) return;
+  if(kind==='sel') TG.HapticFeedback.selectionChanged();
+  else if(kind==='ok') TG.HapticFeedback.notificationOccurred('success');
+  else TG.HapticFeedback.impactOccurred(kind||'light');
+}catch(e){} }
+if(TG){
+  try{ TG.ready(); }catch(e){}
+  try{ TG.expand(); }catch(e){}
+  try{ TG.setHeaderColor('#14110D'); TG.setBackgroundColor('#14110D'); }catch(e){}
+  try{ TG.disableVerticalSwipes(); }catch(e){}
+}
+
+// ---- tabs ----
+const tabsEl=document.getElementById('tabs');
+DATA.forEach(sec=>{
+  const t=document.createElement('button');
+  t.className='tab'; t.dataset.sec=sec.id;
+  t.innerHTML='<span class="t-name">'+sec.icon+' '+sec.name+'</span><span class="t-count" id="cnt-'+sec.id+'">0/'+sec._items.length+'</span>';
+  t.onclick=()=>switchTab(sec.id);
+  tabsEl.appendChild(t);
+});
+
+// ---- panels ----
+const main=document.getElementById('main');
+DATA.forEach(sec=>{
+  const panel=document.createElement('section');
+  panel.className='panel'; panel.id='panel-'+sec.id;
+
+  const renderList=(items,label)=>{
+    if(label){ const gl=document.createElement('div'); gl.className='group-label'; gl.textContent=label; panel.appendChild(gl); }
+    const list=document.createElement('div'); list.className='list';
+    items.forEach(it=>list.appendChild(buildRow(it)));
+    panel.appendChild(list);
+  };
+  if(sec.items) renderList(sec.items,null);
+  if(sec.groups) sec.groups.forEach(g=>renderList(g.items,g.label));
+
+  if(sec.id==='look'){
+    const cw=document.createElement('div');
+    cw.innerHTML='<div class="group-label">Комментарии</div>'+
+      '<textarea class="comment-area" id="lookComment" placeholder="Заметки по внешнему виду (необязательно): что грязное, чего не хватает, что заметили…"></textarea>';
+    panel.appendChild(cw);
+  }
+
+  const ad=document.createElement('div'); ad.className='all-done'; ad.id='done-'+sec.id;
+  ad.innerHTML='<span class="fox">🦊</span><div class="ad-txt"><b>'+sec.name+' — готово</b><span>Раздел проверен полностью</span></div>';
+  panel.appendChild(ad);
+
+  main.appendChild(panel);
+});
+
+const foot=document.createElement('div'); foot.className='foot';
+foot.textContent='FO\u0027X · чек-лист бара · обновляется перед каждой сменой';
+main.appendChild(foot);
+
+function buildRow(it){
+  const row=document.createElement('div');
+  row.className='item'+(it._qty?' has-qty':'');
+  row.dataset.id=it._id;
+  const note=it.n?'<div class="item-note">'+it.n+'</div>':'';
+  row.innerHTML='<div class="check"></div><div class="item-body"><div class="item-label">'+it.l+'</div>'+note+'</div>';
+
+  if(it.r){
+    const rb=document.createElement('button'); rb.className='recipe-btn'; rb.type='button';
+    rb.textContent='📖'; rb.title='Раскладка';
+    rb.onclick=e=>{ e.stopPropagation(); openRecipe(it); };
+    row.appendChild(rb);
+  }
+
+  if(it._qty){
+    const st=document.createElement('div'); st.className='stepper';
+    st.innerHTML='<span class="lbl">нужно</span>'+
+      '<button class="step-btn" data-act="dec">−</button>'+
+      '<input class="qty-in" type="number" inputmode="numeric" min="0" value="0">'+
+      '<button class="step-btn" data-act="inc">+</button>';
+    const input=st.querySelector('.qty-in');
+    st.querySelectorAll('.step-btn').forEach(btn=>{
+      btn.onclick=e=>{ e.stopPropagation();
+        let v=state[it._id].qty + (btn.dataset.act==='inc'?1:-1);
+        if(v<0)v=0; setQty(it._id,v,input,row); hap('light'); };
+    });
+    input.onclick=e=>e.stopPropagation();
+    input.oninput=()=>{ let v=parseInt(input.value,10); if(isNaN(v)||v<0)v=0; setQty(it._id,v,input,row,true); };
+    input.onblur=()=>{ input.value=state[it._id].qty; };
+    row.appendChild(st);
+  }
+
+  row.onclick=()=>{ state[it._id].checked=!state[it._id].checked;
+    row.classList.toggle('checked',state[it._id].checked); hap('sel'); refresh(); };
+  return row;
+}
+
+function setQty(id,v,input,row,skip){
+  state[id].qty=v;
+  if(!skip) input.value=v;
+  row.dataset.needed = v>0 ? "1":"0";
+}
+
+function refresh(){
+  let totalAll=0, doneAll=0;
+  DATA.forEach(sec=>{
+    let done=0;
+    sec._items.forEach(it=>{ if(state[it._id].checked) done++; });
+    const tot=sec._items.length; totalAll+=tot; doneAll+=done;
+    const cnt=document.getElementById('cnt-'+sec.id); if(cnt) cnt.textContent=done+'/'+tot;
+    const tab=tabsEl.querySelector('[data-sec="'+sec.id+'"]');
+    if(tab) tab.classList.toggle('done', done===tot && tot>0);
+    const adone=document.getElementById('done-'+sec.id);
+    if(adone) adone.classList.toggle('show', done===tot && tot>0);
+  });
+  const pct=totalAll? Math.round(doneAll/totalAll*100):0;
+  document.getElementById('overallPct').textContent=pct+'%';
+  document.getElementById('overallBar').style.width=pct+'%';
+  const rb=document.getElementById('reportBtn');
+  if(rb){ const miss=totalAll-doneAll;
+    rb.textContent = miss>0 ? ('📋 Общий отчёт · нет '+miss) : '✓ Бар укомплектован — отчёт'; }
+}
+
+function switchTab(id){
+  activeId=id;
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id==='panel-'+id));
+  tabsEl.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.sec===id));
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// ---- Общий отчёт ----
+document.getElementById('reportBtn').onclick=generateReport;
+document.getElementById('reportOverlay').addEventListener('click',e=>{
+  if(e.target===document.getElementById('reportOverlay')) closeReport();
+});
+
+function generateReport(){
+  hap('light');
+  const groups=[];
+  DATA.forEach(sec=>{
+    const lines=[];
+    sec._items.forEach(it=>{
+      if(!state[it._id].checked){
+        let line='• '+it.l;
+        if(it._qty && state[it._id].qty>0) line+=' — нужно '+state[it._id].qty;
+        lines.push(line);
+      }
+    });
+    if(lines.length) groups.push({name:sec.name, icon:sec.icon, lines:lines});
+  });
+  const total=groups.reduce((s,g)=>s+g.lines.length,0);
+  const cmtEl=document.getElementById('lookComment');
+  const cmt=cmtEl ? cmtEl.value.trim() : '';
+  const d=new Date();
+  const dd=String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear();
+
+  let text='ОТЧЁТ ПО БАРУ — FO\u0027X\nДата: '+dd+'\n';
+  if(total) text+='Не отмечено (нет / не сделано): '+total+' поз.\n';
+  text+='\n';
+  if(total) text+=groups.map(g=>g.icon+' '+g.name.toUpperCase()+'\n'+g.lines.join('\n')).join('\n\n');
+  if(cmt){ if(total) text+='\n\n'; text+='📝 КОММЕНТАРИИ\n'+cmt; }
+  if(!total && !cmt) text+='Бар укомплектован полностью. Всё на месте 🦊';
+
+  document.getElementById('reportText').value=text;
+  document.getElementById('reportCnt').textContent = total ? ('нет '+total+' поз.') : (cmt ? 'есть комментарии' : 'всё на месте');
+
+  const sendBtn = TG ? '<button class="btn-ghost btn-send" id="reportSend">📨 В чат</button>' : '';
+  document.getElementById('reportActions').innerHTML=
+    '<button class="btn-ghost" id="reportCopy">Скопировать</button>'+sendBtn+
+    '<button class="btn-ghost" id="reportClose">Закрыть</button>';
+  document.getElementById('reportCopy').onclick=function(){ copyReport(this); };
+  document.getElementById('reportClose').onclick=closeReport;
+  const rs=document.getElementById('reportSend'); if(rs) rs.onclick=sendReport;
+  document.getElementById('reportOverlay').classList.add('show');
+}
+function closeReport(){ document.getElementById('reportOverlay').classList.remove('show'); }
+
+// ---- Раскладки + коэффициент ----
+let activeRecipeItem=null;
+let activeRecipeFactor=1;
+
+document.getElementById('recipeClose').onclick=closeRecipe;
+document.getElementById('recipeOverlay').addEventListener('click',e=>{
+  if(e.target===document.getElementById('recipeOverlay')) closeRecipe();
+});
+
+function normalizeRecipeFactor(value){
+  let n=parseFloat(String(value==null?'':value).replace(',','.'));
+  if(!Number.isFinite(n)||n<=0)n=1;
+  return Math.min(100,Math.max(.1,Math.round(n*100)/100));
+}
+function formatRecipeNumber(value){
+  const n=Math.round((Number(value)||0)*1000)/1000;
+  return String(n).replace('.',',');
+}
+function scaleRecipeAmount(text,factor){
+  return String(text||'').replace(/\d+(?:[.,]\d+)?/g,m=>{
+    const n=parseFloat(m.replace(',','.'));
+    return Number.isFinite(n)?formatRecipeNumber(n*factor):m;
+  });
+}
+function renderActiveRecipe(){
+  const it=activeRecipeItem;if(!it||!it.r)return;
+  document.getElementById('recipeTitle').textContent=it.l;
+  const hasIngredients=!!(it.r.ing&&it.r.ing.length);
+  document.getElementById('recipeScaleControls').hidden=!hasIngredients;
+  document.getElementById('recipeScaleBadge').textContent=hasIngredients?('×'+formatRecipeNumber(activeRecipeFactor)):'состав';
+  document.getElementById('recipeScaleInput').value=String(activeRecipeFactor);
+  let html='';
+  if(hasIngredients) html+='<ul class="rcp-ing">'+it.r.ing.map(x=>{
+    const p=x.split(' — ');
+    if(p.length<2)return '<li>'+escapeHtml(x)+'</li>';
+    const name=escapeHtml(p[0]);
+    const amount=escapeHtml(scaleRecipeAmount(p.slice(1).join(' — '),activeRecipeFactor));
+    return '<li><span>'+name+'</span><i>'+amount+'</i></li>';
+  }).join('')+'</ul>';
+  if(it.r.steps&&it.r.steps.length)html+='<ol class="rcp-steps">'+it.r.steps.map(x=>'<li>'+escapeHtml(x)+'</li>').join('')+'</ol>';
+  if(it.r.method)html+='<div class="rcp-method">'+escapeHtml(it.r.method)+'</div>';
+  document.getElementById('recipeBody').innerHTML=html;
+}
+function setRecipeFactor(value){
+  activeRecipeFactor=normalizeRecipeFactor(value);
+  renderActiveRecipe();
+  hap('sel');
+}
+function openRecipe(it){
+  hap('light');activeRecipeItem=it;activeRecipeFactor=1;renderActiveRecipe();
+  document.getElementById('recipeOverlay').classList.add('show');
+}
+function closeRecipe(){
+  document.getElementById('recipeOverlay').classList.remove('show');
+  activeRecipeItem=null;activeRecipeFactor=1;
+}
+document.getElementById('recipeScaleInput').addEventListener('input',e=>{
+  const raw=String(e.target.value||'');
+  if(raw===''||raw==='.'||raw===',')return;
+  activeRecipeFactor=normalizeRecipeFactor(raw);renderActiveRecipe();
+});
+document.getElementById('recipeScaleInput').addEventListener('blur',e=>setRecipeFactor(e.target.value));
+document.getElementById('recipeScaleDown').onclick=()=>setRecipeFactor(activeRecipeFactor-.5);
+document.getElementById('recipeScaleUp').onclick=()=>setRecipeFactor(activeRecipeFactor+.5);
+document.getElementById('recipeScaleReset').onclick=()=>setRecipeFactor(1);
+function sendReport(){
+  const ta=document.getElementById('reportText'); if(!ta || !TG) return; hap('ok');
+  try{ TG.sendData(ta.value); }
+  catch(e){ try{ TG.showAlert('Не получилось отправить автоматически. Нажми «Скопировать» и вставь отчёт в чат.'); }catch(_){ alert('Скопируй отчёт вручную.'); } }
+}
+function copyReport(btn){
+  const ta=document.getElementById('reportText');
+  const done=()=>{ btn.textContent='Скопировано ✓'; btn.classList.add('copied'); hap('ok');
+    setTimeout(()=>{ btn.textContent='Скопировать'; btn.classList.remove('copied'); },1800); };
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(ta.value).then(done).catch(()=>{ta.removeAttribute('readonly');ta.select();document.execCommand('copy');ta.setAttribute('readonly','');done();});
+  }else{ ta.removeAttribute('readonly'); ta.select(); document.execCommand('copy'); ta.setAttribute('readonly',''); done(); }
+}
+
+// ---- reset ----
+document.getElementById('resetBtn').onclick=()=>{
+  if(!confirm('Сбросить все галочки, количества и комментарии?')) return;
+  Object.keys(state).forEach(id=>{ state[id]={checked:false,qty:0}; });
+  document.querySelectorAll('.item').forEach(r=>{ r.classList.remove('checked'); r.dataset.needed='0';
+    const inp=r.querySelector('.qty-in'); if(inp) inp.value=0; });
+  const c=document.getElementById('lookComment'); if(c) c.value='';
+  closeReport();
+  closeRecipe();
+  refresh();
+};
+
+
+// ===== FO'X App sections =====
+function setAppSection(section){
+  document.body.classList.remove('mode-hub','mode-checklists','mode-banquets','mode-receipts','mode-cash-report');
+  document.body.classList.add('mode-'+section);
+
+  document.getElementById('hubScreen').classList.toggle('active', section==='hub');
+  document.getElementById('checklistsScreen').classList.toggle('active', section==='checklists');
+  document.getElementById('banquetsScreen').classList.toggle('active', section==='banquets');
+  document.getElementById('receiptsScreen').classList.toggle('active', section==='receipts');
+  document.getElementById('cashReportScreen').classList.toggle('active', section==='cash-report');
+
+  const sub = document.getElementById('appSubtitle');
+  if(section==='hub') sub.textContent = 'Единое мини-приложение';
+  if(section==='checklists') sub.textContent = 'Подготовка бара к вечерней посадке';
+  if(section==='banquets') sub.textContent = 'Календарь банкетов и фото заказов';
+  if(section==='receipts') sub.textContent = 'Сканер документов и кассовых чеков';
+  if(section==='cash-report') sub.textContent = 'Кассовый отчёт iiko и терминалов';
+
+  if(section==='banquets') renderBanquets();
+  if(section==='receipts') openReceiptsSection();
+  if(section==='cash-report') openCashReportSection();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+document.querySelectorAll('[data-open-section]').forEach(btn=>{
+  btn.addEventListener('click',()=>{ hap('sel'); setAppSection(btn.dataset.openSection); });
+});
+document.getElementById('backBtn').onclick=()=>{ hap('light'); setAppSection('hub'); };
+
+
+// ===== Банкетный календарь v2: общая база Google Sheets + Cloudinary =====
+// 1) Вставь сюда URL опубликованного Google Apps Script Web App.
+// Пример: https://script.google.com/macros/s/AKfycbx.../exec
+const BANQ_API_URL = 'https://script.google.com/macros/s/AKfycbxRlmtQMLMQ0h3NhQtInpYFAxyQxTLSgrzFClrFF3pqRqmHHxMbWrXeTc56nbAcLteZ/exec';
+
+// Cloudinary: заполни эти 2 строки после создания аккаунта.
+// Cloud name берётся из Dashboard, upload preset должен быть Unsigned.
+const CLOUDINARY_CLOUD_NAME = 'sivtytoc';
+const CLOUDINARY_UPLOAD_PRESET = 'fox_banquets_unsigned';
+
+// 2) Вставь Telegram user_id админов. У обычных пользователей форма добавления будет скрыта.
+// Узнать id можно через @userinfobot. После настройки ID должен быть числом без кавычек.
+const ADMIN_TELEGRAM_IDS = [
+  1036250074,
+  315978242,
+  317564157
+];
+
+const BANQ_LOCAL_FALLBACK_KEY='fox_banquets_v2_local_fallback';
+let banquets=[];
+let banqSharedMode=false;
+
+function getTgUser(){
+  try{ return TG && TG.initDataUnsafe && TG.initDataUnsafe.user ? TG.initDataUnsafe.user : null; }
+  catch(e){ return null; }
+}
+function getTgUserId(){
+  const u=getTgUser();
+  return u && u.id ? String(u.id) : '';
+}
+function getTgUserName(){
+  const u=getTgUser();
+  if(!u) return '';
+  return [u.first_name,u.last_name].filter(Boolean).join(' ') || u.username || String(u.id||'');
+}
+function getTgChatId(){
+  try{
+    const c=TG&&TG.initDataUnsafe&&TG.initDataUnsafe.chat?TG.initDataUnsafe.chat:null;
+    return c&&c.id?String(c.id):'';
+  }catch(e){return '';}
+}
+function isBanqAdmin(){
+  const id=getTgUserId();
+  return id && ADMIN_TELEGRAM_IDS.map(String).includes(id);
+}
+function isApiConfigured(){
+  return BANQ_API_URL && !BANQ_API_URL.includes('PASTE_APPS_SCRIPT_WEB_APP_URL_HERE');
+}
+function setSyncStatus(type,text){
+  const el=document.getElementById('banqSyncStatus');
+  if(!el) return;
+  el.className='sync-status '+(type||'');
+  el.textContent=text;
+}
+function updateAdminVisibility(){
+  const block=document.getElementById('banqAdminBlock');
+  if(!block) return;
+  block.classList.toggle('admin-hidden', !isBanqAdmin());
+}
+function updateStorageWarning(){
+  const warn=document.getElementById('banqStorageWarn');
+  if(!warn) return;
+  if(isApiConfigured()){
+    warn.textContent='Банкеты загружаются из общей базы. Фото хранятся в Cloudinary и видны всем пользователям Mini App.';
+  }else{
+    warn.textContent='Общая база пока не подключена. Банкеты сохраняются только на этом устройстве и не видны другим пользователям.';
+  }
+}
+
+function pad2(n){ return String(n).padStart(2,'0'); }
+function isoDate(d){ return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+function parseIsoDate(s){
+  const p=String(s||'').split('-').map(Number);
+  return new Date(p[0], (p[1]||1)-1, p[2]||1);
+}
+function humanDate(iso){
+  const d=parseIsoDate(iso);
+  return d.toLocaleDateString('ru-RU', {weekday:'long', day:'numeric', month:'long'});
+}
+
+const todayIso=isoDate(new Date());
+let selectedBanqDate=todayIso;
+let banqMonthDate=new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+document.getElementById('banqDate').value=todayIso;
+document.getElementById('banqPrev').onclick=()=>{ banqMonthDate.setMonth(banqMonthDate.getMonth()-1); hap('light'); renderBanquets(); };
+document.getElementById('banqNext').onclick=()=>{ banqMonthDate.setMonth(banqMonthDate.getMonth()+1); hap('light'); renderBanquets(); };
+const banqRefreshBtn=document.getElementById('banqRefresh');
+if(banqRefreshBtn){
+  banqRefreshBtn.onclick=()=>{ hap('light'); loadBanquets(); };
+}
+
+
+function jsonp(url, params){
+  return new Promise((resolve,reject)=>{
+    const cb='__foxBanqCb_'+Date.now()+'_'+Math.floor(Math.random()*100000);
+    const qs=new URLSearchParams(Object.assign({},params,{callback:cb,_:Date.now()}));
+    const s=document.createElement('script');
+    const timer=setTimeout(()=>{ cleanup(); reject(new Error('timeout')); },15000);
+    function cleanup(){
+      clearTimeout(timer);
+      try{ delete window[cb]; }catch(e){ window[cb]=undefined; }
+      if(s.parentNode) s.parentNode.removeChild(s);
+    }
+    window[cb]=(data)=>{ cleanup(); resolve(data); };
+    s.onerror=()=>{ cleanup(); reject(new Error('jsonp error')); };
+    s.src=url+(url.includes('?')?'&':'?')+qs.toString();
+    document.body.appendChild(s);
+  });
+}
+
+async function loadBanquets(){
+  updateAdminVisibility();
+  updateStorageWarning();
+  updateCloudinaryWarning();
+
+  if(!isApiConfigured()){
+    banqSharedMode=false;
+    try{ banquets=JSON.parse(localStorage.getItem(BANQ_LOCAL_FALLBACK_KEY)||'[]'); }catch(e){ banquets=[]; }
+    setSyncStatus('warn','Работает локальный тестовый режим. Чтобы все видели одни и те же фото, подключи Apps Script Web App и Cloudinary.');
+    renderBanquets();
+    return;
+  }
+
+  try{
+    setSyncStatus('', 'Загружаю общую базу банкетов…');
+    const res=await jsonp(BANQ_API_URL,{action:'list'});
+    if(!res || !res.ok) throw new Error(res && res.error ? res.error : 'bad response');
+    banquets=(res.items||[]).map(x=>({
+      id:String(x.id||''),
+      date:String(x.date||''),
+      time:String(x.time||''),
+      name:String(x.name||''),
+      comment:String(x.comment||''),
+      status:normalizeBanqStatus(x.status),
+      photo:String(x.imageUrl||x.photo||''),
+      fileId:String(x.fileId||''),
+      imageUrls:(x.imageUrls||[]).map(String).filter(Boolean),
+      reserve:null
+    })).filter(x=>x.id && x.date);
+    banqSharedMode=true;
+    const reserveConnected=await loadBanquetReserveSummaries_();
+    setSyncStatus(
+      reserveConnected?'ok':'warn',
+      reserveConnected
+        ? 'Общая база и банкетный резерв подключены.'
+        : 'База банкетов подключена. Банкетный резерв пока недоступен — сами банкеты работают.'
+    );
+    renderBanquets();
+  }catch(e){
+    banqSharedMode=false;
+    try{ banquets=JSON.parse(localStorage.getItem(BANQ_LOCAL_FALLBACK_KEY)||'[]'); }catch(_){ banquets=[]; }
+    setSyncStatus('err','Не удалось загрузить общую базу. Проверь URL Web App и доступы. Сейчас показан локальный резерв.');
+    renderBanquets();
+  }
+}
+
+
+async function loadBanquetReserveSummaries_(){
+  if(!isBanqAdmin() || !isStockApiConfigured()) return false;
+  try{
+    const res=await jsonp(STOCK_API_URL,Object.assign({action:'banquetSummaries'},receiptAuthParams()));
+    if(!res||!res.ok) throw new Error(res&&res.error?res.error:'Резерв не загрузился');
+    const map=res.items&&typeof res.items==='object'?res.items:{};
+    banquets.forEach(b=>{b.reserve=map[b.id]||null;});
+    return true;
+  }catch(err){
+    console.warn('Banquet reserve summaries:',err);
+    return false;
+  }
+}
+function formatBanquetReserveQty_(value){
+  const n=Number(value)||0;
+  return n.toLocaleString('ru-RU',{maximumFractionDigits:3});
+}
+function renderBanqReserveHtml_(b){
+  if(!isBanqAdmin()) return '';
+  const r=b.reserve;
+  if(!r||!r.recognized){
+    return '<div class="banq-reserve warn"><div class="banq-reserve-title">📦 Банкетный резерв</div><div class="banq-reserve-meta">'+
+      (b.photo?'Фото ещё не распознано для стока.':'Нет фото заказа — резерв не создан.')+
+      '</div></div>';
+  }
+  const cls=r.orderSent?' sent':(r.pendingPositions>0?' ok':'');
+  const statusText=r.orderSent
+    ? ('Заказ отправлен'+(r.orderSentAt?' · '+escapeHtml(r.orderSentAt):''))
+    : (r.pendingPositions>0?'К заказу: '+r.pendingPositions+' поз.':'К заказу сейчас ничего нет');
+  const items=Array.isArray(r.items)?r.items:[];
+  const lines=items.map(x=>{
+    const qty=r.orderSent?(x.required||0):(x.pending||0);
+    const label=r.orderSent?'заказано':'к заказу';
+    return '<div class="banq-reserve-line"><b>'+escapeHtml(x.stockName||'')+'</b><span>'+label+': '+formatBanquetReserveQty_(qty)+' '+escapeHtml(x.unit||'')+'</span></div>';
+  }).join('');
+  return '<div class="banq-reserve'+cls+'"><div class="banq-reserve-title">📦 Банкетный резерв</div>'+ 
+    '<div class="banq-reserve-meta">Сопоставлено: '+Number(r.matchedCount||0)+' поз. · '+statusText+
+    (Number(r.ignoredCount||0)>0?' · пропущено: '+Number(r.ignoredCount||0):'')+'</div>'+ 
+    (lines?'<details><summary>Показать позиции</summary><div class="banq-reserve-lines">'+lines+'</div></details>':'')+
+    '</div>';
+}
+function sleepBanq_(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
+async function pollBanquetReserveJob_(jobId){
+  const started=Date.now();
+  while(Date.now()-started<120000){
+    const res=await jsonp(STOCK_API_URL,Object.assign({action:'banquetReserveJob',jobId},receiptAuthParams()));
+    if(res&&res.ok){
+      setSyncStatus('',res.step||'Распознаю банкетный резерв…');
+      if(res.status==='DONE') return res;
+      if(res.status==='ERROR') throw new Error(res.error||'Ошибка распознавания банкета');
+    }
+    await sleepBanq_(1800);
+  }
+  throw new Error('Распознавание банкета занимает слишком много времени. Повтори позже.');
+}
+async function runBanquetReserveScan_(banquet,options){
+  options=options||{};
+  if(!isBanqAdmin()) return null;
+  if(!isStockApiConfigured()) throw new Error('Backend стока не подключён.');
+  if(!banquet||!banquet.photo) throw new Error('У банкета нет фото заказа.');
+  if(options.manual&&banquet.reserve&&banquet.reserve.recognized&&!confirm('Перераспознать фото и пересчитать резерв этого банкета?')) return null;
+  const jobId='BANQ-'+Date.now()+'-'+Math.random().toString(36).slice(2,8);
+  setSyncStatus('',options.manual?'Перераспознаю позиции банкета…':'Банкет сохранён. Распознаю позиции для стока…');
+  postReceipt({
+    action:'banquetScan',jobId,
+    banquetId:banquet.id,
+    banquetDate:banquet.date,
+    banquetName:banquet.name,
+    banquetStatus:banquet.status||'Актуально',
+    imageUrl:banquet.photo
+  }).catch(()=>{});
+  const result=await pollBanquetReserveJob_(jobId);
+  const summary=result.result&&result.result.summary?result.result.summary:null;
+  if(summary) banquet.reserve=summary;
+  setSyncStatus('ok','Резерв сохранён: '+Number(summary&&summary.matchedCount||0)+' позиций сопоставлено со стоком.');
+  hap('ok');
+  return summary;
+}
+async function toggleBanquetOrderSent_(banquet){
+  if(!isBanqAdmin()||!banquet||!banquet.reserve||!banquet.reserve.matchedCount)return;
+  if(normalizeBanqStatus(banquet.status)!=='Актуально'){
+    alert('Сначала верни банкет в статус «Актуальный».');
+    return;
+  }
+  const next=!banquet.reserve.orderSent;
+  const question=next
+    ? 'Отметить заказ по этому банкету отправленным? Позиции исчезнут из колонки «Банкеты».'
+    : 'Вернуть позиции этого банкета в заказ?';
+  if(!confirm(question))return;
+  setSyncStatus('',next?'Снимаю позиции банкета из заказа…':'Возвращаю позиции банкета в заказ…');
+  const res=await jsonp(STOCK_API_URL,Object.assign({action:'banquetOrder',banquetId:banquet.id,sent:next?'true':'false'},receiptAuthParams()));
+  if(!res||!res.ok) throw new Error(res&&res.error?res.error:'Не удалось изменить статус заказа банкета.');
+  await loadBanquetReserveSummaries_();
+  renderBanquets();
+  setSyncStatus('ok',next?'Заказ по банкету отмечен отправленным.':'Позиции банкета возвращены в заказ.');
+  hap('ok');
+}
+
+function saveLocalFallback(){
+  localStorage.setItem(BANQ_LOCAL_FALLBACK_KEY, JSON.stringify(banquets));
+}
+function normalizeBanqStatus(status){
+  const value=String(status||'Актуально').trim().toLowerCase();
+  if(['выполнено','пройден','пройдено','завершено'].includes(value)) return 'Выполнено';
+  if(['отменено','отменён','отменен'].includes(value)) return 'Отменено';
+  return 'Актуально';
+}
+function getBanqStatusMeta(status){
+  const normalized=normalizeBanqStatus(status);
+  if(normalized==='Выполнено') return {value:'Выполнено',key:'completed',label:'✓ Пройден'};
+  if(normalized==='Отменено') return {value:'Отменено',key:'cancelled',label:'× Отменён'};
+  return {value:'Актуально',key:'actual',label:'● Актуальный'};
+}
+function banquetsByDate(){
+  const map={};
+  banquets.forEach(b=>{
+    if(!map[b.date]) map[b.date]=[];
+    map[b.date].push(b);
+  });
+  return map;
+}
+function renderBanquets(){
+  renderBanqCalendar();
+  renderBanqDay();
+}
+function renderBanqCalendar(){
+  const map=banquetsByDate();
+  const cal=document.getElementById('banqCalendar');
+  const monthTitle=document.getElementById('banqMonth');
+  monthTitle.textContent=banqMonthDate.toLocaleDateString('ru-RU',{month:'long',year:'numeric'});
+
+  const weekdays=['пн','вт','ср','чт','пт','сб','вс'];
+  cal.innerHTML=weekdays.map(w=>'<div class="cal-wd">'+w+'</div>').join('');
+
+  const year=banqMonthDate.getFullYear();
+  const month=banqMonthDate.getMonth();
+  const first=new Date(year,month,1);
+  const mondayIndex=(first.getDay()+6)%7;
+  const start=new Date(year,month,1-mondayIndex);
+
+  for(let i=0;i<42;i++){
+    const d=new Date(start);
+    d.setDate(start.getDate()+i);
+    const iso=isoDate(d);
+    const dayItems=map[iso]||[];
+    const count=dayItems.length;
+    const dayStatuses=new Set(dayItems.map(x=>normalizeBanqStatus(x.status)));
+    const btn=document.createElement('button');
+    btn.type='button';
+    btn.className='cal-day';
+    if(d.getMonth()!==month) btn.classList.add('muted');
+    if(iso===todayIso) btn.classList.add('today');
+    if(iso===selectedBanqDate) btn.classList.add('selected');
+    if(count>0){
+      btn.classList.add('has-banquet');
+      if(dayStatuses.size>1) btn.classList.add('has-mixed');
+      else if(dayStatuses.has('Выполнено')) btn.classList.add('has-completed-only');
+      else if(dayStatuses.has('Отменено')) btn.classList.add('has-cancelled-only');
+    }
+    btn.innerHTML='<span>'+d.getDate()+'</span>'+(count>1?'<span class="badge">'+count+'</span>':'');
+    btn.onclick=()=>{
+      selectedBanqDate=iso;
+      document.getElementById('banqDate').value=iso;
+      hap('sel');
+      renderBanquets();
+    };
+    cal.appendChild(btn);
+  }
+}
+function renderBanqDay(){
+  const list=document.getElementById('banqList');
+  const items=banquets.filter(b=>b.date===selectedBanqDate).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  document.getElementById('banqSelectedTitle').textContent=humanDate(selectedBanqDate);
+  document.getElementById('banqSelectedCount').textContent=items.length+' '+pluralRu(items.length,'заказ','заказа','заказов');
+
+  if(!items.length){
+    list.innerHTML='<div class="banq-empty">На эту дату банкетов пока нет.</div>';
+    return;
+  }
+
+  list.innerHTML='';
+  items.forEach(b=>{
+    const meta=getBanqStatusMeta(b.status);
+    b.status=meta.value;
+    const card=document.createElement('div');
+    card.className='banq-item status-'+meta.key;
+    const safeName=escapeHtml(b.name||'Банкет');
+    const safeComment=escapeHtml(b.comment||'');
+    const reserve=b.reserve||null;
+    const hasMatchedReserve=!!(reserve&&Number(reserve.matchedCount)>0);
+    const orderLabel=reserve&&reserve.orderSent?'↩ Вернуть в заказ':'📦 Заказ отправлен';
+    const orderClass=reserve&&reserve.orderSent?' sent':'';
+    const orderDisabled=(!hasMatchedReserve||meta.key!=='actual')?' disabled':'';
+    const scanLabel=reserve&&reserve.recognized?'🔄 Пересчитать резерв':'✨ Распознать резерв';
+    const adminActions=isBanqAdmin() ?
+      '<div class="banq-actions">'+
+        '<button class="small-btn status-actual '+(meta.key==='actual'?'active':'')+'" type="button" data-status="Актуально">● Актуальный</button>'+ 
+        '<button class="small-btn status-completed '+(meta.key==='completed'?'active':'')+'" type="button" data-status="Выполнено">✓ Пройден</button>'+ 
+        '<button class="small-btn status-cancelled '+(meta.key==='cancelled'?'active':'')+'" type="button" data-status="Отменено">× Отменён</button>'+ 
+        (b.photo?'<button class="small-btn reserve-scan" type="button" data-reserve-scan>'+scanLabel+'</button>':'')+
+        '<button class="small-btn order'+orderClass+'" type="button" data-order-sent'+orderDisabled+'>'+orderLabel+'</button>'+ 
+        '<button class="small-btn danger" type="button" data-del="'+escapeHtml(b.id)+'">Удалить</button>'+ 
+      '</div>' : '';
+    card.innerHTML=
+      '<div class="banq-item-head"><div class="banq-time">'+escapeHtml(b.time||'')+'</div><div class="banq-status '+meta.key+'">'+meta.label+'</div></div>'+ 
+      '<div class="banq-name">'+safeName+'</div>'+ 
+      (safeComment?'<div class="banq-comment">'+safeComment+'</div>':'')+
+      renderBanqPhotoHtml(b)+renderBanqReserveHtml_(b)+adminActions;
+
+    card.querySelectorAll('[data-status]').forEach(btn=>{
+      btn.onclick=()=>changeBanquetStatus(b,btn.dataset.status);
+    });
+
+    const reserveScan=card.querySelector('[data-reserve-scan]');
+    if(reserveScan){
+      reserveScan.onclick=async()=>{
+        reserveScan.disabled=true;
+        try{await runBanquetReserveScan_(b,{manual:true});await loadBanquetReserveSummaries_();renderBanquets();}
+        catch(err){setSyncStatus('err',String(err&&err.message?err.message:err));}
+        finally{reserveScan.disabled=false;}
+      };
+    }
+    const orderSent=card.querySelector('[data-order-sent]');
+    if(orderSent&&!orderSent.disabled){
+      orderSent.onclick=async()=>{
+        orderSent.disabled=true;
+        try{await toggleBanquetOrderSent_(b);}catch(err){setSyncStatus('err',String(err&&err.message?err.message:err));}
+        finally{orderSent.disabled=false;}
+      };
+    }
+
+    const del=card.querySelector('[data-del]');
+    if(del){
+      del.onclick=async ()=>{
+        if(!confirm('Удалить этот банкет?')) return;
+        if(isApiConfigured()){
+          await postBanqForm({action:'delete',id:b.id});
+          if(isStockApiConfigured()){
+            try{await postReceipt({action:'banquetDelete',banquetId:b.id});}catch(_){ }
+          }
+          await loadBanquets();
+        }else{
+          banquets=banquets.filter(x=>x.id!==b.id);
+          saveLocalFallback();
+          renderBanquets();
+        }
+        hap('ok');
+      };
+    }
+    list.appendChild(card);
+    attachBanqImageFallbacks(card);
+  });
+}
+
+async function changeBanquetStatus(banquet,nextStatus){
+  if(!isBanqAdmin()) return;
+  const normalized=normalizeBanqStatus(nextStatus);
+  const previous=normalizeBanqStatus(banquet.status);
+  if(normalized===previous) return;
+
+  banquet.status=normalized;
+  renderBanquets();
+  setSyncStatus('', 'Сохраняю статус банкета…');
+
+  try{
+    if(isApiConfigured()){
+      await postBanqForm({action:'updateStatus',id:banquet.id,status:normalized});
+      if(isStockApiConfigured()){
+        const stockRes=await jsonp(STOCK_API_URL,Object.assign({action:'banquetStatusUpdate',banquetId:banquet.id,status:normalized},receiptAuthParams()));
+        if(!stockRes||!stockRes.ok) throw new Error(stockRes&&stockRes.error?stockRes.error:'Банкет сохранён, но резерв не пересчитан.');
+      }
+      await loadBanquets();
+      setSyncStatus('ok','Статус сохранён: '+getBanqStatusMeta(normalized).label+'. Банкетный резерв пересчитан.');
+    }else{
+      saveLocalFallback();
+      setSyncStatus('warn','Статус изменён только на этом устройстве.');
+    }
+    hap('ok');
+  }catch(err){
+    banquet.status=previous;
+    renderBanquets();
+    setSyncStatus('err','Не удалось сохранить статус банкета.');
+  }
+}
+
+function getBanqImageUrls(b){
+  const urls=[];
+  if(b.imageUrls && b.imageUrls.length) b.imageUrls.forEach(u=>urls.push(u));
+  if(b.photo) urls.push(b.photo);
+  if(b.fileId){
+    urls.push('https://lh3.googleusercontent.com/d/'+encodeURIComponent(b.fileId)+'=w1600');
+    urls.push('https://drive.google.com/thumbnail?id='+encodeURIComponent(b.fileId)+'&sz=w1600');
+    urls.push('https://drive.google.com/uc?export=view&id='+encodeURIComponent(b.fileId));
+  }
+  return [...new Set(urls.filter(Boolean))];
+}
+function renderBanqPhotoHtml(b){
+  const urls=getBanqImageUrls(b);
+  if(!urls.length) return '<div class="banq-empty">Фото заказа не добавлено</div>';
+  const first=escapeHtml(urls[0]);
+  return '<img class="banq-img" src="'+first+'" alt="Фото заказа" data-img-urls="'+escapeHtml(JSON.stringify(urls))+'" data-img-i="0">'+
+    '<a class="banq-photo-link" href="'+first+'" target="_blank" rel="noopener">Открыть фото отдельно</a>';
+}
+function attachBanqImageFallbacks(root){
+  root.querySelectorAll('img.banq-img[data-img-urls]').forEach(img=>{
+    img.onerror=()=>{
+      let urls=[];
+      try{ urls=JSON.parse(img.dataset.imgUrls||'[]'); }catch(e){}
+      let i=Number(img.dataset.imgI||0)+1;
+      if(i<urls.length){
+        img.dataset.imgI=String(i);
+        img.src=urls[i];
+        const link=img.parentElement && img.parentElement.querySelector('.banq-photo-link');
+        if(link) link.href=urls[i];
+      }else{
+        img.classList.add('err');
+        const empty=document.createElement('div');
+        empty.className='banq-empty';
+        empty.textContent='Фото не открылось внутри приложения. Нажми «Открыть фото отдельно».';
+        img.insertAdjacentElement('afterend', empty);
+      }
+    };
+  });
+}
+
+function pluralRu(n,a,b,c){
+  n=Math.abs(n)%100; const n1=n%10;
+  if(n>10&&n<20) return c;
+  if(n1>1&&n1<5) return b;
+  if(n1===1) return a;
+  return c;
+}
+
+function formatBytes(bytes){
+  bytes=Number(bytes)||0;
+  if(bytes<1024) return bytes+' B';
+  if(bytes<1024*1024) return Math.round(bytes/1024)+' KB';
+  return (bytes/1024/1024).toFixed(1)+' MB';
+}
+function setPhotoUi(file){
+  const hint=document.getElementById('banqPhotoHint');
+  const preview=document.getElementById('banqPhotoPreview');
+  const img=document.getElementById('banqPhotoPreviewImg');
+
+  if(!file){
+    if(hint) hint.textContent='Скрин или фото листа банкета';
+    if(preview) preview.hidden=true;
+    if(img) img.removeAttribute('src');
+    return;
+  }
+
+  if(hint) hint.textContent=file.name+' · '+formatBytes(file.size);
+
+  if(preview && img){
+    const url=URL.createObjectURL(file);
+    img.onload=()=>URL.revokeObjectURL(url);
+    img.src=url;
+    preview.hidden=false;
+  }
+}
+
+function escapeHtml(s){
+  return String(s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[m]));
+}
+
+function isCloudinaryConfigured(){
+  return CLOUDINARY_CLOUD_NAME &&
+    CLOUDINARY_UPLOAD_PRESET &&
+    !CLOUDINARY_CLOUD_NAME.includes('PASTE_') &&
+    !CLOUDINARY_UPLOAD_PRESET.includes('PASTE_');
+}
+function updateCloudinaryWarning(){
+  const el=document.getElementById('cloudinaryWarn');
+  if(el) el.hidden=isCloudinaryConfigured();
+}
+async function uploadPhotoToCloudinary(file){
+  if(!file) return { url:'', publicId:'' };
+
+  if(!isCloudinaryConfigured()){
+    throw new Error('Cloudinary не настроен. Заполни CLOUDINARY_CLOUD_NAME и CLOUDINARY_UPLOAD_PRESET в index.html.');
+  }
+
+  const fd=new FormData();
+  fd.append('file', file);
+  fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+  fd.append('tags', 'fox,banquets');
+
+  const endpoint='https://api.cloudinary.com/v1_1/'+encodeURIComponent(CLOUDINARY_CLOUD_NAME)+'/image/upload';
+  const res=await fetch(endpoint,{ method:'POST', body:fd });
+  const data=await res.json().catch(()=>null);
+
+  if(!res.ok || !data || !data.secure_url){
+    const msg=(data && data.error && data.error.message) ? data.error.message : 'Cloudinary upload failed';
+    throw new Error('Фото не загрузилось в Cloudinary: '+msg);
+  }
+
+  return {
+    url:data.secure_url,
+    publicId:data.public_id || ''
+  };
+}
+
+async function imageToDataUrl(file){
+  if(!file) return '';
+
+  const raw=await new Promise((resolve,reject)=>{
+    const r=new FileReader();
+    r.onload=()=>resolve(String(r.result||''));
+    r.onerror=()=>reject(new Error('Не удалось прочитать фото'));
+    r.readAsDataURL(file);
+  });
+
+  return await new Promise((resolve,reject)=>{
+    const img=new Image();
+
+    img.onload=()=>{
+      try{
+        // Маленький размер специально для Apps Script: иначе большие фото с телефона могут не долетать.
+        const maxSide=900;
+        let w=img.naturalWidth || img.width;
+        let h=img.naturalHeight || img.height;
+        const k=Math.min(1, maxSide/Math.max(w,h));
+        w=Math.max(1,Math.round(w*k));
+        h=Math.max(1,Math.round(h*k));
+
+        const canvas=document.createElement('canvas');
+        canvas.width=w;
+        canvas.height=h;
+        const ctx=canvas.getContext('2d');
+        ctx.drawImage(img,0,0,w,h);
+
+        // 0.58 — нормальный компромисс: читаемо для заказа, но не слишком тяжело для Web App.
+        const jpg=canvas.toDataURL('image/jpeg',0.58);
+
+        if(!jpg || jpg.length<100){
+          reject(new Error('Фото не удалось подготовить'));
+          return;
+        }
+
+        resolve(jpg);
+      }catch(err){
+        reject(err);
+      }
+    };
+
+    img.onerror=()=>{
+      // HEIC/неподдерживаемые форматы часто не открываются в canvas.
+      // В таком случае лучше явно предупредить, чем создать банкет без фото.
+      reject(new Error('Это фото не удалось обработать. Попробуй скриншот или JPG/PNG.'));
+    };
+
+    img.src=raw;
+  });
+}
+
+async function postBanqForm(fields){
+  const fd=new FormData();
+  Object.keys(fields).forEach(k=>fd.append(k, fields[k] == null ? '' : fields[k]));
+  fd.append('telegramUserId', getTgUserId());
+  fd.append('telegramUserName', getTgUserName());
+  fd.append('telegramInitData', TG ? (TG.initData || '') : '');
+  await fetch(BANQ_API_URL, {method:'POST', mode:'no-cors', body:fd});
+}
+
+const banqPhotoInput=document.getElementById('banqPhoto');
+const banqPhotoClear=document.getElementById('banqPhotoClear');
+if(banqPhotoInput){
+  banqPhotoInput.addEventListener('change',()=>setPhotoUi(banqPhotoInput.files && banqPhotoInput.files[0]));
+}
+if(banqPhotoClear){
+  banqPhotoClear.addEventListener('click',()=>{
+    if(banqPhotoInput) banqPhotoInput.value='';
+    setPhotoUi(null);
+  });
+}
+
+document.getElementById('banqForm').onsubmit=async e=>{
+  e.preventDefault();
+  if(!isBanqAdmin()){
+    alert('Добавлять банкеты может только админ.');
+    return;
+  }
+
+  const form=e.target;
+  const saveBtn=form.querySelector('.save-btn');
+  if(saveBtn){
+    saveBtn.disabled=true;
+    saveBtn.textContent='Сохраняю…';
+  }
+  const file=document.getElementById('banqPhoto').files[0];
+  let imageUrl='';
+  let cloudinaryPublicId='';
+
+  try{
+    if(file){
+      setSyncStatus('', 'Загружаю фото в Cloudinary…');
+      const uploaded=await uploadPhotoToCloudinary(file);
+      imageUrl=uploaded.url;
+      cloudinaryPublicId=uploaded.publicId;
+      setSyncStatus('', 'Фото загружено, сохраняю банкет…');
+    }
+  }catch(err){
+    if(saveBtn){
+      saveBtn.disabled=false;
+      saveBtn.textContent='Добавить банкет';
+    }
+    const msg=String(err && err.message ? err.message : err);
+    setSyncStatus('err', msg);
+    alert(msg);
+    return;
+  }
+
+  const item={
+    id:'b'+Date.now(),
+    date:document.getElementById('banqDate').value,
+    time:document.getElementById('banqTime').value,
+    name:document.getElementById('banqName').value.trim(),
+    comment:document.getElementById('banqComment').value.trim(),
+    status:document.getElementById('banqStatus').value,
+    photo:imageUrl,
+    cloudinaryPublicId:cloudinaryPublicId
+  };
+  if(!item.date || !item.time || !item.name) return;
+
+  setSyncStatus('', 'Сохраняю банкет…');
+
+  if(isApiConfigured()){
+    try{
+      await postBanqForm({
+        action:'save',
+        id:item.id,
+        date:item.date,
+        time:item.time,
+        name:item.name,
+        comment:item.comment,
+        status:item.status,
+        imageUrl:item.photo,
+        cloudinaryPublicId:item.cloudinaryPublicId,
+        photoName:file ? file.name : ''
+      });
+    }catch(err){
+      if(saveBtn){
+        saveBtn.disabled=false;
+        saveBtn.textContent='Добавить банкет';
+      }
+      setSyncStatus('err','Не удалось отправить банкет. Попробуй фото поменьше или другой формат.');
+      alert('Не удалось отправить банкет. Попробуй фото поменьше или другой формат.');
+      return;
+    }
+    selectedBanqDate=item.date;
+    banqMonthDate=parseIsoDate(item.date);
+    banqMonthDate.setDate(1);
+    e.target.reset();
+    setPhotoUi(null);
+    document.getElementById('banqDate').value=selectedBanqDate;
+    document.getElementById('banqStatus').value='Актуально';
+    if(saveBtn){
+      saveBtn.disabled=false;
+      saveBtn.textContent='Добавить банкет';
+    }
+    hap('ok');
+    if(item.photo&&isStockApiConfigured()){
+      try{await runBanquetReserveScan_(item,{manual:false});}
+      catch(scanErr){setSyncStatus('warn','Банкет сохранён, но резерв не распознан: '+String(scanErr&&scanErr.message?scanErr.message:scanErr));}
+    }
+    await loadBanquets();
+  }else{
+    banquets.push(item);
+    saveLocalFallback();
+    selectedBanqDate=item.date;
+    banqMonthDate=parseIsoDate(item.date);
+    banqMonthDate.setDate(1);
+    e.target.reset();
+    setPhotoUi(null);
+    document.getElementById('banqDate').value=selectedBanqDate;
+    document.getElementById('banqStatus').value='Актуально';
+    if(saveBtn){
+      saveBtn.disabled=false;
+      saveBtn.textContent='Добавить банкет';
+    }
+    hap('ok');
+    renderBanquets();
+    setSyncStatus('warn','Сохранено локально. Другие пользователи это не увидят, пока не подключена общая база.');
+  }
+};
+
+window.showMyId=function(){
+  const id=getTgUserId() || 'не открыт внутри Telegram';
+  alert('Ваш Telegram user_id: '+id);
+};
+
+
+
+// ===== FO’X v15.11 — банкетный резерв + кнопка «Заказ отправлен» =====
+// После публикации Apps Script вставь сюда URL нового Web App.
+const STOCK_API_URL = 'https://script.google.com/macros/s/AKfycbx9XlQG6kCvWVU6OekcWAmHAVnjFXfG-_UD_pKQrQqYaWNyHzmXsmB_2LGohxETrrfTpA/exec';
+const RECEIPT_MESSAGE_DOC_TYPE = 'Счёт на оплату';
+
+let receiptPages = [];
+let receiptPdfBlob = null;
+let receiptPdfUploadPromise = null;
+let receiptPdfUploadError = '';
+let receiptJobId = '';
+let receiptResult = null;
+let receiptCatalog = [];
+let receiptPollingToken = 0;
+let receiptReshootIndex = -1;
+let receiptCameraStream = null;
+let receiptCameraFacing = 'environment';
+let receiptCameraTorchOn = false;
+let receiptCameraTorchSupported = false;
+let receiptCameraImageCapture = null;
+let receiptCameraReplaceIndex = -1;
+let receiptCameraSessionShots = 0;
+let receiptCameraDirty = false;
+let receiptCameraPurpose = 'receipt';
+let receiptEditorPageIndex = -1;
+let receiptEditorSourceImage = null;
+let receiptEditorRect = null;
+let receiptEditorDrag = null;
+
+
+function isStockApiConfigured(){
+  return STOCK_API_URL && !STOCK_API_URL.includes('PASTE_STOCK_APPS_SCRIPT_WEB_APP_URL_HERE');
+}
+function getReceiptMode(){
+  const el=document.getElementById('receiptMode');
+  return el&&el.value==='check'?'check':'document';
+}
+function receiptAuthParams(){
+  return {
+    telegramUserId:getTgUserId(),
+    telegramUserName:getTgUserName(),
+    telegramChatId:getTgChatId(),
+    telegramInitData:TG ? (TG.initData || '') : ''
+  };
+}
+function openReceiptsSection(){
+  document.getElementById('receiptAdminBlock').hidden=false;
+  document.getElementById('receiptAccessDenied').hidden=true;
+  document.getElementById('receiptStatus').hidden=false;
+  updateReceiptModeUi(false);
+  if(!isStockApiConfigured()){
+    setReceiptStatus('warn','Сканер подготовлен, но STOCK_API_URL ещё не вставлен в index.html.',0);
+    return;
+  }
+  if(!receiptCatalog.length) loadReceiptCatalog();
+}
+function setReceiptStatus(type,text,progress){
+  const el=document.getElementById('receiptStatus');
+  if(!el) return;
+  el.className='receipt-status '+(type||'');
+  el.innerHTML=escapeHtml(text||'')+'<div class="receipt-progress"><i id="receiptProgress"></i></div>';
+  const inner=document.getElementById('receiptProgress');
+  if(inner) inner.style.width=Math.max(0,Math.min(100,Math.round((Number(progress)||0)*100)))+'%';
+}
+function updateReceiptModeUi(resetResult){
+  const mode=getReceiptMode();
+  const isCheck=mode==='check';
+  document.getElementById('receiptModeNote').textContent=isCheck
+    ? 'Кассовый, фискальный или онлайн-чек. Несколько кадров одного длинного чека объединятся в один PDF.'
+    : 'Накладная, счёт, УПД, ТТН или комплект документов одной поставки.';
+  document.getElementById('receiptScreenSub').textContent=isCheck
+    ? 'Сними весь чек → получи один PDF → проверь сообщение → отправь в Telegram'
+    : 'Сними все страницы → получи один PDF → проверь товары → подтверди сток';
+  document.getElementById('receiptCameraTitle').textContent=isCheck?'Сфотографировать часть чека':'Сфотографировать страницу';
+  document.getElementById('receiptScan').textContent=isCheck?'Собрать PDF и распознать чек':'Собрать PDF и распознать';
+  if(resetResult){
+    receiptPdfBlob=null;receiptResult=null;receiptJobId='';
+    document.getElementById('receiptResultCard').hidden=true;
+    setReceiptStatus('',isCheck?'Добавь фото всего чека. Для длинного чека можно сделать несколько кадров.':'Добавь фотографии всех страниц одного документа.',0);
+  }
+}
+const receiptModeEl=document.getElementById('receiptMode');
+if(receiptModeEl){
+  receiptModeEl.addEventListener('change',()=>{
+    if((receiptPages.length||receiptResult)&&!confirm('Сменить режим? Текущие страницы останутся, но результат распознавания будет сброшен.')){
+      receiptModeEl.value=getReceiptMode()==='check'?'document':'check';
+      return;
+    }
+    updateReceiptModeUi(true);
+  });
+}
+async function loadReceiptCatalog(){
+  if(!isStockApiConfigured()) return;
+  try{
+    setReceiptStatus('', 'Загружаю каталог стока…', .08);
+    const res=await jsonp(STOCK_API_URL,Object.assign({action:'catalog'},receiptAuthParams()));
+    if(!res||!res.ok) throw new Error(res&&res.error?res.error:'Каталог не загрузился');
+    receiptCatalog=Array.isArray(res.items)?res.items:[];
+    setReceiptStatus('ok','Каталог стока подключён. Можно сканировать документы и чеки.',0);
+  }catch(err){setReceiptStatus('err',String(err&&err.message?err.message:err),0);}
+}
+function postReceipt(fields){
+  const fd=new FormData();
+  Object.keys(fields).forEach(k=>fd.append(k,fields[k]==null?'':fields[k]));
+  const auth=receiptAuthParams();
+  Object.keys(auth).forEach(k=>fd.append(k,auth[k]));
+  return fetch(STOCK_API_URL,{method:'POST',mode:'no-cors',body:fd});
+}
+async function appendReceiptFiles(files, preparingText){
+  files=Array.from(files||[]).filter(file=>String(file.type||'').startsWith('image/'));
+  if(!files.length) return;
+  setReceiptStatus('', preparingText||'Подготавливаю страницы…', .05);
+  try{
+    for(const file of files) receiptPages.push(await imageFileToReceiptPage(file));
+    receiptPdfBlob=null;receiptResult=null;receiptJobId='';
+    document.getElementById('receiptResultCard').hidden=true;
+    renderReceiptPages();
+    setReceiptStatus('', 'Страницы готовы. Проверь порядок и нажми распознавание.',0);
+  }catch(err){setReceiptStatus('err',String(err&&err.message?err.message:err),0);}
+}
+function updateReceiptTorchButton_(){
+  const btn=document.getElementById('receiptCameraTorch');
+  if(!btn) return;
+  btn.disabled=!receiptCameraTorchSupported;
+  btn.classList.toggle('active',receiptCameraTorchOn&&receiptCameraTorchSupported);
+  btn.textContent=receiptCameraTorchSupported
+    ? (receiptCameraTorchOn?'⚡ Включена':'⚡ Вспышка')
+    : '⚡ Нет вспышки';
+}
+function stopReceiptCamera(){
+  receiptCameraTorchOn=false;
+  receiptCameraTorchSupported=false;
+  receiptCameraImageCapture=null;
+  updateReceiptTorchButton_();
+  if(receiptCameraStream){
+    receiptCameraStream.getTracks().forEach(track=>{try{track.stop();}catch(e){}});
+    receiptCameraStream=null;
+  }
+  const video=document.getElementById('receiptCameraVideo');
+  const videoBg=document.getElementById('receiptCameraVideoBg');
+  if(video){video.pause();video.srcObject=null;video.classList.remove('front');}
+  if(videoBg){videoBg.pause();videoBg.srcObject=null;}
+}
+function closeReceiptCamera(){
+  stopReceiptCamera();
+  const overlay=document.getElementById('receiptCameraOverlay');
+  if(overlay) overlay.hidden=true;
+  receiptCameraReplaceIndex=-1;
+  if(receiptCameraDirty){
+    receiptCameraDirty=false;
+    if(receiptCameraPurpose==='cash-report'){
+      renderCashReportPages();
+      setCashReportStatus('', 'Снимки готовы. Проверь страницы и нажми распознавание.',0);
+    }else{
+      renderReceiptPages();
+      setReceiptStatus('', 'Снимки готовы. Автообрезка отключена — при необходимости используй кнопку ✂.',0);
+    }
+  }
+}
+function nextAnimationFrame_(){return new Promise(resolve=>requestAnimationFrame(()=>resolve()));}
+async function getReceiptCameraStream_(){
+  // Просим максимальное доступное разрешение без resizeMode/crop-and-scale.
+  // Значения ideal не обязаны применяться буквально и не создают цифровой зум.
+  const highQuality={
+    facingMode:receiptCameraFacing==='environment'?{exact:'environment'}:{exact:'user'},
+    width:{ideal:3840},
+    height:{ideal:2160},
+    frameRate:{ideal:30,max:30}
+  };
+  const fallbackQuality={
+    facingMode:{ideal:receiptCameraFacing},
+    width:{ideal:2560},
+    height:{ideal:1440}
+  };
+  try{return await navigator.mediaDevices.getUserMedia({audio:false,video:highQuality});}
+  catch(_){return await navigator.mediaDevices.getUserMedia({audio:false,video:fallbackQuality});}
+}
+async function startReceiptCameraStream(){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    throw new Error('Встроенная камера не поддерживается этим Telegram/WebView.');
+  }
+  stopReceiptCamera();
+  await nextAnimationFrame_();
+  receiptCameraStream=await getReceiptCameraStream_();
+  const video=document.getElementById('receiptCameraVideo');
+  const videoBg=document.getElementById('receiptCameraVideoBg');
+  video.srcObject=receiptCameraStream;
+  if(videoBg) videoBg.srcObject=receiptCameraStream;
+  video.classList.toggle('front',receiptCameraFacing==='user');
+  await new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>reject(new Error('Камера долго запускается. Закрой её и открой снова.')),10000);
+    const ready=()=>{clearTimeout(timer);video.removeEventListener('loadedmetadata',ready);resolve();};
+    if(video.readyState>=1) ready(); else video.addEventListener('loadedmetadata',ready,{once:true});
+  });
+  await video.play();
+  if(videoBg){try{await videoBg.play();}catch(_){}}
+
+  const track=receiptCameraStream.getVideoTracks()[0];
+  const caps=track&&track.getCapabilities?track.getCapabilities():{};
+  receiptCameraTorchOn=false;
+  receiptCameraTorchSupported=Boolean(receiptCameraFacing==='environment'&&caps&&caps.torch);
+  receiptCameraImageCapture=(typeof ImageCapture!=='undefined'&&track)?new ImageCapture(track):null;
+  updateReceiptTorchButton_();
+
+  // Сбрасываем аппаратный/цифровой zoom на минимальное доступное значение.
+  try{
+    const track=receiptCameraStream.getVideoTracks()[0];
+    const caps=track&&track.getCapabilities?track.getCapabilities():null;
+    if(caps&&caps.zoom&&Number.isFinite(caps.zoom.min)){
+      await track.applyConstraints({advanced:[{zoom:caps.zoom.min}]});
+    }
+  }catch(_){}
+
+  // Мягко просим непрерывный фокус, только если Android/WebView его поддерживает.
+  try{
+    const track=receiptCameraStream.getVideoTracks()[0];
+    const caps=track&&track.getCapabilities?track.getCapabilities():null;
+    if(caps&&Array.isArray(caps.focusMode)&&caps.focusMode.includes('continuous')){
+      await track.applyConstraints({advanced:[{focusMode:'continuous'}]});
+    }
+  }catch(_){}
+}
+async function openReceiptCamera(replaceIndex=-1,purpose='receipt'){
+  receiptCameraPurpose=purpose==='cash-report'?'cash-report':'receipt';
+  receiptCameraReplaceIndex=Number.isInteger(replaceIndex)?replaceIndex:-1;
+  receiptCameraSessionShots=0;
+  receiptCameraDirty=false;
+  const overlay=document.getElementById('receiptCameraOverlay');
+  const heading=document.getElementById('receiptCameraHeading');
+  const hint=document.getElementById('receiptCameraHint');
+  if(heading){
+    if(receiptCameraPurpose==='cash-report') heading.textContent='Съёмка кассового отчёта';
+    else heading.textContent=receiptCameraReplaceIndex>=0?'Переснять страницу '+(receiptCameraReplaceIndex+1):(getReceiptMode()==='check'?'Съёмка чека':'Съёмка документа');
+  }
+  if(hint) hint.textContent=receiptCameraPurpose==='cash-report'
+    ? 'Сними отчёт iiko и все терминальные слипы. Можно сделать несколько кадров.'
+    : 'HD-снимок сохраняется в максимальном доступном качестве. Края можно поправить кнопкой ✂';
+  updateReceiptCameraCount();
+  overlay.hidden=false;
+  try{
+    await startReceiptCameraStream();
+  }catch(err){
+    const fallbackReplaceIndex=receiptCameraReplaceIndex;
+    const purposeNow=receiptCameraPurpose;
+    closeReceiptCamera();
+    const msg=String(err&&err.message?err.message:err);
+    if(purposeNow==='cash-report'){
+      setCashReportStatus('warn',msg+' Открываю системную камеру как запасной вариант.',0);
+      document.getElementById('cashReportCameraFallback').click();
+    }else{
+      setReceiptStatus('warn',msg+' Открываю системную камеру как запасной вариант.',0);
+      if(fallbackReplaceIndex>=0){
+        receiptReshootIndex=fallbackReplaceIndex;
+        document.getElementById('receiptReshootFallback').click();
+      }else{
+        document.getElementById('receiptCameraFallback').click();
+      }
+    }
+  }
+}
+function updateReceiptCameraCount(){
+  const el=document.getElementById('receiptCameraCount');
+  if(!el) return;
+  el.textContent=receiptCameraReplaceIndex>=0?'Замена страницы':('Снято: '+receiptCameraSessionShots);
+}
+function canvasToJpegDataUrl_(canvas,quality=.94){
+  return new Promise((resolve,reject)=>{
+    if(!canvas.toBlob){try{resolve(canvas.toDataURL('image/jpeg',quality));}catch(err){reject(err);}return;}
+    canvas.toBlob(blob=>{
+      if(!blob){reject(new Error('Не удалось сохранить снимок'));return;}
+      const reader=new FileReader();
+      reader.onload=()=>resolve(String(reader.result||''));
+      reader.onerror=()=>reject(new Error('Не удалось прочитать снимок'));
+      reader.readAsDataURL(blob);
+    },'image/jpeg',quality);
+  });
+}
+function drawCameraSourceToCanvas_(source,sourceW,sourceH,maxSide=3400){
+  const stage=document.getElementById('receiptCameraStage');
+  const stagePortrait=(stage?stage.clientHeight:window.innerHeight)>=(stage?stage.clientWidth:window.innerWidth);
+  const sourcePortrait=sourceH>=sourceW;
+  const rotate=stagePortrait!==sourcePortrait;
+  const rawW=rotate?sourceH:sourceW;
+  const rawH=rotate?sourceW:sourceH;
+  const scale=Math.min(1,maxSide/Math.max(rawW,rawH));
+  const canvas=document.createElement('canvas');
+  canvas.width=Math.max(1,Math.round(rawW*scale));
+  canvas.height=Math.max(1,Math.round(rawH*scale));
+  const ctx=canvas.getContext('2d',{alpha:false});
+  ctx.imageSmoothingEnabled=true;
+  ctx.imageSmoothingQuality='high';
+  ctx.fillStyle='#fff';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  if(rotate){
+    ctx.save();
+    ctx.translate(canvas.width,0);
+    ctx.rotate(Math.PI/2);
+    ctx.drawImage(source,0,0,canvas.height,canvas.width);
+    ctx.restore();
+  }else{
+    ctx.drawImage(source,0,0,canvas.width,canvas.height);
+  }
+  return canvas;
+}
+function videoFrameToCanvas(){
+  const video=document.getElementById('receiptCameraVideo');
+  if(!video||!video.videoWidth||!video.videoHeight) throw new Error('Камера ещё не готова. Подожди секунду.');
+  return drawCameraSourceToCanvas_(video,video.videoWidth,video.videoHeight,3200);
+}
+async function stillBlobToCanvas_(blob){
+  const url=URL.createObjectURL(blob);
+  try{
+    const img=await new Promise((resolve,reject)=>{
+      const el=new Image();
+      el.onload=()=>resolve(el);
+      el.onerror=()=>reject(new Error('Не удалось открыть полноразмерный снимок камеры'));
+      el.src=url;
+    });
+    return drawCameraSourceToCanvas_(img,img.naturalWidth||img.width,img.naturalHeight||img.height,3400);
+  }finally{
+    URL.revokeObjectURL(url);
+  }
+}
+async function cameraFrameToReceiptPage(){
+  let canvas;
+  let captureMode='HD-кадр видеопотока';
+  if(receiptCameraImageCapture&&typeof receiptCameraImageCapture.takePhoto==='function'){
+    try{
+      const blob=await receiptCameraImageCapture.takePhoto();
+      if(blob&&blob.size>0){
+        canvas=await stillBlobToCanvas_(blob);
+        captureMode='полноразмерное фото камеры';
+      }
+    }catch(_){
+      canvas=null;
+    }
+  }
+  if(!canvas) canvas=videoFrameToCanvas();
+  const dataUrl=await canvasToJpegDataUrl_(canvas,.94);
+  return {
+    id:'p'+Date.now()+Math.random().toString(36).slice(2,7),
+    name:'camera_'+Date.now()+'.jpg',
+    width:canvas.width,
+    height:canvas.height,
+    orientation:canvas.width>canvas.height?'landscape':'portrait',
+    cropped:false,
+    cropNote:'Сохранено '+captureMode+' без автообрезки.',
+    originalDataUrl:dataUrl,
+    dataUrl
+  };
+}
+
+async function captureReceiptCameraFrame(){
+  const shot=document.getElementById('receiptCameraShot');
+  const hint=document.getElementById('receiptCameraHint');
+  if(shot) shot.disabled=true;
+  if(hint) hint.textContent='Сохраняю снимок…';
+  try{
+    const page=await cameraFrameToReceiptPage();
+    const flash=document.getElementById('receiptCameraFlash');
+    flash.classList.remove('show');void flash.offsetWidth;flash.classList.add('show');
+    if(receiptCameraPurpose==='cash-report'){
+      cashReportPages.push(page);
+      cashReportPdfBlob=null;cashReportResult=null;cashReportJobId='';
+      document.getElementById('cashReportResultCard').hidden=true;
+    }else if(receiptCameraReplaceIndex>=0){
+      receiptPages[receiptCameraReplaceIndex]=page;
+      receiptPdfBlob=null;receiptResult=null;receiptJobId='';
+      document.getElementById('receiptResultCard').hidden=true;
+      receiptCameraDirty=true;
+      closeReceiptCamera();
+      setReceiptStatus('', 'Страница заменена. Автообрезка не применялась.',0);
+      return;
+    }else{
+      receiptPages.push(page);
+      receiptPdfBlob=null;receiptResult=null;receiptJobId='';
+      document.getElementById('receiptResultCard').hidden=true;
+    }
+    receiptCameraSessionShots++;
+    receiptCameraDirty=true;
+    updateReceiptCameraCount();
+    if(hint) hint.textContent='Снимок сохранён. Можно снять следующий кадр.';
+    hap('ok');
+  }catch(err){
+    if(receiptCameraPurpose==='cash-report') setCashReportStatus('err',String(err&&err.message?err.message:err),0);
+    else setReceiptStatus('err',String(err&&err.message?err.message:err),0);
+  }finally{
+    if(shot) shot.disabled=false;
+    setTimeout(()=>{
+      const overlay=document.getElementById('receiptCameraOverlay');
+      if(hint&&overlay&&!overlay.hidden) hint.textContent=receiptCameraPurpose==='cash-report'
+        ? 'Сними отчёт iiko и все терминальные слипы. Можно сделать несколько кадров.'
+        : 'HD-снимок сохраняется без автообрезки. При необходимости используй ✂';
+    },800);
+  }
+}
+const receiptCameraOpen=document.getElementById('receiptCameraOpen');
+if(receiptCameraOpen) receiptCameraOpen.addEventListener('click',()=>openReceiptCamera(-1,'receipt'));
+document.getElementById('receiptCameraClose').addEventListener('click',closeReceiptCamera);
+document.getElementById('receiptCameraDone').addEventListener('click',closeReceiptCamera);
+document.getElementById('receiptCameraShot').addEventListener('click',captureReceiptCameraFrame);
+document.getElementById('receiptCameraTorch').addEventListener('click',async()=>{
+  const track=receiptCameraStream&&receiptCameraStream.getVideoTracks()[0];
+  if(!track||!receiptCameraTorchSupported){
+    if(receiptCameraPurpose==='cash-report') setCashReportStatus('warn','На этой камере вспышка недоступна.',0); else setReceiptStatus('warn','На этой камере вспышка недоступна.',0);
+    return;
+  }
+  const next=!receiptCameraTorchOn;
+  try{
+    await track.applyConstraints({advanced:[{torch:next}]});
+    receiptCameraTorchOn=next;
+    updateReceiptTorchButton_();
+    const hint=document.getElementById('receiptCameraHint');
+    if(hint) hint.textContent=next?'Вспышка включена. Наведи камеру и сделай снимок.':'Вспышка выключена.';
+  }catch(err){
+    receiptCameraTorchOn=false;
+    updateReceiptTorchButton_();
+    if(receiptCameraPurpose==='cash-report') setCashReportStatus('warn','Телефон не разрешил включить вспышку в Telegram.',0); else setReceiptStatus('warn','Телефон не разрешил включить вспышку в Telegram.',0);
+  }
+});
+document.getElementById('receiptCameraSwitch').addEventListener('click',async()=>{
+  receiptCameraFacing=receiptCameraFacing==='environment'?'user':'environment';
+  try{await startReceiptCameraStream();}
+  catch(err){if(receiptCameraPurpose==='cash-report') setCashReportStatus('warn','Не удалось переключить камеру: '+String(err&&err.message?err.message:err),0); else setReceiptStatus('warn','Не удалось переключить камеру: '+String(err&&err.message?err.message:err),0);}
+});
+document.addEventListener('visibilitychange',()=>{if(document.hidden) stopReceiptCamera();});
+window.addEventListener('orientationchange',()=>{
+  const overlay=document.getElementById('receiptCameraOverlay');
+  if(overlay&&!overlay.hidden){
+    setTimeout(()=>startReceiptCameraStream().catch(()=>{}),250);
+  }
+});
+
+const receiptCameraFallback=document.getElementById('receiptCameraFallback');
+if(receiptCameraFallback){
+  receiptCameraFallback.addEventListener('change',async()=>{
+    const files=Array.from(receiptCameraFallback.files||[]);
+    try{await appendReceiptFiles(files,'Обрабатываю новый снимок…');}
+    finally{receiptCameraFallback.value='';}
+  });
+}
+const receiptGallery=document.getElementById('receiptGallery');
+if(receiptGallery){
+  receiptGallery.addEventListener('change',async()=>{
+    const files=Array.from(receiptGallery.files||[]);
+    try{await appendReceiptFiles(files,'Подготавливаю выбранные фотографии…');}
+    finally{receiptGallery.value='';}
+  });
+}
+const receiptReshootFallback=document.getElementById('receiptReshootFallback');
+if(receiptReshootFallback){
+  receiptReshootFallback.addEventListener('change',async()=>{
+    const file=receiptReshootFallback.files&&receiptReshootFallback.files[0];const index=receiptReshootIndex;
+    receiptReshootFallback.value='';receiptReshootIndex=-1;
+    if(!file||index<0||index>=receiptPages.length) return;
+    try{
+      setReceiptStatus('', 'Переснимаю страницу '+(index+1)+'…', .05);
+      receiptPages[index]=await imageFileToReceiptPage(file);
+      receiptPdfBlob=null;receiptResult=null;receiptJobId='';
+      document.getElementById('receiptResultCard').hidden=true;
+      renderReceiptPages();setReceiptStatus('', 'Страница заменена. Проверь порядок.',0);
+    }catch(err){setReceiptStatus('err',String(err&&err.message?err.message:err),0);}
+  });
+}
+document.getElementById('receiptReset').onclick=()=>{
+  if(receiptPages.length&&!confirm('Удалить все отсканированные страницы?')) return;
+  resetReceiptScanner();
+};
+document.getElementById('receiptScan').onclick=startReceiptRecognition;
+document.getElementById('receiptConfirm').onclick=confirmReceiptStock;
+document.getElementById('receiptSend').onclick=sendReceiptToTelegram;
+document.getElementById('receiptOpenPdf').onclick=()=>{
+  const url=receiptResult&&receiptResult.pdfUrl;if(url){if(TG) TG.openLink(url);else window.open(url,'_blank');}
+};
+function resetReceiptScanner(){
+  closeReceiptCamera();closeReceiptCropEditor();
+  receiptPollingToken++;receiptPages=[];receiptPdfBlob=null;receiptPdfUploadPromise=null;receiptPdfUploadError='';receiptJobId='';receiptResult=null;receiptReshootIndex=-1;
+  document.getElementById('receiptResultCard').hidden=true;renderReceiptPages();updateReceiptModeUi(true);
+}
+async function imageFileToReceiptPage(file){
+  const raw=await readFileAsDataUrl(file);
+  return await new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onload=()=>{try{
+      const maxSide=3400;let w=img.naturalWidth||img.width;let h=img.naturalHeight||img.height;
+      const k=Math.min(1,maxSide/Math.max(w,h));w=Math.max(1,Math.round(w*k));h=Math.max(1,Math.round(h*k));
+      const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+      const ctx=canvas.getContext('2d',{alpha:false});ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);
+      const dataUrl=canvas.toDataURL('image/jpeg',.94);
+      resolve({id:'p'+Date.now()+Math.random().toString(36).slice(2,7),name:file.name,width:w,height:h,orientation:w>h?'landscape':'portrait',cropped:false,cropNote:'Сохранён полный кадр.',originalDataUrl:dataUrl,dataUrl});
+    }catch(err){reject(err);}};
+    img.onerror=()=>reject(new Error('Не удалось открыть фото. Используй JPG/PNG или сделай скриншот.'));img.src=raw;
+  });
+}
+
+function readFileAsDataUrl(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result||''));r.onerror=()=>reject(new Error('Не удалось прочитать файл'));r.readAsDataURL(file);});}
+function renderReceiptPages(){
+  const root=document.getElementById('receiptPages');const summary=document.getElementById('receiptPageSummary');const scan=document.getElementById('receiptScan');
+  if(!root) return;root.innerHTML='';
+  receiptPages.forEach((p,i)=>{
+    const isLandscape=p.width>p.height;
+    const card=document.createElement('div');card.className='receipt-page';
+    card.innerHTML='<span class="receipt-page-num">'+(i+1)+'</span><span class="receipt-page-orientation">'+(isLandscape?'Горизонтально':'Вертикально')+'</span><img src="'+p.dataUrl+'" alt="Страница '+(i+1)+'">'+
+      '<div class="receipt-page-actions"><button type="button" data-up title="Выше" '+(i===0?'disabled':'')+'>↑</button><button type="button" data-down title="Ниже" '+(i===receiptPages.length-1?'disabled':'')+'>↓</button><button type="button" data-crop title="Обрезать края">✂</button><button type="button" data-rotate aria-label="Повернуть по часовой стрелке" title="Повернуть по часовой стрелке">↻</button><button type="button" data-reshoot title="Переснять страницу">📷</button><button type="button" class="del" data-del title="Удалить">✕</button></div>';
+    card.querySelector('[data-up]').onclick=()=>moveReceiptPage(i,-1);card.querySelector('[data-down]').onclick=()=>moveReceiptPage(i,1);
+    card.querySelector('[data-crop]').onclick=()=>openReceiptCropEditor(i);
+    card.querySelector('[data-rotate]').onclick=()=>rotateReceiptPage(i);
+    card.querySelector('[data-reshoot]').onclick=()=>openReceiptCamera(i);
+    card.querySelector('[data-del]').onclick=()=>{receiptPages.splice(i,1);receiptPdfBlob=null;renderReceiptPages();};root.appendChild(card);
+  });
+  scan.disabled=!receiptPages.length;
+  summary.textContent=receiptPages.length?('Страниц/кадров: '+receiptPages.length+'. При необходимости обрежь края кнопкой ✂. Все страницы объединятся в один PDF.'):'Страниц пока нет.';
+}
+async function rotateDataUrlClockwise(dataUrl,quality=.84){
+  const img=await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('Не удалось повернуть страницу'));im.src=dataUrl;});
+  const canvas=document.createElement('canvas');canvas.width=img.naturalHeight||img.height;canvas.height=img.naturalWidth||img.width;
+  const ctx=canvas.getContext('2d',{alpha:false});ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.translate(canvas.width/2,canvas.height/2);ctx.rotate(Math.PI/2);
+  ctx.drawImage(img,-(img.naturalWidth||img.width)/2,-(img.naturalHeight||img.height)/2,img.naturalWidth||img.width,img.naturalHeight||img.height);
+  return {dataUrl:canvas.toDataURL('image/jpeg',quality),width:canvas.width,height:canvas.height};
+}
+async function rotateReceiptPage(index){
+  const page=receiptPages[index];
+  if(!page) return;
+  try{
+    const current=await rotateDataUrlClockwise(page.dataUrl,.84);
+    const original=await rotateDataUrlClockwise(page.originalDataUrl||page.dataUrl,.84);
+    receiptPages[index]=Object.assign({},page,{width:current.width,height:current.height,orientation:current.width>current.height?'landscape':'portrait',dataUrl:current.dataUrl,originalDataUrl:original.dataUrl});
+    receiptPdfBlob=null;receiptResult=null;receiptJobId='';
+    document.getElementById('receiptResultCard').hidden=true;
+    renderReceiptPages();setReceiptStatus('', 'Страница '+(index+1)+' повернута по часовой стрелке.',0);hap('sel');
+  }catch(err){setReceiptStatus('err',String(err&&err.message?err.message:err),0);}
+}
+
+
+function clampReceiptValue(value,min,max){return Math.max(min,Math.min(max,value));}
+function closeReceiptCropEditor(){
+  document.getElementById('receiptEditorOverlay').hidden=true;
+  receiptEditorPageIndex=-1;receiptEditorSourceImage=null;receiptEditorRect=null;receiptEditorDrag=null;
+}
+function applyReceiptCropRect(){
+  const box=document.getElementById('receiptCropBox');
+  if(!box||!receiptEditorRect) return;
+  box.style.left=receiptEditorRect.x+'px';box.style.top=receiptEditorRect.y+'px';box.style.width=receiptEditorRect.w+'px';box.style.height=receiptEditorRect.h+'px';
+}
+function resetReceiptCropRect(){
+  const frame=document.getElementById('receiptEditorFrame');
+  const margin=Math.max(10,Math.round(Math.min(frame.clientWidth,frame.clientHeight)*.035));
+  receiptEditorRect={x:margin,y:margin,w:Math.max(60,frame.clientWidth-margin*2),h:Math.max(60,frame.clientHeight-margin*2)};
+  applyReceiptCropRect();
+}
+async function openReceiptCropEditor(index){
+  const page=receiptPages[index];if(!page) return;
+  try{
+    const source=page.originalDataUrl||page.dataUrl;
+    const img=await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('Не удалось открыть страницу для обрезки'));im.src=source;});
+    receiptEditorPageIndex=index;receiptEditorSourceImage=img;
+    document.getElementById('receiptEditorTitle').textContent='Обрезать страницу '+(index+1);
+    document.getElementById('receiptEditorImage').src=source;
+    document.getElementById('receiptEditorOverlay').hidden=false;
+    requestAnimationFrame(()=>{
+      const stage=document.getElementById('receiptEditorStage');const frame=document.getElementById('receiptEditorFrame');
+      const maxW=Math.max(200,stage.clientWidth-8),maxH=Math.max(200,stage.clientHeight-8);
+      const iw=img.naturalWidth||img.width,ih=img.naturalHeight||img.height;const scale=Math.min(maxW/iw,maxH/ih,1);
+      frame.style.width=Math.max(1,Math.round(iw*scale))+'px';frame.style.height=Math.max(1,Math.round(ih*scale))+'px';
+      resetReceiptCropRect();
+    });
+  }catch(err){setReceiptStatus('err',String(err&&err.message?err.message:err),0);}
+}
+async function saveReceiptManualCrop(){
+  const index=receiptEditorPageIndex,page=receiptPages[index],frame=document.getElementById('receiptEditorFrame');
+  if(!page||!receiptEditorSourceImage||!receiptEditorRect||!frame.clientWidth||!frame.clientHeight) return;
+  try{
+    const img=receiptEditorSourceImage,iw=img.naturalWidth||img.width,ih=img.naturalHeight||img.height;
+    const sx=clampReceiptValue(Math.round(receiptEditorRect.x/frame.clientWidth*iw),0,iw-1);
+    const sy=clampReceiptValue(Math.round(receiptEditorRect.y/frame.clientHeight*ih),0,ih-1);
+    const sw=clampReceiptValue(Math.round(receiptEditorRect.w/frame.clientWidth*iw),1,iw-sx);
+    const sh=clampReceiptValue(Math.round(receiptEditorRect.h/frame.clientHeight*ih),1,ih-sy);
+    const maxSide=1800,scale=Math.min(1,maxSide/Math.max(sw,sh));
+    const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(sw*scale));canvas.height=Math.max(1,Math.round(sh*scale));
+    const ctx=canvas.getContext('2d',{alpha:false});ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(img,sx,sy,sw,sh,0,0,canvas.width,canvas.height);
+    receiptPages[index]=Object.assign({},page,{width:canvas.width,height:canvas.height,orientation:canvas.width>canvas.height?'landscape':'portrait',cropped:true,cropNote:'Обрезано вручную.',dataUrl:canvas.toDataURL('image/jpeg',.84)});
+    receiptPdfBlob=null;receiptResult=null;receiptJobId='';document.getElementById('receiptResultCard').hidden=true;
+    closeReceiptCropEditor();renderReceiptPages();setReceiptStatus('ok','Страница '+(index+1)+' обрезана вручную.',0);hap('ok');
+  }catch(err){setReceiptStatus('err',String(err&&err.message?err.message:err),0);}
+}
+function beginReceiptCropDrag(event){
+  if(!receiptEditorRect) return;
+  const handle=event.target&&event.target.dataset?event.target.dataset.handle:'';
+  receiptEditorDrag={pointerId:event.pointerId,mode:handle||'move',startX:event.clientX,startY:event.clientY,startRect:Object.assign({},receiptEditorRect)};
+  try{event.currentTarget.setPointerCapture(event.pointerId);}catch(e){}
+  event.preventDefault();
+}
+function moveReceiptCropDrag(event){
+  if(!receiptEditorDrag||event.pointerId!==receiptEditorDrag.pointerId) return;
+  const frame=document.getElementById('receiptEditorFrame'),minSize=54,r=receiptEditorDrag.startRect;
+  const dx=event.clientX-receiptEditorDrag.startX,dy=event.clientY-receiptEditorDrag.startY;let x=r.x,y=r.y,w=r.w,h=r.h;
+  if(receiptEditorDrag.mode==='move'){
+    x=clampReceiptValue(r.x+dx,0,frame.clientWidth-r.w);y=clampReceiptValue(r.y+dy,0,frame.clientHeight-r.h);
+  }else{
+    if(receiptEditorDrag.mode.includes('w')){const nx=clampReceiptValue(r.x+dx,0,r.x+r.w-minSize);w=r.w+(r.x-nx);x=nx;}
+    if(receiptEditorDrag.mode.includes('e')){w=clampReceiptValue(r.w+dx,minSize,frame.clientWidth-r.x);}
+    if(receiptEditorDrag.mode.includes('n')){const ny=clampReceiptValue(r.y+dy,0,r.y+r.h-minSize);h=r.h+(r.y-ny);y=ny;}
+    if(receiptEditorDrag.mode.includes('s')){h=clampReceiptValue(r.h+dy,minSize,frame.clientHeight-r.y);}
+  }
+  receiptEditorRect={x,y,w,h};applyReceiptCropRect();event.preventDefault();
+}
+function endReceiptCropDrag(event){if(receiptEditorDrag&&event.pointerId===receiptEditorDrag.pointerId) receiptEditorDrag=null;}
+const receiptCropBox=document.getElementById('receiptCropBox');
+receiptCropBox.addEventListener('pointerdown',beginReceiptCropDrag);
+window.addEventListener('pointermove',moveReceiptCropDrag,{passive:false});
+window.addEventListener('pointerup',endReceiptCropDrag);window.addEventListener('pointercancel',endReceiptCropDrag);
+document.getElementById('receiptEditorCancel').addEventListener('click',closeReceiptCropEditor);
+document.getElementById('receiptEditorReset').addEventListener('click',resetReceiptCropRect);
+document.getElementById('receiptEditorSave').addEventListener('click',saveReceiptManualCrop);
+
+function moveReceiptPage(index,delta){const to=index+delta;if(to<0||to>=receiptPages.length)return;const tmp=receiptPages[index];receiptPages[index]=receiptPages[to];receiptPages[to]=tmp;receiptPdfBlob=null;renderReceiptPages();hap('sel');}
+async function buildReceiptPdf(){
+  if(!receiptPages.length) throw new Error('Нет страниц.');
+  if(!window.jspdf||!window.jspdf.jsPDF) throw new Error('Библиотека PDF не загрузилась. Проверь интернет и открой приложение заново.');
+  const {jsPDF}=window.jspdf;const firstLandscape=receiptPages[0].width>receiptPages[0].height;
+  const doc=new jsPDF({orientation:firstLandscape?'landscape':'portrait',unit:'pt',format:'a4',compress:true,putOnlyUsedFonts:true});
+  receiptPages.forEach((p,i)=>{
+    const landscape=p.width>p.height;
+    if(i>0) doc.addPage('a4',landscape?'landscape':'portrait');
+    const pageW=doc.internal.pageSize.getWidth();const pageH=doc.internal.pageSize.getHeight();
+    const margin=18;const scale=Math.min((pageW-margin*2)/p.width,(pageH-margin*2)/p.height);
+    const w=p.width*scale,h=p.height*scale;
+    doc.addImage(p.dataUrl,'JPEG',(pageW-w)/2,(pageH-h)/2,w,h,undefined,'FAST');
+  });
+  const arrayBuffer=doc.output('arraybuffer');
+  const blob=new Blob([arrayBuffer],{type:'application/pdf'});
+  await assertReceiptPdfBlob(blob);
+  return blob;
+}
+async function assertReceiptPdfBlob(blob){
+  if(!blob||blob.size<100) throw new Error('PDF не удалось собрать. Повтори снимок.');
+  const head=new Uint8Array(await blob.slice(0,5).arrayBuffer());
+  const signature=String.fromCharCode(...head);
+  if(signature!=='%PDF-') throw new Error('Собранный файл не является PDF. Закрой приложение, открой заново и повтори.');
+}
+function blobToBase64(blob){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>{const value=String(r.result||'');const comma=value.indexOf(',');const base64=comma>=0?value.slice(comma+1):'';if(!base64.startsWith('JVBERi0')){reject(new Error('PDF повредился при подготовке к отправке. Повтори сканирование.'));return;}resolve(base64);};r.onerror=()=>reject(new Error('Не удалось подготовить PDF'));r.readAsDataURL(blob);});}
+
+async function dataUrlToOcrImage_(dataUrl,maxSide=1800,quality=.82){
+  const img=await new Promise((resolve,reject)=>{const el=new Image();el.onload=()=>resolve(el);el.onerror=()=>reject(new Error('Не удалось подготовить страницу для быстрого распознавания'));el.src=dataUrl;});
+  const rawW=img.naturalWidth||img.width,rawH=img.naturalHeight||img.height;
+  const k=Math.min(1,maxSide/Math.max(rawW,rawH));
+  const w=Math.max(1,Math.round(rawW*k)),h=Math.max(1,Math.round(rawH*k));
+  const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+  const ctx=canvas.getContext('2d',{alpha:false});ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);
+  const out=await canvasToJpegDataUrl_(canvas,quality);
+  const comma=out.indexOf(',');
+  if(comma<0)throw new Error('Страница повредилась при подготовке OCR.');
+  return {mimeType:'image/jpeg',data:out.slice(comma+1),width:w,height:h};
+}
+async function buildOcrImagesPayload_(pages,onProgress){
+  const images=[];
+  for(let i=0;i<pages.length;i++){
+    if(onProgress)onProgress(i,pages.length);
+    images.push(await dataUrlToOcrImage_(pages[i].dataUrl,1800,.82));
+  }
+  return images;
+}
+async function waitForReceiptJob_(jobId,maxMs=25000){
+  const started=Date.now();
+  while(Date.now()-started<maxMs){
+    try{const res=await jsonp(STOCK_API_URL,Object.assign({action:'status',jobId},receiptAuthParams()));if(res&&res.ok)return res;}catch(_){}
+    await new Promise(resolve=>setTimeout(resolve,700));
+  }
+  throw new Error('Backend не создал задание для PDF.');
+}
+async function uploadReceiptPdfForJob_(jobId){
+  try{
+    // Сборка PDF идёт параллельно с Gemini, но запись на Drive начинается
+    // только после завершения распознавания — так два процесса не перезапишут JSON задания.
+    receiptPdfBlob=await buildReceiptPdf();
+    if(receiptPdfBlob.size>15*1024*1024)throw new Error('PDF больше 15 МБ. Уменьши количество страниц.');
+    const base64=await blobToBase64(receiptPdfBlob);
+    const ready=await waitForReceiptJob_(jobId,210000);
+    if(ready.status==='ERROR')throw new Error(ready.error||'Распознавание завершилось ошибкой.');
+    while(ready.status!=='DONE'&&ready.status!=='CONFIRMED'&&ready.status!=='SENT'&&ready.status!=='SENT_UNCONFIRMED'){
+      await new Promise(resolve=>setTimeout(resolve,900));
+      const next=await jsonp(STOCK_API_URL,Object.assign({action:'status',jobId},receiptAuthParams()));
+      if(next&&next.ok){Object.assign(ready,next);if(next.status==='ERROR')throw new Error(next.error||'Распознавание завершилось ошибкой.');}
+    }
+    await postReceipt({action:'attachPdf',jobId,pdfBase64:base64,pdfName:'FO_X_'+jobId+'.pdf'});
+    const started=Date.now();
+    while(Date.now()-started<90000){
+      const status=await jsonp(STOCK_API_URL,Object.assign({action:'status',jobId},receiptAuthParams()));
+      if(status&&status.ok&&status.pdfFileId){
+        if(receiptResult){receiptResult.pdfFileId=status.pdfFileId;receiptResult.pdfUrl=status.pdfUrl||'';}
+        receiptPdfUploadError='';
+        return status;
+      }
+      await new Promise(resolve=>setTimeout(resolve,1200));
+    }
+    throw new Error('PDF распознан, но не успел сохраниться для Telegram.');
+  }catch(err){receiptPdfUploadError=String(err&&err.message?err.message:err);throw err;}
+}
+async function ensureReceiptPdfReady_(){
+  if(!receiptPdfUploadPromise)throw new Error('PDF ещё не готов. Нажми распознавание заново.');
+  try{return await receiptPdfUploadPromise;}
+  catch(err){throw new Error('Не удалось подготовить PDF для Telegram: '+String(err&&err.message?err.message:err));}
+}
+async function startReceiptRecognition(){
+  if(!isStockApiConfigured()){setReceiptStatus('warn','Сначала вставь STOCK_API_URL в index.html.',0);return;}
+  if(!receiptPages.length){setReceiptStatus('warn','Добавь хотя бы одну страницу.',0);return;}
+  const btn=document.getElementById('receiptScan');btn.disabled=true;
+  try{
+    const mode=getReceiptMode();
+    setReceiptStatus('', 'Подготавливаю облегчённые изображения для Gemini…', .06);
+    const images=await buildOcrImagesPayload_(receiptPages,(i,total)=>setReceiptStatus('', 'Подготавливаю страницу '+(i+1)+' из '+total+'…',.06+.08*(i/Math.max(1,total))));
+    receiptJobId='rx'+Date.now()+'_'+Math.random().toString(36).slice(2,8);receiptResult=null;receiptPdfBlob=null;receiptPdfUploadError='';
+    document.getElementById('receiptResultCard').hidden=true;
+    setReceiptStatus('', mode==='check'?'Отправляю изображения и распознаю чек…':'Отправляю изображения и распознаю документы…', .15);
+    postReceipt({action:'scanImages',jobId:receiptJobId,scanMode:mode,warehouse:document.getElementById('receiptWarehouse').value,pagesCount:receiptPages.length,imagesJson:JSON.stringify(images)}).catch(()=>{});
+    // Полный PDF собирается и загружается параллельно, не блокируя Gemini.
+    receiptPdfUploadPromise=uploadReceiptPdfForJob_(receiptJobId);
+    receiptPdfUploadPromise.catch(()=>{});
+    const status=await pollReceiptJob(receiptJobId,['DONE','ERROR'],210000);if(status.status==='ERROR')throw new Error(status.error||'Ошибка распознавания');
+    receiptResult=status.result||{};receiptResult.pdfUrl=status.pdfUrl||receiptResult.pdfUrl||'';renderReceiptRecognition(receiptResult);
+    setReceiptStatus('ok',mode==='check'?'Чек распознан. Проверь текст; PDF готовится параллельно.':'Документ распознан. Проверь позиции; PDF готовится параллельно.',1);hap('ok');
+  }catch(err){setReceiptStatus('err',String(err&&err.message?err.message:err),1);}
+  finally{btn.disabled=!receiptPages.length;}
+}
+async function pollReceiptJob(jobId,finalStatuses,maxMs){
+  const token=++receiptPollingToken;const started=Date.now();let notFoundCount=0;
+  while(Date.now()-started<maxMs){
+    if(token!==receiptPollingToken) throw new Error('Операция отменена.');
+    try{const res=await jsonp(STOCK_API_URL,Object.assign({action:'status',jobId},receiptAuthParams()));if(res&&res.ok){setReceiptStatus(res.status==='ERROR'?'err':'',res.step||'Обработка…',Number(res.progress)||.2);if(finalStatuses.includes(res.status))return res;}else{notFoundCount++;if(notFoundCount>12&&res&&res.error&&!String(res.error).includes('не найден'))throw new Error(res.error);}}catch(err){if(Date.now()-started>30000&&!String(err&&err.message||err).includes('timeout'))throw err;}await new Promise(r=>setTimeout(r,2200));
+  }
+  throw new Error('Сервер отвечает слишком долго. Повтори через минуту.');
+}
+function catalogOptionKey(sheet,name){return String(sheet||'')+'|||'+String(name||'');}
+function splitCatalogKey(v){const p=String(v||'').split('|||');return{sheet:p.shift()||'',name:p.join('|||')||''};}
+function applyReceiptModeResult(mode){
+  const isCheck=mode==='check';document.getElementById('receiptDocumentFields').hidden=isCheck;document.getElementById('receiptCheckFields').hidden=!isCheck;
+  document.getElementById('receiptReviewTitle').textContent=isCheck?'Проверка чека':'Проверка документа';
+  document.getElementById('receiptConfirm').textContent=isCheck?'📦 Внести выбранные товары в сток':'✅ Внести в сток';
+  document.getElementById('receiptActionHint').textContent='PDF и сообщение можно отправить в чат сразу. Внесение распознанных товаров в сток — отдельное необязательное действие.';
+}
+function renderReceiptRecognition(r){
+  const mode=r.scanMode==='check'?'check':'document';document.getElementById('receiptMode').value=mode;applyReceiptModeResult(mode);
+  document.getElementById('receiptResultCard').hidden=false;document.getElementById('receiptDateText').value=r.documentDate||'';document.getElementById('receiptTotal').value=Number(r.totalAmount)||0;
+  document.getElementById('receiptArrivalDate').value=r.receiptDate||r.documentDate||'';document.getElementById('receiptSupplierShort').value=r.supplierShort||'';document.getElementById('receiptSupplierFull').value=r.supplierFull||'';
+  document.getElementById('receiptRealTypes').value=(r.realDocumentTypes||[]).join(', ');document.getElementById('receiptDocNumber').value=r.documentNumber||'';
+  document.getElementById('receiptPaymentCard').value=r.paymentCard||'';document.getElementById('receiptPurchaseChannel').value=r.purchaseChannel||'Покупка в магазине';
+  document.getElementById('receiptPurchaseSummary').value=r.purchaseSummary||'';document.getElementById('receiptMerchant').value=r.merchant||'';
+  document.getElementById('receiptWarehouse').value=r.warehouse||document.getElementById('receiptWarehouse').value;renderReceiptItems(r.items||[]);refreshReceiptMessage();
+  ['receiptDateText','receiptSupplierShort','receiptWarehouse','receiptPaymentCard','receiptPurchaseChannel','receiptPurchaseSummary','receiptTotal'].forEach(id=>{const el=document.getElementById(id);el.oninput=refreshReceiptMessage;el.onchange=refreshReceiptMessage;});
+  const confirmBtn=document.getElementById('receiptConfirm');confirmBtn.disabled=false;
+  const sendBtn=document.getElementById('receiptSend');sendBtn.disabled=false;sendBtn.textContent='📨 Отправить PDF и сообщение в чат';
+  window.scrollTo({top:document.getElementById('receiptResultCard').offsetTop-70,behavior:'smooth'});
+}
+function stockOptionsHtml(selectedSheet,selectedName){let html='<option value="">— не выбрано —</option>';const groups={};receiptCatalog.forEach(x=>{(groups[x.sheet]||(groups[x.sheet]=[])).push(x);});Object.keys(groups).forEach(sheet=>{html+='<optgroup label="'+escapeHtml(sheet)+'">';groups[sheet].forEach(x=>{const key=catalogOptionKey(x.sheet,x.name);const sel=(x.sheet===selectedSheet&&x.name===selectedName)?' selected':'';html+='<option value="'+escapeHtml(key)+'"'+sel+'>'+escapeHtml(x.name)+'</option>';});html+='</optgroup>';});return html;}
+function renderReceiptItems(items){
+  const root=document.getElementById('receiptItems');root.innerHTML='';
+  items.forEach((item,i)=>{const card=document.createElement('div');card.className='receipt-item'+(item.needsReview?' need-review':'')+(item.excluded||item.isService?' excluded':'');card.dataset.index=String(i);const included=!!item.include&&!item.excluded&&!item.isService;const matchLabel=item.isService?'УСЛУГА':(item.matchSource||'НЕ СОПОСТАВЛЕНО');
+    card.innerHTML='<div class="receipt-item-head"><input type="checkbox" data-include '+(included?'checked':'')+' '+((item.excluded||item.isService)?'disabled':'')+'><div class="receipt-item-name">'+escapeHtml(item.rawName||'')+'<div class="receipt-item-meta">Из чека/документа: '+formatReceiptNumber(item.quantity)+' '+escapeHtml(item.unit||'')+' · цена '+formatReceiptMoney(item.unitPriceVat)+'</div></div><span class="receipt-match">'+escapeHtml(matchLabel)+'</span></div><div class="receipt-item-fields"><label class="full">Позиция FO’X<select data-stock>'+stockOptionsHtml(item.stockSheet,item.stockName)+'</select></label><label>В сток, количество<input data-qty type="number" inputmode="decimal" step="0.001" min="0" value="'+escapeHtml(String(item.stockQuantity??item.quantity??0))+'"></label><label>Единица<input data-unit type="text" value="'+escapeHtml(item.stockUnit||item.unit||'')+'"></label><label>Новая цена с НДС<input data-price type="number" inputmode="decimal" step="0.01" min="0" value="'+escapeHtml(String(item.stockUnitPrice??item.unitPriceVat??0))+'"></label><label>Сумма строки<input data-total type="number" inputmode="decimal" step="0.01" min="0" value="'+escapeHtml(String(item.totalVat??0))+'"></label></div>';
+    const select=card.querySelector('[data-stock]');select.onchange=()=>{const x=splitCatalogKey(select.value);item.stockSheet=x.sheet;item.stockName=x.name;};root.appendChild(card);
+  });
+  if(!items.length)root.innerHTML='<div class="banq-empty">Товарные позиции не найдены. Сообщение в Telegram всё равно можно проверить и отправить.</div>';
+}
+function formatReceiptNumber(v){const n=Number(v);return Number.isFinite(n)?n.toLocaleString('ru-RU',{maximumFractionDigits:3}):'0';}
+function formatReceiptMoney(v){const n=Number(v);return Number.isFinite(n)?n.toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₽':'0,00 ₽';}
+function formatTelegramAmount(v){const n=Number(v)||0;return n.toLocaleString('ru-RU',{minimumFractionDigits:Number.isInteger(n)?0:2,maximumFractionDigits:2});}
+function refreshReceiptMessage(){
+  const mode=getReceiptMode();let lines=[];
+  if(mode==='check'){
+    lines.push(document.getElementById('receiptDateText').value.trim());
+    const card=document.getElementById('receiptPaymentCard').value.trim();lines.push(card||'Карта не указана');
+    lines.push(document.getElementById('receiptPurchaseChannel').value.trim()||'Покупка в магазине');
+    lines.push(document.getElementById('receiptPurchaseSummary').value.trim()||'Покупка');
+    lines.push('Итого: '+formatTelegramAmount(document.getElementById('receiptTotal').value)+' руб');
+    lines.push(document.getElementById('receiptWarehouse').value);
+  }else{
+    lines=[document.getElementById('receiptDateText').value.trim(),document.getElementById('receiptSupplierShort').value.trim(),RECEIPT_MESSAGE_DOC_TYPE,document.getElementById('receiptWarehouse').value];
+  }
+  document.getElementById('receiptMessage').value=lines.filter(Boolean).join('\n');
+}
+function collectReceiptPayload(){
+  const items=(receiptResult&&receiptResult.items||[]).map((base,i)=>{const card=document.querySelector('.receipt-item[data-index="'+i+'"]');if(!card)return Object.assign({},base,{include:false});const selected=splitCatalogKey(card.querySelector('[data-stock]').value);return Object.assign({},base,{include:card.querySelector('[data-include]').checked,stockSheet:selected.sheet,stockName:selected.name,stockQuantity:Number(card.querySelector('[data-qty]').value)||0,stockUnit:card.querySelector('[data-unit]').value.trim(),stockUnitPrice:Number(card.querySelector('[data-price]').value)||0,totalVat:Number(card.querySelector('[data-total]').value)||0});});
+  return {jobId:receiptJobId,scanMode:getReceiptMode(),documentDate:document.getElementById('receiptDateText').value.trim(),receiptDate:document.getElementById('receiptArrivalDate').value.trim(),supplierShort:document.getElementById('receiptSupplierShort').value.trim(),supplierFull:document.getElementById('receiptSupplierFull').value.trim(),realDocumentTypes:document.getElementById('receiptRealTypes').value.split(',').map(x=>x.trim()).filter(Boolean),documentNumber:document.getElementById('receiptDocNumber').value.trim(),paymentCard:document.getElementById('receiptPaymentCard').value.trim(),purchaseChannel:document.getElementById('receiptPurchaseChannel').value.trim(),purchaseSummary:document.getElementById('receiptPurchaseSummary').value.trim(),merchant:document.getElementById('receiptMerchant').value.trim(),totalAmount:Number(document.getElementById('receiptTotal').value)||0,warehouse:document.getElementById('receiptWarehouse').value,messageText:document.getElementById('receiptMessage').value.trim(),items};
+}
+async function confirmReceiptStock(){
+  if(!receiptJobId||!receiptResult){setReceiptStatus('warn','Сначала распознай документ или чек.',0);return;}
+  const payload=collectReceiptPayload();const selected=payload.items.filter(x=>x.include&&!x.isService);const invalid=selected.filter(x=>!x.stockSheet||!x.stockName||!(x.stockQuantity>0));
+  if(!selected.length){setReceiptStatus('warn','Выбери хотя бы одну товарную позицию. Для чека без товарного стока используй только кнопку отправки в чат.',0);return;}
+  if(invalid.length){setReceiptStatus('warn','У выбранных строк должна быть позиция FO’X и количество больше нуля.',0);return;}
+  if(!confirm('Внести '+selected.length+' позиций в '+payload.warehouse+' и обновить цены?'))return;
+  const btn=document.getElementById('receiptConfirm');btn.disabled=true;
+  try{setReceiptStatus('', 'Проверяю готовность PDF…', .1);await ensureReceiptPdfReady_();setReceiptStatus('', 'Записываю подтверждённое поступление…', .15);postReceipt({action:'confirm',jobId:receiptJobId,payload:JSON.stringify(payload)}).catch(()=>{});const status=await pollReceiptJob(receiptJobId,['CONFIRMED','SENT','ERROR'],120000);if(status.status==='ERROR')throw new Error(status.error||'Ошибка записи');receiptResult=status.result||payload;setReceiptStatus('ok','Товары внесены. Остаток и последняя закупочная цена обновлены.',1);btn.textContent='✓ Внесено в сток';document.getElementById('receiptSend').disabled=false;hap('ok');}
+  catch(err){btn.disabled=false;setReceiptStatus('err',String(err&&err.message?err.message:err),1);}
+}
+async function sendReceiptToTelegram(){
+  if(!receiptJobId){setReceiptStatus('warn','Сначала распознай документ или чек.',0);return;}
+  const btn=document.getElementById('receiptSend');btn.disabled=true;
+  try{const message=document.getElementById('receiptMessage').value.trim();setReceiptStatus('', 'Завершаю PDF для Telegram…', .12);await ensureReceiptPdfReady_();setReceiptStatus('', 'Отправляю единый PDF и сообщение в Telegram…', .2);postReceipt({action:'sendTelegram',jobId:receiptJobId,messageText:message}).catch(()=>{});const status=await pollReceiptJob(receiptJobId,['SENT','SENT_UNCONFIRMED','SEND_ERROR'],120000);if(status.status==='SEND_ERROR')throw new Error(status.error||'Ошибка Telegram');setReceiptStatus('ok','PDF и сообщение отправлены в Telegram.',1);btn.textContent='✓ Отправлено в чат';hap('ok');}
+  catch(err){btn.disabled=false;setReceiptStatus('err',String(err&&err.message?err.message:err),1);}
+}
+
+
+
+// ===== FO’X v15.13.2 — FAST IMAGE SCANNER + cash validation UI =====
+let cashReportPages=[];
+let cashReportPdfBlob=null;
+let cashReportJobId='';
+let cashReportResult=null;
+let cashReportTerminalSlips=[];
+let cashReportPrepayments=[];
+let cashReportPollingToken=0;
+
+function openCashReportSection(){
+  if(!isStockApiConfigured()){
+    setCashReportStatus('warn','Backend сканера не подключён. Проверь STOCK_API_URL.',0);
+    return;
+  }
+  if(!cashReportPages.length&&!cashReportResult) setCashReportStatus('', 'Добавь фото отчёта iiko и всех сводных слипов терминалов.',0);
+}
+function setCashReportStatus(type,text,progress){
+  const el=document.getElementById('cashReportStatus');if(!el)return;
+  el.className='cash-status '+(type||'');
+  el.innerHTML=escapeHtml(text||'')+'<div class="cash-progress"><i id="cashReportProgress"></i></div>';
+  const p=document.getElementById('cashReportProgress');if(p)p.style.width=Math.max(0,Math.min(100,Math.round((Number(progress)||0)*100)))+'%';
+}
+async function appendCashReportFiles(files){
+  files=Array.from(files||[]).filter(file=>String(file.type||'').startsWith('image/'));
+  if(!files.length)return;
+  setCashReportStatus('', 'Подготавливаю фотографии…',.05);
+  try{
+    for(const file of files) cashReportPages.push(await imageFileToReceiptPage(file));
+    cashReportPdfBlob=null;cashReportResult=null;cashReportJobId='';
+    document.getElementById('cashReportResultCard').hidden=true;
+    resetCashReportSendButton_();
+    renderCashReportPages();
+    setCashReportStatus('', 'Фотографии готовы. Проверь порядок и нажми распознавание.',0);
+  }catch(err){setCashReportStatus('err',String(err&&err.message?err.message:err),0);}
+}
+function renderCashReportPages(){
+  const root=document.getElementById('cashReportPages');const summary=document.getElementById('cashReportPageSummary');const btn=document.getElementById('cashReportRecognize');
+  if(!root)return;root.innerHTML='';
+  cashReportPages.forEach((p,i)=>{
+    const card=document.createElement('div');card.className='cash-page';
+    card.innerHTML='<span class="cash-page-num">'+(i+1)+'</span><img src="'+p.dataUrl+'" alt="Фото '+(i+1)+'"><div class="cash-page-actions">'+
+      '<button type="button" data-up '+(i===0?'disabled':'')+' title="Выше">↑</button><button type="button" data-down '+(i===cashReportPages.length-1?'disabled':'')+' title="Ниже">↓</button>'+
+      '<button type="button" data-rotate title="Повернуть">↻</button><button type="button" class="del" data-del title="Удалить">✕</button></div>';
+    card.querySelector('[data-up]').onclick=()=>moveCashReportPage(i,-1);card.querySelector('[data-down]').onclick=()=>moveCashReportPage(i,1);
+    card.querySelector('[data-rotate]').onclick=()=>rotateCashReportPage(i);card.querySelector('[data-del]').onclick=()=>{cashReportPages.splice(i,1);cashReportPdfBlob=null;cashReportResult=null;cashReportJobId='';document.getElementById('cashReportResultCard').hidden=true;resetCashReportSendButton_();renderCashReportPages();};
+    root.appendChild(card);
+  });
+  if(summary)summary.textContent=cashReportPages.length?('Фотографий: '+cashReportPages.length+'. Можно распознавать.'):'Фотографий пока нет.';
+  if(btn)btn.disabled=!cashReportPages.length;
+}
+function moveCashReportPage(index,delta){const to=index+delta;if(to<0||to>=cashReportPages.length)return;const p=cashReportPages[index];cashReportPages[index]=cashReportPages[to];cashReportPages[to]=p;cashReportPdfBlob=null;renderCashReportPages();hap('sel');}
+async function rotateCashReportPage(index){
+  const p=cashReportPages[index];if(!p)return;
+  try{setCashReportStatus('', 'Поворачиваю фото…',.05);const rotated=await rotateDataUrlClockwise(p.dataUrl,.94);p.dataUrl=rotated.dataUrl;p.originalDataUrl=rotated.dataUrl;p.width=rotated.width;p.height=rotated.height;p.orientation=p.width>p.height?'landscape':'portrait';cashReportPdfBlob=null;renderCashReportPages();setCashReportStatus('', 'Фото повёрнуто.',0);}catch(err){setCashReportStatus('err',String(err&&err.message?err.message:err),0);}
+}
+function resetCashReportSendButton_(){
+  const btn=document.getElementById('cashReportSend');
+  if(!btn)return;
+  btn.disabled=false;
+  btn.textContent='📨 Отправить отчёт в чат';
+}
+function resetCashReport(){
+  closeReceiptCamera();cashReportPollingToken++;cashReportPages=[];cashReportPdfBlob=null;cashReportJobId='';cashReportResult=null;cashReportTerminalSlips=[];cashReportPrepayments=[];
+  document.getElementById('cashReportResultCard').hidden=true;resetCashReportSendButton_();renderCashReportPages();setCashReportStatus('', 'Добавь фото отчёта iiko и всех сводных слипов терминалов.',0);
+}
+async function buildCashReportPdf(){
+  if(!cashReportPages.length)throw new Error('Нет фотографий.');
+  if(!window.jspdf||!window.jspdf.jsPDF)throw new Error('Библиотека PDF не загрузилась. Открой приложение заново.');
+  const {jsPDF}=window.jspdf;const firstLandscape=cashReportPages[0].width>cashReportPages[0].height;
+  const doc=new jsPDF({orientation:firstLandscape?'landscape':'portrait',unit:'pt',format:'a4',compress:true,putOnlyUsedFonts:true});
+  cashReportPages.forEach((p,i)=>{const landscape=p.width>p.height;if(i>0)doc.addPage('a4',landscape?'landscape':'portrait');const pageW=doc.internal.pageSize.getWidth(),pageH=doc.internal.pageSize.getHeight(),margin=18;const scale=Math.min((pageW-margin*2)/p.width,(pageH-margin*2)/p.height);const w=p.width*scale,h=p.height*scale;doc.addImage(p.dataUrl,'JPEG',(pageW-w)/2,(pageH-h)/2,w,h,undefined,'FAST');});
+  const blob=new Blob([doc.output('arraybuffer')],{type:'application/pdf'});await assertReceiptPdfBlob(blob);return blob;
+}
+async function startCashReportRecognition(){
+  if(!isStockApiConfigured()){setCashReportStatus('warn','Backend сканера не подключён.',0);return;}
+  if(!cashReportPages.length){setCashReportStatus('warn','Добавь хотя бы одно фото.',0);return;}
+  const btn=document.getElementById('cashReportRecognize');btn.disabled=true;
+  try{
+    setCashReportStatus('', 'Подготавливаю фотографии для быстрого распознавания…',.06);
+    const images=await buildOcrImagesPayload_(cashReportPages,(i,total)=>setCashReportStatus('', 'Подготавливаю фото '+(i+1)+' из '+total+'…',.06+.08*(i/Math.max(1,total))));
+    cashReportJobId='cash'+Date.now()+'_'+Math.random().toString(36).slice(2,8);cashReportResult=null;cashReportPdfBlob=null;
+    document.getElementById('cashReportResultCard').hidden=true;resetCashReportSendButton_();
+    setCashReportStatus('', 'Передаю фотографии напрямую в Gemini без PDF…',.15);
+    postReceipt({action:'cashReportScanImages',jobId:cashReportJobId,pagesCount:cashReportPages.length,imagesJson:JSON.stringify(images)}).catch(()=>{});
+    const status=await pollCashReportJob(cashReportJobId,['DONE','ERROR'],210000);
+    if(status.status==='ERROR')throw new Error(status.error||'Ошибка распознавания');
+    cashReportResult=status.result||{};renderCashReportResult(cashReportResult);setCashReportStatus('ok','Отчёт распознан. Проверь суммы и сверку терминалов.',1);hap('ok');
+  }catch(err){setCashReportStatus('err',String(err&&err.message?err.message:err),1);}
+  finally{btn.disabled=!cashReportPages.length;}
+}
+async function pollCashReportJob(jobId,finalStatuses,maxMs){
+  const token=++cashReportPollingToken;const started=Date.now();let notFound=0;
+  while(Date.now()-started<maxMs){
+    if(token!==cashReportPollingToken)throw new Error('Операция отменена.');
+    try{
+      const res=await jsonp(STOCK_API_URL,Object.assign({action:'status',jobId},receiptAuthParams()));
+      if(res&&res.ok){setCashReportStatus(res.status==='ERROR'||res.status==='SEND_ERROR'?'err':'',res.step||'Обработка…',Number(res.progress)||.2);if(finalStatuses.includes(res.status))return res;}
+      else{notFound++;if(notFound>12&&res&&res.error&&!String(res.error).includes('не найден'))throw new Error(res.error);}
+    }catch(err){if(Date.now()-started>30000&&!String(err&&err.message||err).includes('timeout'))throw err;}
+    await new Promise(resolve=>setTimeout(resolve,2200));
+  }
+  throw new Error('Сервер отвечает слишком долго. Повтори через минуту.');
+}
+function cashInputValue(id,value){const el=document.getElementById(id);if(!el)return;const n=Number(value)||0;el.value=n?String(n):'';}
+function renderCashReportResult(r){
+  document.getElementById('cashReportResultCard').hidden=false;
+  document.getElementById('cashReportDate').value=r.reportDate||'';
+  cashInputValue('cashReportTotalRevenue',r.totalRevenue);cashInputValue('cashReportBankCards',r.bankCards);cashInputValue('cashReportBankCards2',r.bankCards2);
+  cashInputValue('cashReportCashNonFiscal',r.cashNonFiscal);cashInputValue('cashReportCashFiscal',r.cashFiscal);cashInputValue('cashReportCash2',r.cash2);
+  cashInputValue('cashReportTapper',r.tapper);cashInputValue('cashReportSettlement',r.settlementAccount);cashInputValue('cashReportSettlement2',r.settlementAccount2);cashInputValue('cashReportOnlineCashbox2',r.onlineCashbox2);
+  document.getElementById('cashReportExpense').value='0';document.getElementById('cashReportExpenseComment').value='';cashInputValue('cashReportCollection',r.collectionAmount);cashInputValue('cashReportCollectionActual',r.collectionActual);document.getElementById('cashReportMorningCash').value='0';document.getElementById('cashReportChangeFund').value='70000';
+  cashReportTerminalSlips=Array.isArray(r.terminalSlips)?r.terminalSlips.map((x,i)=>({label:String(x.label||('Терминал '+(i+1))),amount:Number(x.amount)||0})).filter(x=>x.amount>0):[];
+  cashReportPrepayments=[];renderCashTerminalSlips();renderCashPrepayments();bindCashReportInputs();refreshCashReportMessage();
+  window.scrollTo({top:document.getElementById('cashReportResultCard').offsetTop-70,behavior:'smooth'});
+}
+function renderCashTerminalSlips(){
+  const root=document.getElementById('cashReportTerminalSlips');root.innerHTML='';
+  cashReportTerminalSlips.forEach((slip,i)=>{const row=document.createElement('div');row.className='cash-slip';row.innerHTML='<div class="cash-field"><label>'+escapeHtml(slip.label||('Терминал '+(i+1)))+'</label><input type="number" inputmode="decimal" step="0.01" value="'+escapeHtml(String(slip.amount||''))+'"></div><button class="cash-row-remove" type="button" title="Удалить">✕</button>';const input=row.querySelector('input');input.oninput=()=>{slip.amount=Number(input.value)||0;refreshCashReportMessage();};row.querySelector('button').onclick=()=>{cashReportTerminalSlips.splice(i,1);renderCashTerminalSlips();refreshCashReportMessage();};root.appendChild(row);});
+  if(!cashReportTerminalSlips.length)root.innerHTML='<div class="cash-summary">Суммы терминальных слипов не найдены. Добавь их вручную.</div>';
+}
+function addCashTerminalSlip(){cashReportTerminalSlips.push({label:'Терминал '+(cashReportTerminalSlips.length+1),amount:0});renderCashTerminalSlips();refreshCashReportMessage();}
+function renderCashPrepayments(){
+  const root=document.getElementById('cashReportPrepayments');root.innerHTML='';
+  cashReportPrepayments.forEach((p,i)=>{const row=document.createElement('div');row.className='cash-prepayment';row.innerHTML='<input data-date type="text" inputmode="numeric" placeholder="ДД.ММ.ГГГГ" value="'+escapeHtml(p.date||'')+'"><input data-amount type="number" inputmode="decimal" step="0.01" placeholder="Сумма" value="'+escapeHtml(p.amount?String(p.amount):'')+'"><select data-method><option value="cash">Наличными в ресторане</option><option value="online">Онлайн-касса</option><option value="card">Картой в ресторане</option><option value="account">Расчётный счёт</option></select><button class="cash-row-remove" type="button">✕</button>';row.querySelector('[data-method]').value=p.method||'online';row.querySelector('[data-date]').oninput=e=>{p.date=e.target.value;refreshCashReportMessage();};row.querySelector('[data-amount]').oninput=e=>{p.amount=Number(e.target.value)||0;refreshCashReportMessage();};row.querySelector('[data-method]').onchange=e=>{p.method=e.target.value;refreshCashReportMessage();};row.querySelector('button').onclick=()=>{cashReportPrepayments.splice(i,1);renderCashPrepayments();refreshCashReportMessage();};root.appendChild(row);});
+  if(!cashReportPrepayments.length)root.innerHTML='<div class="cash-summary">Предоплат нет. При необходимости нажми «Добавить предоплату».</div>';
+}
+function addCashPrepayment(){cashReportPrepayments.push({date:document.getElementById('cashReportDate').value||'',amount:0,method:'online'});renderCashPrepayments();refreshCashReportMessage();}
+function cashNumber(id){const el=document.getElementById(id);return Number(el&&el.value)||0;}
+function formatCashMoney(value,blankWhenZero=false){const n=Number(value)||0;if(blankWhenZero&&!n)return '';return n.toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function formatCashPlain(value){const n=Number(value)||0;return n.toLocaleString('ru-RU',{minimumFractionDigits:Number.isInteger(n)?0:2,maximumFractionDigits:2});}
+function shortCashDate(value){const m=String(value||'').match(/^(\d{2})\.(\d{2})\.(\d{4})$/);return m?(m[1]+'.'+m[2]+'.'+m[3].slice(-2)):String(value||'');}
+function cashPaymentPhrase(method){return {cash:'наличными в ресторане',online:'оплата по ссылке',card:'картой в ресторане',account:'расчётный счёт'}[method]||'оплата';}
+function cashLine(label,value){const formatted=formatCashMoney(value,true);return '🟢'+label+':'+(formatted?' '+formatted:'');}
+function updateCashComparison(){
+  const terminalTotal=cashReportTerminalSlips.reduce((sum,x)=>sum+(Number(x.amount)||0),0);const iiko=cashNumber('cashReportBankCards');const diff=terminalTotal-iiko;const el=document.getElementById('cashReportComparison');
+  if(!cashReportTerminalSlips.length){el.className='cash-compare warn';el.textContent='⚠️ Терминальные слипы не распознаны. Добавь суммы вручную.';return {terminalTotal,diff:null,text:'Слипы не указаны'};}
+  if(Math.abs(diff)<0.01){el.className='cash-compare ok';el.textContent='✅ Безнал совпадает. Терминалы: '+formatCashMoney(terminalTotal)+' · iiko: '+formatCashMoney(iiko);return {terminalTotal,diff:0,text:'Совпадает'};}
+  const plus=diff>0;el.className='cash-compare err';el.textContent='⚠️ '+(plus?'Плюс':'Минус')+' по терминалам: '+formatCashMoney(Math.abs(diff))+' · Терминалы: '+formatCashMoney(terminalTotal)+' · iiko: '+formatCashMoney(iiko);return {terminalTotal,diff,text:(plus?'Плюс':'Минус')+' '+formatCashMoney(Math.abs(diff))};
+}
+function refreshCashReportMessage(){
+  const date=document.getElementById('cashReportDate').value.trim();const expense=cashNumber('cashReportExpense');const collection=cashNumber('cashReportCollection');const actualCollection=cashNumber('cashReportCollectionActual');
+  const collectionLine='Инкассация:'+(collection?' '+formatCashPlain(collection):'')+(actualCollection?' ('+formatCashPlain(actualCollection)+')':'');
+  const lines=["🔤🔤'🔤",'', '🦊 АЛЛЕЯ 🌳','👨‍💻 ОТЧЕТ КАССОВОЙ СМЕНЫ','ДАТА '+date,'','Общая выручка: '+formatCashMoney(cashNumber('cashReportTotalRevenue')),'',
+    cashLine('Безнал',cashNumber('cashReportBankCards')),cashLine('Безнал 2',cashNumber('cashReportBankCards2')),cashLine('Нал',cashNumber('cashReportCashNonFiscal')),cashLine('Нал Фискал',cashNumber('cashReportCashFiscal')),cashLine('Нал2',cashNumber('cashReportCash2')),cashLine('Tapper',cashNumber('cashReportTapper')),cashLine('Расчётный счёт',cashNumber('cashReportSettlement')),cashLine('Расчётный счёт 2',cashNumber('cashReportSettlement2')),cashLine('Онлайн-Касса 2',cashNumber('cashReportOnlineCashbox2')),'','Расход: '+formatCashPlain(expense)];
+  const expenseComment=document.getElementById('cashReportExpenseComment').value.trim();if(expenseComment)lines.push('Комментарий к расходу: '+expenseComment);
+  lines.push('',collectionLine,'На утро в кассе ['+formatCashPlain(cashNumber('cashReportMorningCash'))+']','Неизменный размен ['+formatCashPlain(cashNumber('cashReportChangeFund'))+']');
+  cashReportPrepayments.filter(p=>p.date&&Number(p.amount)>0).forEach(p=>{lines.push('','🟢 Предоплата: '+shortCashDate(p.date),formatCashPlain(p.amount)+' '+cashPaymentPhrase(p.method));});
+  document.getElementById('cashReportMessage').value=lines.join('\n');updateCashComparison();
+}
+function bindCashReportInputs(){
+  ['cashReportDate','cashReportTotalRevenue','cashReportBankCards','cashReportBankCards2','cashReportCashNonFiscal','cashReportCashFiscal','cashReportCash2','cashReportTapper','cashReportSettlement','cashReportSettlement2','cashReportOnlineCashbox2','cashReportExpense','cashReportExpenseComment','cashReportCollection','cashReportCollectionActual','cashReportMorningCash','cashReportChangeFund'].forEach(id=>{const el=document.getElementById(id);el.oninput=refreshCashReportMessage;el.onchange=refreshCashReportMessage;});
+}
+function foxCashConfirm(message){
+  return new Promise(resolve=>{
+    const overlay=document.getElementById('foxCashConfirmOverlay');
+    const messageEl=document.getElementById('foxCashConfirmMessage');
+    const cancelBtn=document.getElementById('foxCashConfirmCancel');
+    const okBtn=document.getElementById('foxCashConfirmOk');
+    if(!overlay||!messageEl||!cancelBtn||!okBtn){resolve(false);return;}
+    let settled=false;
+    const finish=value=>{
+      if(settled)return;
+      settled=true;
+      overlay.classList.remove('show');
+      overlay.hidden=true;
+      cancelBtn.onclick=null;
+      okBtn.onclick=null;
+      overlay.onclick=null;
+      resolve(Boolean(value));
+    };
+    messageEl.textContent=String(message||'');
+    overlay.hidden=false;
+    overlay.classList.add('show');
+    cancelBtn.onclick=()=>finish(false);
+    okBtn.onclick=()=>finish(true);
+    overlay.onclick=e=>{if(e.target===overlay)finish(false);};
+  });
+}
+async function sendCashReportToTelegram(){
+  if(!cashReportJobId){setCashReportStatus('warn','Сначала распознай кассовый отчёт.',0);return;}
+  const message=document.getElementById('cashReportMessage').value.trim();if(!message){setCashReportStatus('warn','Сообщение пустое.',0);return;}
+  const comparison=updateCashComparison();
+  if(comparison.diff!==null&&Math.abs(comparison.diff)>=.01){
+    const approved=await foxCashConfirm('Есть расхождение по терминалам: '+comparison.text+'. Всё равно отправить отчёт?');
+    if(!approved)return;
+  }
+  const btn=document.getElementById('cashReportSend');btn.disabled=true;btn.textContent='Отправляю…';
+  try{
+    setCashReportStatus('', 'Отправляю кассовый отчёт в Telegram…',.25);
+    postReceipt({action:'cashReportSend',jobId:cashReportJobId,messageText:message}).catch(()=>{});
+    const status=await pollCashReportJob(cashReportJobId,['CASH_SENT','SEND_ERROR'],120000);
+    if(status.status==='SEND_ERROR')throw new Error(status.error||'Ошибка Telegram');
+    setCashReportStatus('ok','Кассовый отчёт отправлен. Можно исправить текст и отправить ещё раз.',1);
+    btn.disabled=false;
+    btn.textContent='📨 Отправить отчёт ещё раз';
+    hap('ok');
+  }catch(err){
+    btn.disabled=false;
+    btn.textContent='📨 Повторить отправку';
+    setCashReportStatus('err',String(err&&err.message?err.message:err),1);
+  }
+}
+
+const cashCameraOpen=document.getElementById('cashReportCameraOpen');if(cashCameraOpen)cashCameraOpen.addEventListener('click',()=>openReceiptCamera(-1,'cash-report'));
+const cashCameraFallback=document.getElementById('cashReportCameraFallback');if(cashCameraFallback)cashCameraFallback.addEventListener('change',async()=>{const files=Array.from(cashCameraFallback.files||[]);cashCameraFallback.value='';await appendCashReportFiles(files);});
+const cashGallery=document.getElementById('cashReportGallery');if(cashGallery)cashGallery.addEventListener('change',async()=>{const files=Array.from(cashGallery.files||[]);cashGallery.value='';await appendCashReportFiles(files);});
+document.getElementById('cashReportReset').addEventListener('click',()=>{if(cashReportPages.length&&!confirm('Удалить фотографии кассового отчёта?'))return;resetCashReport();});
+document.getElementById('cashReportRecognize').addEventListener('click',startCashReportRecognition);
+document.getElementById('cashReportAddSlip').addEventListener('click',addCashTerminalSlip);
+document.getElementById('cashReportAddPrepayment').addEventListener('click',addCashPrepayment);
+document.getElementById('cashReportSend').addEventListener('click',sendCashReportToTelegram);
+
+switchTab(DATA[0].id);
+refresh();
+setAppSection('hub');
+loadBanquets();
+
+</script>
+</body>
+</html>
