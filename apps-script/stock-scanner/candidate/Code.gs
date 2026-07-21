@@ -1,5 +1,5 @@
 /**
- * FO’X — документы, чеки, банкетный резерв и кассовый отчёт v9.4.3
+ * FO’X — документы, чеки, банкетный резерв и кассовый отчёт v9.4.4
  *
  * Назначение:
  * 1. Принимает облегчённые JPEG-страницы для быстрого распознавания.
@@ -16,7 +16,7 @@
  */
 
 const FOX_RECEIPTS = {
-  version: 'v9.4.3 CASH REPORT VALIDATION FIX',
+  version: 'v9.4.4 CASH REPORT SOURCE RULES FIX',
 
   stockSheets: [
     'Вино',
@@ -1185,18 +1185,12 @@ function terminalSlipResolvedAmount_(slip) {
   const qr = number_(slip.qr_amount);
   const total = number_(slip.total_amount || slip.amount);
   const components = card + qr;
-  const tolerance = 0.05;
 
-  if (components > 0) {
-    if (total <= 0) return components;
-    if (Math.abs(total - components) <= tolerance) return total;
-    // Типичная ошибка OCR: в итог попала только строка «Оплата», а QR потерян.
-    if (qr > 0 && Math.abs(total - card) <= tolerance) return components;
-    if (card > 0 && Math.abs(total - qr) <= tolerance) return components;
-    // При конфликте не теряем QR: используем сумму двух явно распознанных блоков.
-    return components;
-  }
-  return total;
+  // Нижний блок «Количество оплат → На сумму» — единственный главный итог слипа.
+  // Компоненты «Оплата» и «Оплата QR» используются только как запасной вариант,
+  // когда итоговый блок не распознан совсем.
+  if (total > 0) return total;
+  return components;
 }
 
 function terminalSlipSetSummary_(slips, bankCards) {
@@ -1245,9 +1239,8 @@ function chooseBetterTerminalSlipSet_(first, second, bankCards) {
   if (!b.positiveCount) return a.slips;
   if (!a.positiveCount) return b.slips;
 
-  if (bankCards > 0 && Math.abs(a.iikoError - b.iikoError) > 0.5) {
-    return b.iikoError < a.iikoError ? b.slips : a.slips;
-  }
+  // Не выбираем OCR-вариант по близости к iiko: реальное расхождение должно
+  // остаться видимым. Сравниваем только внутреннее качество самих слипов.
   if (b.consistencyCount !== a.consistencyCount) return b.consistencyCount > a.consistencyCount ? b.slips : a.slips;
   if (b.qrCount !== a.qrCount) return b.qrCount > a.qrCount ? b.slips : a.slips;
   if (b.positiveCount !== a.positiveCount) return b.positiveCount > a.positiveCount ? b.slips : a.slips;
@@ -1345,21 +1338,9 @@ function cashDateCandidates_(result) {
 }
 
 function resolveCashReportDate_(reportDate, envelopeDate, slips) {
-  const result = { report_date:reportDate, envelope_date:envelopeDate, terminal_slips:Array.isArray(slips) ? slips.map(function(x) {
-    return { slip_date:x && (x.slipDate || x.slip_date) };
-  }) : [] };
-  const candidates = cashDateCandidates_(result);
-  if (!candidates.length) return normalizeDate_(reportDate);
-
-  const scores = {};
-  candidates.forEach(function(x) { scores[x.date] = (scores[x.date] || 0) + x.weight; });
-  const dates = Object.keys(scores).sort(function(a,b) { return scores[b] - scores[a]; });
-  const best = dates[0];
-  const iiko = validCashDate_(reportDate);
-
-  // Длинный отчёт iiko остаётся главным источником, если остальные документы не дают явного консенсуса.
-  if (iiko && best !== iiko && scores[best] < 4) return iiko;
-  return best || iiko;
+  // Дата кассовой смены берётся только из длинного отчёта iiko.
+  // Даты конверта и терминальных слипов служат для проверки, но не подменяют её.
+  return validCashDate_(reportDate) || normalizeDate_(reportDate);
 }
 
 function iikoCoreNeedsVerification_(result) {
@@ -1540,6 +1521,7 @@ function sanitizeCashReportResult_(r, pagesCount) {
     const qrAmount = number_(x.qr_amount);
     const totalAmount = number_(x.total_amount || x.amount);
     const resolvedAmount = terminalSlipResolvedAmount_(x);
+    const componentsAmount = cardAmount + qrAmount;
     return {
       label: String(x.label || ('Терминал ' + (i + 1))).trim(),
       slipDate: normalizeDate_(x.slip_date),
@@ -1547,7 +1529,8 @@ function sanitizeCashReportResult_(r, pagesCount) {
       cardAmount: cardAmount,
       qrAmount: qrAmount,
       totalAmount: totalAmount,
-      correctedByComponents: cardAmount + qrAmount > 0 && Math.abs(resolvedAmount - totalAmount) > 0.05
+      correctedByComponents: totalAmount <= 0 && componentsAmount > 0,
+      componentMismatch: totalAmount > 0 && componentsAmount > 0 && Math.abs(totalAmount - componentsAmount) > 0.05
     };
   }).filter(function(x) { return x.amount > 0; }) : [];
 

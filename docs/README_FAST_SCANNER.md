@@ -1,9 +1,9 @@
-# FO’X v15.13 — FAST SCANNER
+# FO’X v15.13.2 / backend v9.4.4 — FAST SCANNER
 
 ## Файлы
 
-- `FOX_index_v15_13_FAST_SCANNER_READY.html`
-- `FOX_Stock_Documents_Checks_Backend_v9_4_FAST_IMAGE_PIPELINE.gs`
+- `frontend/candidate/index.html`
+- `apps-script/stock-scanner/candidate/Code.gs`
 
 ## Что изменено
 
@@ -13,6 +13,9 @@
 4. Полный качественный PDF собирается параллельно и сохраняется отдельно для отправки в Telegram.
 5. Кассовый отчёт распознаётся напрямую по JPEG, без PDF.
 6. Команды статуса банкета и «Заказ отправлен» переведены на JSONP с проверяемым ответом backend.
+7. В backend v9.4.4 итог терминала берётся строго из «Количество оплат → На сумму».
+8. Повторное OCR не подгоняет терминальный итог под iiko.
+9. Дата кассовой смены берётся только из длинного отчёта iiko.
 
 ## Что не меняется
 
@@ -27,14 +30,14 @@
 ### Apps Script сканера/стока
 
 1. Открыть `Code.gs`.
-2. Заменить весь файл кодом `FOX_Stock_Documents_Checks_Backend_v9_4_FAST_IMAGE_PIPELINE.gs`.
+2. Заменить весь файл кодом `apps-script/stock-scanner/candidate/Code.gs`.
 3. Сохранить.
 4. Развернуть → Управление развертываниями → карандаш → Новая версия → Развернуть.
-5. Проверить `?action=ping`: версия должна быть `v9.4 FAST IMAGE PIPELINE`.
+5. Проверить `?action=ping`: версия должна быть `v9.4.4 CASH REPORT SOURCE RULES FIX`.
 
 ### GitHub Pages
 
-1. Заменить весь `index.html` файлом `FOX_index_v15_13_FAST_SCANNER_READY.html`.
+1. Заменить весь `index.html` файлом `frontend/candidate/index.html`.
 2. Commit changes.
 3. Открыть Mini App с `?v=15.13`.
 

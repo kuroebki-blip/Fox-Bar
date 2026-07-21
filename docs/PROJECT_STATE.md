@@ -14,7 +14,7 @@
 ## Latest candidate in this repository
 
 - `frontend/candidate/index.html`: v15.13.2 CASH REPORT VALIDATION UI.
-- `apps-script/stock-scanner/candidate/Code.gs`: v9.4.3 CASH REPORT VALIDATION FIX.
+- `apps-script/stock-scanner/candidate/Code.gs`: v9.4.4 CASH REPORT SOURCE RULES FIX.
 
 Candidate включает:
 
@@ -26,6 +26,9 @@ Candidate включает:
 - повторную отправку отчёта;
 - собственное окно подтверждения без отображения домена GitHub Pages;
 - повторную проверку даты и нефискальной налички.
+- строгий приоритет итогового блока терминального слипа;
+- защиту от подгонки повторного OCR под сумму iiko;
+- строгий источник даты кассовой смены — длинный отчёт iiko.
 
 ## Known open issues
 
@@ -33,4 +36,4 @@ Candidate включает:
 2. После перевода банкета в «Пройден» иногда не снимается резерв.
 3. Новые позиции банкета иногда не добавляются в `Банкеты_Резерв`.
 4. Сканер документов требует замеров скорости на реальном Android.
-5. Candidate v15.13.2/v9.4.3 требует живого теста после публикации.
+5. Candidate v15.13.2/v9.4.4 требует живого теста после публикации.
