@@ -9,6 +9,8 @@
 - рабочий Web App URL сохранён; `?action=ping` вернул `v9.4.4`;
 - GitHub Pages завершил сборку со статусом `built`, публичный HTML содержит `v15.13.3` и рабочий Web App URL;
 - браузерный smoke-тест открыл главную, «Документы и чеки» и «Кассовый отчёт» без критических JavaScript-ошибок.
+- Tatooine: отдельный frontend `v1.0.0 CASH REPORT ONLY` опубликован по адресу `https://kuroebki-blip.github.io/Fox-Bar/tatooine/`;
+- Tatooine использует существующий backend `v9.4.4`; FO’X frontend и Apps Script при его публикации не изменялись.
 
 Ещё проверить вручную:
 
@@ -20,7 +22,6 @@
 
 - `frontend/candidate/index.html`: v15.13.3 SCANNER JOB SAFETY.
 - `apps-script/stock-scanner/candidate/Code.gs`: v9.4.4 CASH REPORT SOURCE RULES FIX.
-- `frontend/tatooine/`: v1.0.0 CASH REPORT ONLY, отдельный modular frontend на существующем backend v9.4.4.
 
 Candidate включает:
 

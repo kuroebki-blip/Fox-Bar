@@ -4,7 +4,9 @@
 
 - frontend: `v1.0.0 CASH REPORT ONLY`;
 - backend: существующий FO’X scanner/stock Web App `v9.4.4`;
-- статус: candidate, автоматические проверки пройдены, Telegram-тест и публикация не выполнены.
+- статус: production с 22 июля 2026, Telegram-тест на реальных фото ожидается;
+- URL: `https://kuroebki-blip.github.io/Fox-Bar/tatooine/`;
+- GitHub: PR №2, merge commit `4dd3219c6d4f470d9efb2d49f8e2c032d432b794`.
 
 ## Состав
 
@@ -31,7 +33,16 @@ Backend проверяет Telegram `initData` токеном, который х
 - исправленный отчёт можно отправить повторно;
 - фотографии не сохраняются в Google Sheets и Google Drive.
 
-## Проверка перед публикацией
+## Результаты автоматической проверки
+
+- 20/20 тестов проекта;
+- синтаксис `app.js` проверен;
+- GitHub Pages собран со статусом `built`;
+- публичные `app.js` и `styles.css` отвечают HTTP 200;
+- браузерный smoke-тест загрузил интерфейс без критических ошибок;
+- публичный frontend получил `ping v9.4.4` существующего backend.
+
+## Живой тест
 
 1. Открыть Tatooine из существующего Telegram-бота.
 2. Проверить отчёт iiko и два терминальных слипа, один из них с QR.
@@ -41,4 +52,4 @@ Backend проверяет Telegram `initData` токеном, который х
 
 ## Откат
 
-Вернуть предыдущий frontend-файл в репозитории Tatooine или отключить новую кнопку Mini App в Telegram. Существующий FO’X backend при публикации этого frontend не изменяется.
+Отменить merge commit `4dd3219c6d4f470d9efb2d49f8e2c032d432b794` или отключить новую кнопку Mini App в Telegram. Существующий FO’X backend при публикации этого frontend не изменялся.

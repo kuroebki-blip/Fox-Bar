@@ -2,7 +2,7 @@
 
 ## Tatooine frontend v1.0.0 — CASH REPORT ONLY
 
-Статус: candidate от 22 июля 2026; автоматические проверки пройдены, Telegram-тест и публикация ожидаются.
+Статус: production с 22 июля 2026; GitHub Pages опубликован, 20/20 тестов и браузерный smoke-тест пройдены, Telegram-тест на реальных фото ожидается.
 
 Что добавлено:
 
@@ -16,7 +16,7 @@
 
 Как откатиться:
 
-- вернуть предыдущий frontend в отдельном репозитории Tatooine или отключить кнопку Mini App;
+- отменить merge commit `4dd3219c6d4f470d9efb2d49f8e2c032d432b794` или отключить кнопку Mini App;
 - Apps Script откатывать не требуется, потому что backend не изменяется.
 
 ## Frontend v15.13.3 — SCANNER JOB SAFETY
