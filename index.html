@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.13.2 — CASH VALIDATION UI</title>
+<title>FO'X App v15.13.3 — SCANNER JOB SAFETY</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -2163,6 +2163,41 @@ let receiptEditorSourceImage = null;
 let receiptEditorRect = null;
 let receiptEditorDrag = null;
 
+// ===== SCANNER TESTABLE HELPERS START =====
+const RECEIPT_MAX_OCR_PAGES = 20;
+const RECEIPT_MAX_OCR_IMAGE_BYTES = 6 * 1024 * 1024;
+// 12 MiB decoded becomes about 16 MiB as base64 and leaves room for the prompt
+// inside Gemini's full inline request limit.
+const RECEIPT_MAX_OCR_TOTAL_BYTES = 12 * 1024 * 1024;
+
+function receiptJobIsActive_(currentJobId, expectedJobId){
+  return Boolean(expectedJobId) && currentJobId===expectedJobId;
+}
+function base64DecodedBytes_(value){
+  const clean=String(value||'').replace(/\s+/g,'');
+  if(!clean)return 0;
+  const padding=clean.endsWith('==')?2:(clean.endsWith('=')?1:0);
+  return Math.max(0,Math.floor(clean.length*3/4)-padding);
+}
+function assertOcrPageCount_(count){
+  if(count<1)throw new Error('Добавь хотя бы одну страницу.');
+  if(count>RECEIPT_MAX_OCR_PAGES)throw new Error('Слишком много страниц. Максимум '+RECEIPT_MAX_OCR_PAGES+' изображений.');
+}
+function validateOcrImagesPayload_(images){
+  const list=Array.isArray(images)?images:[];
+  assertOcrPageCount_(list.length);
+  let totalBytes=0;
+  list.forEach((item,index)=>{
+    const bytes=base64DecodedBytes_(item&&item.data);
+    if(bytes<100)throw new Error('Страница '+(index+1)+' пустая.');
+    if(bytes>RECEIPT_MAX_OCR_IMAGE_BYTES)throw new Error('Страница '+(index+1)+' слишком большая для распознавания.');
+    totalBytes+=bytes;
+  });
+  if(totalBytes>RECEIPT_MAX_OCR_TOTAL_BYTES)throw new Error('Общий размер OCR-фотографий больше 12 МБ. Уменьши количество страниц.');
+  return {pages:list.length,totalBytes};
+}
+// ===== SCANNER TESTABLE HELPERS END =====
+
 
 function isStockApiConfigured(){
   return STOCK_API_URL && !STOCK_API_URL.includes('PASTE_STOCK_APPS_SCRIPT_WEB_APP_URL_HERE');
@@ -2210,7 +2245,7 @@ function updateReceiptModeUi(resetResult){
   document.getElementById('receiptCameraTitle').textContent=isCheck?'Сфотографировать часть чека':'Сфотографировать страницу';
   document.getElementById('receiptScan').textContent=isCheck?'Собрать PDF и распознать чек':'Собрать PDF и распознать';
   if(resetResult){
-    receiptPdfBlob=null;receiptResult=null;receiptJobId='';
+    invalidateReceiptRecognition_();
     document.getElementById('receiptResultCard').hidden=true;
     setReceiptStatus('',isCheck?'Добавь фото всего чека. Для длинного чека можно сделать несколько кадров.':'Добавь фотографии всех страниц одного документа.',0);
   }
@@ -2245,10 +2280,10 @@ function postReceipt(fields){
 async function appendReceiptFiles(files, preparingText){
   files=Array.from(files||[]).filter(file=>String(file.type||'').startsWith('image/'));
   if(!files.length) return;
+  invalidateReceiptRecognition_();
   setReceiptStatus('', preparingText||'Подготавливаю страницы…', .05);
   try{
     for(const file of files) receiptPages.push(await imageFileToReceiptPage(file));
-    receiptPdfBlob=null;receiptResult=null;receiptJobId='';
     document.getElementById('receiptResultCard').hidden=true;
     renderReceiptPages();
     setReceiptStatus('', 'Страницы готовы. Проверь порядок и нажми распознавание.',0);
@@ -2497,11 +2532,11 @@ async function captureReceiptCameraFrame(){
     flash.classList.remove('show');void flash.offsetWidth;flash.classList.add('show');
     if(receiptCameraPurpose==='cash-report'){
       cashReportPages.push(page);
-      cashReportPdfBlob=null;cashReportResult=null;cashReportJobId='';
+      invalidateCashReportRecognition_();
       document.getElementById('cashReportResultCard').hidden=true;
     }else if(receiptCameraReplaceIndex>=0){
       receiptPages[receiptCameraReplaceIndex]=page;
-      receiptPdfBlob=null;receiptResult=null;receiptJobId='';
+      invalidateReceiptRecognition_();
       document.getElementById('receiptResultCard').hidden=true;
       receiptCameraDirty=true;
       closeReceiptCamera();
@@ -2509,7 +2544,7 @@ async function captureReceiptCameraFrame(){
       return;
     }else{
       receiptPages.push(page);
-      receiptPdfBlob=null;receiptResult=null;receiptJobId='';
+      invalidateReceiptRecognition_();
       document.getElementById('receiptResultCard').hidden=true;
     }
     receiptCameraSessionShots++;
@@ -2592,7 +2627,7 @@ if(receiptReshootFallback){
     try{
       setReceiptStatus('', 'Переснимаю страницу '+(index+1)+'…', .05);
       receiptPages[index]=await imageFileToReceiptPage(file);
-      receiptPdfBlob=null;receiptResult=null;receiptJobId='';
+      invalidateReceiptRecognition_();
       document.getElementById('receiptResultCard').hidden=true;
       renderReceiptPages();setReceiptStatus('', 'Страница заменена. Проверь порядок.',0);
     }catch(err){setReceiptStatus('err',String(err&&err.message?err.message:err),0);}
@@ -2610,8 +2645,13 @@ document.getElementById('receiptOpenPdf').onclick=()=>{
 };
 function resetReceiptScanner(){
   closeReceiptCamera();closeReceiptCropEditor();
-  receiptPollingToken++;receiptPages=[];receiptPdfBlob=null;receiptPdfUploadPromise=null;receiptPdfUploadError='';receiptJobId='';receiptResult=null;receiptReshootIndex=-1;
-  document.getElementById('receiptResultCard').hidden=true;renderReceiptPages();updateReceiptModeUi(true);
+  receiptPages=[];invalidateReceiptRecognition_();receiptReshootIndex=-1;
+  renderReceiptPages();updateReceiptModeUi(true);
+}
+function invalidateReceiptRecognition_(){
+  receiptPollingToken++;
+  receiptPdfBlob=null;receiptPdfUploadPromise=null;receiptPdfUploadError='';receiptJobId='';receiptResult=null;
+  const card=document.getElementById('receiptResultCard');if(card)card.hidden=true;
 }
 async function imageFileToReceiptPage(file){
   const raw=await readFileAsDataUrl(file);
@@ -2642,7 +2682,7 @@ function renderReceiptPages(){
     card.querySelector('[data-crop]').onclick=()=>openReceiptCropEditor(i);
     card.querySelector('[data-rotate]').onclick=()=>rotateReceiptPage(i);
     card.querySelector('[data-reshoot]').onclick=()=>openReceiptCamera(i);
-    card.querySelector('[data-del]').onclick=()=>{receiptPages.splice(i,1);receiptPdfBlob=null;renderReceiptPages();};root.appendChild(card);
+    card.querySelector('[data-del]').onclick=()=>{receiptPages.splice(i,1);invalidateReceiptRecognition_();renderReceiptPages();};root.appendChild(card);
   });
   scan.disabled=!receiptPages.length;
   summary.textContent=receiptPages.length?('Страниц/кадров: '+receiptPages.length+'. При необходимости обрежь края кнопкой ✂. Все страницы объединятся в один PDF.'):'Страниц пока нет.';
@@ -2662,7 +2702,7 @@ async function rotateReceiptPage(index){
     const current=await rotateDataUrlClockwise(page.dataUrl,.84);
     const original=await rotateDataUrlClockwise(page.originalDataUrl||page.dataUrl,.84);
     receiptPages[index]=Object.assign({},page,{width:current.width,height:current.height,orientation:current.width>current.height?'landscape':'portrait',dataUrl:current.dataUrl,originalDataUrl:original.dataUrl});
-    receiptPdfBlob=null;receiptResult=null;receiptJobId='';
+    invalidateReceiptRecognition_();
     document.getElementById('receiptResultCard').hidden=true;
     renderReceiptPages();setReceiptStatus('', 'Страница '+(index+1)+' повернута по часовой стрелке.',0);hap('sel');
   }catch(err){setReceiptStatus('err',String(err&&err.message?err.message:err),0);}
@@ -2717,7 +2757,7 @@ async function saveReceiptManualCrop(){
     const ctx=canvas.getContext('2d',{alpha:false});ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
     ctx.drawImage(img,sx,sy,sw,sh,0,0,canvas.width,canvas.height);
     receiptPages[index]=Object.assign({},page,{width:canvas.width,height:canvas.height,orientation:canvas.width>canvas.height?'landscape':'portrait',cropped:true,cropNote:'Обрезано вручную.',dataUrl:canvas.toDataURL('image/jpeg',.84)});
-    receiptPdfBlob=null;receiptResult=null;receiptJobId='';document.getElementById('receiptResultCard').hidden=true;
+    invalidateReceiptRecognition_();document.getElementById('receiptResultCard').hidden=true;
     closeReceiptCropEditor();renderReceiptPages();setReceiptStatus('ok','Страница '+(index+1)+' обрезана вручную.',0);hap('ok');
   }catch(err){setReceiptStatus('err',String(err&&err.message?err.message:err),0);}
 }
@@ -2751,13 +2791,13 @@ document.getElementById('receiptEditorCancel').addEventListener('click',closeRec
 document.getElementById('receiptEditorReset').addEventListener('click',resetReceiptCropRect);
 document.getElementById('receiptEditorSave').addEventListener('click',saveReceiptManualCrop);
 
-function moveReceiptPage(index,delta){const to=index+delta;if(to<0||to>=receiptPages.length)return;const tmp=receiptPages[index];receiptPages[index]=receiptPages[to];receiptPages[to]=tmp;receiptPdfBlob=null;renderReceiptPages();hap('sel');}
-async function buildReceiptPdf(){
-  if(!receiptPages.length) throw new Error('Нет страниц.');
+function moveReceiptPage(index,delta){const to=index+delta;if(to<0||to>=receiptPages.length)return;const tmp=receiptPages[index];receiptPages[index]=receiptPages[to];receiptPages[to]=tmp;invalidateReceiptRecognition_();renderReceiptPages();hap('sel');}
+async function buildReceiptPdf(pages=receiptPages){
+  if(!pages.length) throw new Error('Нет страниц.');
   if(!window.jspdf||!window.jspdf.jsPDF) throw new Error('Библиотека PDF не загрузилась. Проверь интернет и открой приложение заново.');
-  const {jsPDF}=window.jspdf;const firstLandscape=receiptPages[0].width>receiptPages[0].height;
+  const {jsPDF}=window.jspdf;const firstLandscape=pages[0].width>pages[0].height;
   const doc=new jsPDF({orientation:firstLandscape?'landscape':'portrait',unit:'pt',format:'a4',compress:true,putOnlyUsedFonts:true});
-  receiptPages.forEach((p,i)=>{
+  pages.forEach((p,i)=>{
     const landscape=p.width>p.height;
     if(i>0) doc.addPage('a4',landscape?'landscape':'portrait');
     const pageW=doc.internal.pageSize.getWidth();const pageH=doc.internal.pageSize.getHeight();
@@ -2791,48 +2831,57 @@ async function dataUrlToOcrImage_(dataUrl,maxSide=1800,quality=.82){
   return {mimeType:'image/jpeg',data:out.slice(comma+1),width:w,height:h};
 }
 async function buildOcrImagesPayload_(pages,onProgress){
+  assertOcrPageCount_(pages.length);
   const images=[];
   for(let i=0;i<pages.length;i++){
     if(onProgress)onProgress(i,pages.length);
     images.push(await dataUrlToOcrImage_(pages[i].dataUrl,1800,.82));
   }
+  validateOcrImagesPayload_(images);
   return images;
 }
 async function waitForReceiptJob_(jobId,maxMs=25000){
   const started=Date.now();
   while(Date.now()-started<maxMs){
+    if(!receiptJobIsActive_(receiptJobId,jobId))throw new Error('Операция отменена.');
     try{const res=await jsonp(STOCK_API_URL,Object.assign({action:'status',jobId},receiptAuthParams()));if(res&&res.ok)return res;}catch(_){}
     await new Promise(resolve=>setTimeout(resolve,700));
   }
   throw new Error('Backend не создал задание для PDF.');
 }
-async function uploadReceiptPdfForJob_(jobId){
+async function uploadReceiptPdfForJob_(jobId,pagesSnapshot){
   try{
     // Сборка PDF идёт параллельно с Gemini, но запись на Drive начинается
     // только после завершения распознавания — так два процесса не перезапишут JSON задания.
-    receiptPdfBlob=await buildReceiptPdf();
-    if(receiptPdfBlob.size>15*1024*1024)throw new Error('PDF больше 15 МБ. Уменьши количество страниц.');
-    const base64=await blobToBase64(receiptPdfBlob);
+    const pdfBlob=await buildReceiptPdf(pagesSnapshot);
+    if(!receiptJobIsActive_(receiptJobId,jobId))throw new Error('Операция отменена.');
+    if(pdfBlob.size>15*1024*1024)throw new Error('PDF больше 15 МБ. Уменьши количество страниц.');
+    const base64=await blobToBase64(pdfBlob);
+    if(!receiptJobIsActive_(receiptJobId,jobId))throw new Error('Операция отменена.');
     const ready=await waitForReceiptJob_(jobId,210000);
     if(ready.status==='ERROR')throw new Error(ready.error||'Распознавание завершилось ошибкой.');
     while(ready.status!=='DONE'&&ready.status!=='CONFIRMED'&&ready.status!=='SENT'&&ready.status!=='SENT_UNCONFIRMED'){
+      if(!receiptJobIsActive_(receiptJobId,jobId))throw new Error('Операция отменена.');
       await new Promise(resolve=>setTimeout(resolve,900));
       const next=await jsonp(STOCK_API_URL,Object.assign({action:'status',jobId},receiptAuthParams()));
       if(next&&next.ok){Object.assign(ready,next);if(next.status==='ERROR')throw new Error(next.error||'Распознавание завершилось ошибкой.');}
     }
+    if(!receiptJobIsActive_(receiptJobId,jobId))throw new Error('Операция отменена.');
     await postReceipt({action:'attachPdf',jobId,pdfBase64:base64,pdfName:'FO_X_'+jobId+'.pdf'});
     const started=Date.now();
     while(Date.now()-started<90000){
+      if(!receiptJobIsActive_(receiptJobId,jobId))throw new Error('Операция отменена.');
       const status=await jsonp(STOCK_API_URL,Object.assign({action:'status',jobId},receiptAuthParams()));
       if(status&&status.ok&&status.pdfFileId){
-        if(receiptResult){receiptResult.pdfFileId=status.pdfFileId;receiptResult.pdfUrl=status.pdfUrl||'';}
+        receiptPdfBlob=pdfBlob;
+        if(receiptResult&&receiptJobIsActive_(receiptJobId,jobId)){receiptResult.pdfFileId=status.pdfFileId;receiptResult.pdfUrl=status.pdfUrl||'';}
         receiptPdfUploadError='';
         return status;
       }
       await new Promise(resolve=>setTimeout(resolve,1200));
     }
     throw new Error('PDF распознан, но не успел сохраниться для Telegram.');
-  }catch(err){receiptPdfUploadError=String(err&&err.message?err.message:err);throw err;}
+  }catch(err){if(receiptJobIsActive_(receiptJobId,jobId))receiptPdfUploadError=String(err&&err.message?err.message:err);throw err;}
 }
 async function ensureReceiptPdfReady_(){
   if(!receiptPdfUploadPromise)throw new Error('PDF ещё не готов. Нажми распознавание заново.');
@@ -2842,19 +2891,24 @@ async function ensureReceiptPdfReady_(){
 async function startReceiptRecognition(){
   if(!isStockApiConfigured()){setReceiptStatus('warn','Сначала вставь STOCK_API_URL в index.html.',0);return;}
   if(!receiptPages.length){setReceiptStatus('warn','Добавь хотя бы одну страницу.',0);return;}
+  try{assertOcrPageCount_(receiptPages.length);}catch(err){setReceiptStatus('warn',String(err.message||err),0);return;}
   const btn=document.getElementById('receiptScan');btn.disabled=true;
   try{
     const mode=getReceiptMode();
+    const pagesSnapshot=receiptPages.map(page=>Object.assign({},page));
+    invalidateReceiptRecognition_();
     setReceiptStatus('', 'Подготавливаю облегчённые изображения для Gemini…', .06);
-    const images=await buildOcrImagesPayload_(receiptPages,(i,total)=>setReceiptStatus('', 'Подготавливаю страницу '+(i+1)+' из '+total+'…',.06+.08*(i/Math.max(1,total))));
+    const images=await buildOcrImagesPayload_(pagesSnapshot,(i,total)=>setReceiptStatus('', 'Подготавливаю страницу '+(i+1)+' из '+total+'…',.06+.08*(i/Math.max(1,total))));
     receiptJobId='rx'+Date.now()+'_'+Math.random().toString(36).slice(2,8);receiptResult=null;receiptPdfBlob=null;receiptPdfUploadError='';
+    const activeJobId=receiptJobId;
     document.getElementById('receiptResultCard').hidden=true;
     setReceiptStatus('', mode==='check'?'Отправляю изображения и распознаю чек…':'Отправляю изображения и распознаю документы…', .15);
-    postReceipt({action:'scanImages',jobId:receiptJobId,scanMode:mode,warehouse:document.getElementById('receiptWarehouse').value,pagesCount:receiptPages.length,imagesJson:JSON.stringify(images)}).catch(()=>{});
+    postReceipt({action:'scanImages',jobId:receiptJobId,scanMode:mode,warehouse:document.getElementById('receiptWarehouse').value,pagesCount:pagesSnapshot.length,imagesJson:JSON.stringify(images)}).catch(()=>{});
     // Полный PDF собирается и загружается параллельно, не блокируя Gemini.
-    receiptPdfUploadPromise=uploadReceiptPdfForJob_(receiptJobId);
+    receiptPdfUploadPromise=uploadReceiptPdfForJob_(activeJobId,pagesSnapshot);
     receiptPdfUploadPromise.catch(()=>{});
-    const status=await pollReceiptJob(receiptJobId,['DONE','ERROR'],210000);if(status.status==='ERROR')throw new Error(status.error||'Ошибка распознавания');
+    const status=await pollReceiptJob(activeJobId,['DONE','ERROR'],210000);if(status.status==='ERROR')throw new Error(status.error||'Ошибка распознавания');
+    if(!receiptJobIsActive_(receiptJobId,activeJobId))throw new Error('Операция отменена.');
     receiptResult=status.result||{};receiptResult.pdfUrl=status.pdfUrl||receiptResult.pdfUrl||'';renderReceiptRecognition(receiptResult);
     setReceiptStatus('ok',mode==='check'?'Чек распознан. Проверь текст; PDF готовится параллельно.':'Документ распознан. Проверь позиции; PDF готовится параллельно.',1);hap('ok');
   }catch(err){setReceiptStatus('err',String(err&&err.message?err.message:err),1);}
@@ -2938,7 +2992,7 @@ async function sendReceiptToTelegram(){
 
 
 
-// ===== FO’X v15.13.2 — FAST IMAGE SCANNER + cash validation UI =====
+// ===== FO’X v15.13.3 — FAST IMAGE SCANNER + job safety =====
 let cashReportPages=[];
 let cashReportPdfBlob=null;
 let cashReportJobId='';
@@ -2963,12 +3017,10 @@ function setCashReportStatus(type,text,progress){
 async function appendCashReportFiles(files){
   files=Array.from(files||[]).filter(file=>String(file.type||'').startsWith('image/'));
   if(!files.length)return;
+  invalidateCashReportRecognition_();
   setCashReportStatus('', 'Подготавливаю фотографии…',.05);
   try{
     for(const file of files) cashReportPages.push(await imageFileToReceiptPage(file));
-    cashReportPdfBlob=null;cashReportResult=null;cashReportJobId='';
-    document.getElementById('cashReportResultCard').hidden=true;
-    resetCashReportSendButton_();
     renderCashReportPages();
     setCashReportStatus('', 'Фотографии готовы. Проверь порядок и нажми распознавание.',0);
   }catch(err){setCashReportStatus('err',String(err&&err.message?err.message:err),0);}
@@ -2982,16 +3034,16 @@ function renderCashReportPages(){
       '<button type="button" data-up '+(i===0?'disabled':'')+' title="Выше">↑</button><button type="button" data-down '+(i===cashReportPages.length-1?'disabled':'')+' title="Ниже">↓</button>'+
       '<button type="button" data-rotate title="Повернуть">↻</button><button type="button" class="del" data-del title="Удалить">✕</button></div>';
     card.querySelector('[data-up]').onclick=()=>moveCashReportPage(i,-1);card.querySelector('[data-down]').onclick=()=>moveCashReportPage(i,1);
-    card.querySelector('[data-rotate]').onclick=()=>rotateCashReportPage(i);card.querySelector('[data-del]').onclick=()=>{cashReportPages.splice(i,1);cashReportPdfBlob=null;cashReportResult=null;cashReportJobId='';document.getElementById('cashReportResultCard').hidden=true;resetCashReportSendButton_();renderCashReportPages();};
+    card.querySelector('[data-rotate]').onclick=()=>rotateCashReportPage(i);card.querySelector('[data-del]').onclick=()=>{cashReportPages.splice(i,1);invalidateCashReportRecognition_();renderCashReportPages();};
     root.appendChild(card);
   });
   if(summary)summary.textContent=cashReportPages.length?('Фотографий: '+cashReportPages.length+'. Можно распознавать.'):'Фотографий пока нет.';
   if(btn)btn.disabled=!cashReportPages.length;
 }
-function moveCashReportPage(index,delta){const to=index+delta;if(to<0||to>=cashReportPages.length)return;const p=cashReportPages[index];cashReportPages[index]=cashReportPages[to];cashReportPages[to]=p;cashReportPdfBlob=null;renderCashReportPages();hap('sel');}
+function moveCashReportPage(index,delta){const to=index+delta;if(to<0||to>=cashReportPages.length)return;const p=cashReportPages[index];cashReportPages[index]=cashReportPages[to];cashReportPages[to]=p;invalidateCashReportRecognition_();renderCashReportPages();hap('sel');}
 async function rotateCashReportPage(index){
   const p=cashReportPages[index];if(!p)return;
-  try{setCashReportStatus('', 'Поворачиваю фото…',.05);const rotated=await rotateDataUrlClockwise(p.dataUrl,.94);p.dataUrl=rotated.dataUrl;p.originalDataUrl=rotated.dataUrl;p.width=rotated.width;p.height=rotated.height;p.orientation=p.width>p.height?'landscape':'portrait';cashReportPdfBlob=null;renderCashReportPages();setCashReportStatus('', 'Фото повёрнуто.',0);}catch(err){setCashReportStatus('err',String(err&&err.message?err.message:err),0);}
+  try{setCashReportStatus('', 'Поворачиваю фото…',.05);const rotated=await rotateDataUrlClockwise(p.dataUrl,.94);p.dataUrl=rotated.dataUrl;p.originalDataUrl=rotated.dataUrl;p.width=rotated.width;p.height=rotated.height;p.orientation=p.width>p.height?'landscape':'portrait';invalidateCashReportRecognition_();renderCashReportPages();setCashReportStatus('', 'Фото повёрнуто.',0);}catch(err){setCashReportStatus('err',String(err&&err.message?err.message:err),0);}
 }
 function resetCashReportSendButton_(){
   const btn=document.getElementById('cashReportSend');
@@ -2999,9 +3051,15 @@ function resetCashReportSendButton_(){
   btn.disabled=false;
   btn.textContent='📨 Отправить отчёт в чат';
 }
+function invalidateCashReportRecognition_(){
+  cashReportPollingToken++;
+  cashReportPdfBlob=null;cashReportJobId='';cashReportResult=null;
+  const card=document.getElementById('cashReportResultCard');if(card)card.hidden=true;
+  resetCashReportSendButton_();
+}
 function resetCashReport(){
-  closeReceiptCamera();cashReportPollingToken++;cashReportPages=[];cashReportPdfBlob=null;cashReportJobId='';cashReportResult=null;cashReportTerminalSlips=[];cashReportPrepayments=[];
-  document.getElementById('cashReportResultCard').hidden=true;resetCashReportSendButton_();renderCashReportPages();setCashReportStatus('', 'Добавь фото отчёта iiko и всех сводных слипов терминалов.',0);
+  closeReceiptCamera();cashReportPages=[];invalidateCashReportRecognition_();cashReportTerminalSlips=[];cashReportPrepayments=[];
+  renderCashReportPages();setCashReportStatus('', 'Добавь фото отчёта iiko и всех сводных слипов терминалов.',0);
 }
 async function buildCashReportPdf(){
   if(!cashReportPages.length)throw new Error('Нет фотографий.');
@@ -3014,16 +3072,21 @@ async function buildCashReportPdf(){
 async function startCashReportRecognition(){
   if(!isStockApiConfigured()){setCashReportStatus('warn','Backend сканера не подключён.',0);return;}
   if(!cashReportPages.length){setCashReportStatus('warn','Добавь хотя бы одно фото.',0);return;}
+  try{assertOcrPageCount_(cashReportPages.length);}catch(err){setCashReportStatus('warn',String(err.message||err),0);return;}
   const btn=document.getElementById('cashReportRecognize');btn.disabled=true;
   try{
+    const pagesSnapshot=cashReportPages.map(page=>Object.assign({},page));
+    invalidateCashReportRecognition_();
     setCashReportStatus('', 'Подготавливаю фотографии для быстрого распознавания…',.06);
-    const images=await buildOcrImagesPayload_(cashReportPages,(i,total)=>setCashReportStatus('', 'Подготавливаю фото '+(i+1)+' из '+total+'…',.06+.08*(i/Math.max(1,total))));
+    const images=await buildOcrImagesPayload_(pagesSnapshot,(i,total)=>setCashReportStatus('', 'Подготавливаю фото '+(i+1)+' из '+total+'…',.06+.08*(i/Math.max(1,total))));
     cashReportJobId='cash'+Date.now()+'_'+Math.random().toString(36).slice(2,8);cashReportResult=null;cashReportPdfBlob=null;
+    const activeJobId=cashReportJobId;
     document.getElementById('cashReportResultCard').hidden=true;resetCashReportSendButton_();
     setCashReportStatus('', 'Передаю фотографии напрямую в Gemini без PDF…',.15);
-    postReceipt({action:'cashReportScanImages',jobId:cashReportJobId,pagesCount:cashReportPages.length,imagesJson:JSON.stringify(images)}).catch(()=>{});
-    const status=await pollCashReportJob(cashReportJobId,['DONE','ERROR'],210000);
+    postReceipt({action:'cashReportScanImages',jobId:activeJobId,pagesCount:pagesSnapshot.length,imagesJson:JSON.stringify(images)}).catch(()=>{});
+    const status=await pollCashReportJob(activeJobId,['DONE','ERROR'],210000);
     if(status.status==='ERROR')throw new Error(status.error||'Ошибка распознавания');
+    if(cashReportJobId!==activeJobId)throw new Error('Операция отменена.');
     cashReportResult=status.result||{};renderCashReportResult(cashReportResult);setCashReportStatus('ok','Отчёт распознан. Проверь суммы и сверку терминалов.',1);hap('ok');
   }catch(err){setCashReportStatus('err',String(err&&err.message?err.message:err),1);}
   finally{btn.disabled=!cashReportPages.length;}
