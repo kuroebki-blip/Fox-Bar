@@ -2,7 +2,7 @@
 
 ## Frontend v15.13.3 — SCANNER JOB SAFETY
 
-Статус: candidate, автоматические проверки пройдены; Android и production не проверены.
+Статус: production с 22 июля 2026; GitHub Pages опубликован, браузерный smoke-тест пройден, Android/Telegram-тест ожидается.
 
 Что изменено:
 
@@ -28,12 +28,12 @@
 
 Как откатиться:
 
-- вернуть frontend v15.13.2 из коммита `0cb6b66`;
-- повторно опубликовать предыдущий `index.html` на GitHub Pages.
+- отменить GitHub merge commit `10f766c11deabfe0403af1640e266e6dbc998a6f`;
+- дождаться повторной сборки GitHub Pages с предыдущим `index.html`.
 
 ## Stock/scanner backend v9.4.4 — CASH REPORT SOURCE RULES FIX
 
-Статус: candidate, автоматические проверки пройдены; production и живой Telegram-сценарий не проверены.
+Статус: production с 22 июля 2026; Apps Script version `16`, публичный `ping` вернул `v9.4.4`, живой Telegram-сценарий ожидается.
 
 Что изменено:
 
@@ -59,5 +59,5 @@
 
 Как откатиться:
 
-- вернуть backend `v9.4.3 CASH REPORT VALIDATION FIX` из базового коммита `9bfce1e`;
-- создать новую версию Apps Script и переключить рабочее развёртывание на неё.
+- переключить рабочее Apps Script-развёртывание с version `16` обратно на version `15`;
+- проверить `?action=ping`, он должен снова вернуть `v9.4.3 CASH REPORT VALIDATION FIX`.

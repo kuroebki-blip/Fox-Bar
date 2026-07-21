@@ -2,12 +2,17 @@
 
 ## Production
 
-Фактически опубликованные версии необходимо подтвердить вручную. Пользователь сообщил, что пакет `v15.13 / v9.4.x` ещё не был опубликован на момент части обсуждения. Поэтому нельзя автоматически считать последнюю подготовленную пару production.
+22 июля 2026 опубликована и автоматически проверена пара:
 
-Проверить:
+- GitHub Pages: frontend `v15.13.3 SCANNER JOB SAFETY`, merge commit `10f766c11deabfe0403af1640e266e6dbc998a6f`;
+- Apps Script scanner/stock Web App: backend `v9.4.4 CASH REPORT SOURCE RULES FIX`, Apps Script version `16`;
+- рабочий Web App URL сохранён; `?action=ping` вернул `v9.4.4`;
+- GitHub Pages завершил сборку со статусом `built`, публичный HTML содержит `v15.13.3` и рабочий Web App URL;
+- браузерный smoke-тест открыл главную, «Документы и чеки» и «Кассовый отчёт» без критических JavaScript-ошибок.
 
-- GitHub Pages: фактический `index.html`;
-- Apps Script scanner/stock Web App: `?action=ping` и фактический `Code.gs`;
+Ещё проверить вручную:
+
+- полный сценарий OCR и Telegram из Mini App на реальных фото;
 - Apps Script banquets Web App: `?action=ping`, `?action=list`;
 - Google Sheets: фактический `SPREADSHEET_ID` из Script Properties.
 
@@ -38,7 +43,7 @@ Candidate включает:
 2. После перевода банкета в «Пройден» иногда не снимается резерв.
 3. Новые позиции банкета иногда не добавляются в `Банкеты_Резерв`.
 4. Сканер документов требует замеров скорости на реальном Android.
-5. Candidate v15.13.3/v9.4.4 требует живого теста после публикации.
+5. Production v15.13.3/v9.4.4 требует живого Telegram-теста на реальных фото.
 
 ## Architecture decision
 
