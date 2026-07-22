@@ -22,7 +22,7 @@
 
 - `frontend/candidate/index.html`: v15.13.3 SCANNER JOB SAFETY.
 - `apps-script/stock-scanner/candidate/Code.gs`: v9.4.9 ENVELOPE COLLECTION SEPARATORS.
-- `frontend/tatooine/`: v1.3.2 DEFAULT CHANGE FUND 100K.
+- `frontend/tatooine/`: v1.3.3 HIDE EMPTY PREPAYMENTS.
 
 Candidate включает:
 
@@ -51,7 +51,7 @@ Candidate включает:
 - распознавание второго значения инкассации после `/`, `\\`, `-` или в круглых скобках.
 - нормализация строк `Оплата EatAndSplit`/`Оплата Яндекс еда` из реального отчёта iiko 041.
 - стандартный неизменный размен Tatooine `100 000` при открытии приложения и после нового распознавания.
-- итог предоплат Tatooine скрыт, если предоплаты не добавлены.
+- весь блок предоплат Tatooine скрыт, если предоплаты не добавлены.
 
 ## Known open issues
 

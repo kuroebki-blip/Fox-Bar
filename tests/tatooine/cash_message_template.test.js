@@ -151,10 +151,9 @@ test('every report row remains visible when its value is missing', () => {
     '',
     '🧪 Инкассация:',
     '',
-    '🔠 Неизменный размен []',
-    '',
-    '🔄Предоплаты:'
+    '🔠 Неизменный размен []'
   ].join('\n'));
+  assert.doesNotMatch(message, /Предоплаты:/);
   assert.doesNotMatch(message, /Итого:/);
   assert.doesNotMatch(app, /bankCards2|cash2|tapper|settlementAccount|morningCash/);
 });
