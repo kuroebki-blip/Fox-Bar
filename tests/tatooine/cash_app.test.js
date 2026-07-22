@@ -65,3 +65,9 @@ test('editing pages invalidates a previous recognition job', () => {
   assert.match(app, /\[pages\[index\], pages\[target\]\] = \[pages\[target\], pages\[index\]\];\s*invalidateRecognition\(\)/);
   assert.match(app, /expectedJobId !== jobId/);
 });
+
+test('selected files are copied before Telegram WebView input reset', () => {
+  const safeHandlers = app.match(/const files = Array\.from\(event\.target\.files \|\| \[\]\); event\.target\.value = ''; await appendFiles\(files\);/g) || [];
+  assert.equal(safeHandlers.length, 2);
+  assert.doesNotMatch(app, /const files = event\.target\.files; event\.target\.value = ''/);
+});

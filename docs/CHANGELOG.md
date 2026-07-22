@@ -1,5 +1,19 @@
 # FO’X — Changelog
 
+## Tatooine frontend v1.1.1 — FILE INPUT FIX
+
+Статус: candidate от 22 июля 2026; автоматические тесты и публикация ожидаются.
+
+Что исправлено:
+
+- выбранные файлы копируются в обычный массив до очистки `<input type="file">`;
+- Telegram WebView больше не должен терять выбранные фотографии при закрытии камеры или галереи;
+- обработка фотографий, OCR и backend не изменялись.
+
+Как откатиться:
+
+- вернуть frontend Tatooine на v1.1.0 из merge commit `c66fa5396504d9465bafc3cbb2770213c15e073c`.
+
 ## Tatooine frontend v1.1.0 — PETROVKA REPORT TEMPLATE
 
 Статус: production с 22 июля 2026; PR №4, merge commit `c66fa5396504d9465bafc3cbb2770213c15e073c`, 30/30 тестов, живой Telegram-тест ожидается.

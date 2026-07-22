@@ -3,6 +3,7 @@
 ## Версия
 
 - production frontend: `v1.1.0 PETROVKA REPORT TEMPLATE`;
+- candidate frontend: `v1.1.1 FILE INPUT FIX`;
 - production backend: общий Apps Script Web App `v9.4.6 TATOOINE REPORT TEMPLATE`;
 - статус: production с 22 июля 2026; custom emoji захвачены, живой Telegram-тест отчёта ожидается;
 - URL: `https://kuroebki-blip.github.io/Fox-Bar/tatooine/`;
@@ -43,6 +44,8 @@ Candidate v1.1.0 формирует сообщение по эталону Tatoo
 - список предоплат и строка `Итого`.
 
 22 июля 2026 `tatooineCashCaptureTelegramStyle()` успешно сохранил логотип из 8 символов и оформление всех 11 строк. Функция сохранила только идентификаторы оформления в Script Properties и не изменяла таблицы или изображения.
+
+Candidate v1.1.1 копирует выбранные фотографии до очистки file input. Это устраняет потерю `FileList` в Telegram WebView после закрытия камеры или галереи.
 
 ## Сохранённые правила кассового отчёта
 

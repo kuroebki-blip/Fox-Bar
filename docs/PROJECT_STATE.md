@@ -22,7 +22,7 @@
 
 - `frontend/candidate/index.html`: v15.13.3 SCANNER JOB SAFETY.
 - `apps-script/stock-scanner/candidate/Code.gs`: v9.4.6 TATOOINE REPORT TEMPLATE.
-- `frontend/tatooine/`: v1.1.0 PETROVKA REPORT TEMPLATE.
+- `frontend/tatooine/`: v1.1.1 FILE INPUT FIX.
 
 Candidate включает:
 
@@ -43,6 +43,7 @@ Candidate включает:
 - изоляцию заданий кассового отчёта FO’X и Tatooine при общем Web App URL.
 - отдельный шаблон сообщения Tatooine/Petrovka с EatAndSplit, Яндекс едой и итогом предоплат;
 - отдельный набор custom emoji Tatooine, который можно снять с пересланного эталонного сообщения.
+- копирование выбранных файлов до сброса file input для совместимости с Telegram WebView.
 
 ## Known open issues
 
@@ -51,7 +52,7 @@ Candidate включает:
 3. Новые позиции банкета иногда не добавляются в `Банкеты_Резерв`.
 4. Сканер документов требует замеров скорости на реальном Android.
 5. Production v15.13.3/v9.4.6 требует живого Telegram-теста на реальных фото.
-6. Tatooine v1.1.0/v9.4.6: custom emoji захвачены полностью; требуется живой Telegram-тест отчёта.
+6. Tatooine v1.1.1/v9.4.6: исправление file input требует публикации и повторного живого Telegram-теста.
 
 ## Architecture decision
 
