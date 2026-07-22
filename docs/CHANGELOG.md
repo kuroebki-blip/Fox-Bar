@@ -2,7 +2,7 @@
 
 ## Tatooine frontend v1.3.0 — IIKO 041 REPORT TEMPLATE
 
-Статус: candidate от 22 июля 2026; 33/33 автоматических теста, живой Telegram-тест ожидается.
+Статус: production с 22 июля 2026; PR №8, merge commit `e84133c1688b067adc1df0c141e2694ade7ccb37`, GitHub Pages опубликован, 33/33 автоматических теста, живой Telegram-тест ожидается.
 
 Что изменено:
 
@@ -17,7 +17,7 @@
 
 ## Stock/scanner backend v9.4.8 — CASH IIKO 041 SOURCE
 
-Статус: candidate от 22 июля 2026; 33/33 автоматических теста, живой OCR-тест отчёта 041 ожидается.
+Статус: production с 22 июля 2026; Apps Script version `20`, публичный `ping v9.4.8`, 33/33 автоматических теста, живой OCR-тест отчёта 041 ожидается.
 
 Что изменено:
 
