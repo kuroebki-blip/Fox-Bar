@@ -9,7 +9,7 @@
 - рабочий Web App URL сохранён; `?action=ping` вернул `v9.4.9`;
 - GitHub Pages завершил сборку со статусом `built`, публичный HTML содержит `v15.13.3` и рабочий Web App URL;
 - браузерный smoke-тест открыл главную, «Документы и чеки» и «Кассовый отчёт» без критических JavaScript-ошибок.
-- Tatooine: frontend `v1.3.0 IIKO 041 REPORT TEMPLATE` опубликован по адресу `https://kuroebki-blip.github.io/Fox-Bar/tatooine/`, PR №8, merge commit `e84133c1688b067adc1df0c141e2694ade7ccb37`;
+- Tatooine: frontend `v1.3.1 PAYMENT ROW PREFIX FIX` опубликован по адресу `https://kuroebki-blip.github.io/Fox-Bar/tatooine/`, PR №9, merge commit `3e2aed91a9b00e691f70918eba3674be43061535`;
 - Tatooine использует отдельный Telegram-маршрут на backend `v9.4.9`; токен нового бота сохранён в Script Properties и распознан backend без раскрытия значения.
 
 Ещё проверить вручную:
@@ -58,7 +58,7 @@ Candidate включает:
 3. Новые позиции банкета иногда не добавляются в `Банкеты_Резерв`.
 4. Сканер документов требует замеров скорости на реальном Android.
 5. Production v15.13.3/v9.4.9 требует живого OCR/Telegram-теста отчёта iiko 041 и инкассации с конверта на реальных фото FO’X.
-6. Tatooine v1.3.0/v9.4.9 опубликован; требуется живой OCR/Telegram-тест отчёта iiko 041, конверта и сокращённого шаблона.
+6. Tatooine v1.3.1/v9.4.9 опубликован; требуется повторный живой OCR/Telegram-тест EatAndSplit, отчёта iiko 041, конверта и сокращённого шаблона.
 
 ## Architecture decision
 
