@@ -22,7 +22,7 @@
 
 - `frontend/candidate/index.html`: v15.13.3 SCANNER JOB SAFETY.
 - `apps-script/stock-scanner/candidate/Code.gs`: v9.4.9 ENVELOPE COLLECTION SEPARATORS.
-- `frontend/tatooine/`: v1.3.0 IIKO 041 REPORT TEMPLATE.
+- `frontend/tatooine/`: v1.3.1 PAYMENT ROW PREFIX FIX.
 
 Candidate включает:
 
@@ -49,6 +49,7 @@ Candidate включает:
 - сокращённый итоговый шаблон Tatooine без `Безнал 2`, `Нал 2`, Tapper, расчётных счетов и строки `На утро в кассе`;
 - отчёт iiko 041 как единственный источник iiko-данных для FO’X и Tatooine.
 - распознавание второго значения инкассации после `/`, `\\`, `-` или в круглых скобках.
+- нормализация строк `Оплата EatAndSplit`/`Оплата Яндекс еда` из реального отчёта iiko 041.
 
 ## Known open issues
 

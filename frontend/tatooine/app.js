@@ -112,7 +112,15 @@
   }
 
   function normalizedPaymentName(value) {
-    return String(value || '').trim().toLowerCase().replace(/ё/g, 'е').replace(/[‐‑‒–—-]+/g, ' ').replace(/\s+/g, ' ');
+    return String(value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/ё/g, 'е')
+      .replace(/[‐‑‒–—-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .replace(/^оплата\s+/, '')
+      .replace(/\s+(?:продажа|предоплата)$/, '')
+      .trim();
   }
 
   function exactPaymentRowAmount(rows, names) {

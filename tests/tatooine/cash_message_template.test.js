@@ -105,10 +105,10 @@ test('Tatooine Telegram HTML keeps its brand and formatting without captured cus
   assert.doesNotMatch(html, /🔤🔤/);
 });
 
-test('EatAndSplit and Yandex Food are read from exact OCR payment rows', () => {
+test('EatAndSplit and Yandex Food accept real iiko 041 payment row prefixes', () => {
   context.rows = [
-    { name: 'EatAndSplit', amount: 85000 },
-    { name: 'Яндекс.Еда', amount: 9626 },
+    { name: 'Оплата EatAndSplit Продажа', amount: 85000 },
+    { name: 'Оплата Яндекс.Еда', amount: 9626 },
     { name: 'Безналичный расчёт', amount: 999999 }
   ];
   assert.equal(vm.runInContext("exactPaymentRowAmount(rows,['EatAndSplit'])", context), 85000);

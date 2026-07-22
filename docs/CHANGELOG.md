@@ -1,5 +1,19 @@
 # FO’X — Changelog
 
+## Tatooine frontend v1.3.1 — PAYMENT ROW PREFIX FIX
+
+Статус: candidate от 22 июля 2026; 34/34 автоматических теста, повторный живой OCR-тест ожидается.
+
+Что исправлено:
+
+- строки `Оплата EatAndSplit` и `Оплата EatAndSplit Продажа` распознаются как `EatAndSplit`;
+- тот же префикс `Оплата` и служебные окончания поддержаны для Яндекс еды;
+- остальные строки платежей и backend не изменялись.
+
+Как откатиться:
+
+- вернуть frontend Tatooine на v1.3.0 из merge commit `e84133c1688b067adc1df0c141e2694ade7ccb37`.
+
 ## Stock/scanner backend v9.4.9 — ENVELOPE COLLECTION SEPARATORS
 
 Статус: production с 22 июля 2026; Apps Script version `21`, публичный `ping v9.4.9`, 34/34 автоматических теста и контрольный тест синтетических фото, живой OCR-тест конверта ожидается.
