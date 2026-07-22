@@ -176,10 +176,10 @@
       '',
       '🧪 Инкассация:' + (hasReportValue(data.collection) ? ' ' + reportAmount(data.collection) : '') + (hasReportValue(data.collectionActual) ? ' (' + reportAmount(data.collectionActual) + ')' : '')
     );
-    lines.push('', '🔠 Неизменный размен [' + reportAmount(data.changeFund, true) + ']', '', '🔄Предоплаты:');
+    lines.push('', '🔠 Неизменный размен [' + reportAmount(data.changeFund, true) + ']');
     const prepaymentsList = (Array.isArray(data.prepayments) ? data.prepayments : []).filter(item => item.date && Number(item.amount) > 0);
     if (prepaymentsList.length) {
-      lines.push('');
+      lines.push('', '🔄Предоплаты:', '');
       prepaymentsList.forEach(item => lines.push(shortDate(item.date) + '- ' + prepaymentAmount(item.amount)));
       lines.push('', 'Итого: ' + prepaymentAmount(prepaymentsList.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)));
     }
