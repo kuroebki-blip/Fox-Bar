@@ -1,5 +1,20 @@
 # FO’X — Changelog
 
+## Tatooine frontend v1.2.1 — ALWAYS SHOW REPORT FIELDS
+
+Статус: candidate от 22 июля 2026; 31/31 автоматических тестов, живой Telegram-тест ожидается.
+
+Что изменено:
+
+- все денежные строки всегда остаются в финальном отчёте;
+- при отсутствии значения после подписи остаётся пустое место вместо `0`;
+- пустой блок предоплат сохраняет строку `Итого:` без суммы;
+- введённый вручную ноль по-прежнему отображается как `0`.
+
+Как откатиться:
+
+- вернуть frontend Tatooine на v1.2.0 из merge commit `daed7bba8edffdef19eb525f01a7ce5eec115a6e`.
+
 ## Tatooine frontend v1.2.0 — ORIGINAL TELEGRAM LAYOUT
 
 Статус: production с 22 июля 2026; PR №6, merge commit `daed7bba8edffdef19eb525f01a7ce5eec115a6e`, 31/31 тест, живой Telegram-тест ожидается.

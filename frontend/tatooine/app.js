@@ -121,9 +121,13 @@
     return found ? Number(found.amount) || 0 : 0;
   }
 
-  function reportAmount(value, blankWhenZero = false) {
+  function hasReportValue(value) {
+    return value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value));
+  }
+
+  function reportAmount(value, blankWhenMissing = false) {
+    if (blankWhenMissing && !hasReportValue(value)) return '';
     const number = Number(value) || 0;
-    if (blankWhenZero && !number) return '';
     return number.toLocaleString('ru-RU', { minimumFractionDigits: Number.isInteger(number) ? 0 : 2, maximumFractionDigits: 2 }).replace(/\u00a0|\u202f/g, ' ');
   }
 
@@ -138,15 +142,17 @@
 
   function buildTatooineCashMessage(data) {
     const location = String(data.location || 'ПЕТРОВКА').trim().toUpperCase();
-    const cashTotal = (Number(data.cashNonFiscal) || 0) + (Number(data.cashFiscal) || 0);
+    const cashTotal = hasReportValue(data.cashNonFiscal) || hasReportValue(data.cashFiscal)
+      ? (Number(data.cashNonFiscal) || 0) + (Number(data.cashFiscal) || 0)
+      : '';
     const lines = [
       'TATOOINE',
       '',
       '🦊 ' + location + '  🦊',
       '📈ОТЧЕТ КАССОВОЙ СМЕНЫ',
-      'ДАТА: ' + shortDate(data.date),
+      'ДАТА:' + (data.date ? ' ' + shortDate(data.date) : ''),
       '',
-      '🪙Общая выручка: ' + reportAmount(data.totalRevenue),
+      '🪙Общая выручка:' + (hasReportValue(data.totalRevenue) ? ' ' + reportAmount(data.totalRevenue) : ''),
       ''
     ];
     [
@@ -162,21 +168,23 @@
       ['🧪 ', 'Расчётный счёт 2', data.settlementAccount2]
     ].forEach(item => {
       const value = reportAmount(item[2], true);
-      if (value) lines.push(item[0] + item[1] + ': ' + value, '');
+      lines.push(item[0] + item[1] + ':' + (value ? ' ' + value : ''), '');
     });
-    lines.push('', '', '💀 Расход:' + (Number(data.expense) ? ' ' + reportAmount(data.expense) : ''));
+    lines.push('', '', '💀 Расход:' + (hasReportValue(data.expense) ? ' ' + reportAmount(data.expense) : ''));
     if (data.expenseComment) lines.push('Комментарий: ' + String(data.expenseComment).trim());
     lines.push(
       '',
-      '🧪 Инкассация:' + (Number(data.collection) ? ' ' + reportAmount(data.collection) : '') + (Number(data.collectionActual) ? ' (' + reportAmount(data.collectionActual) + ')' : '')
+      '🧪 Инкассация:' + (hasReportValue(data.collection) ? ' ' + reportAmount(data.collection) : '') + (hasReportValue(data.collectionActual) ? ' (' + reportAmount(data.collectionActual) + ')' : '')
     );
-    if (Number(data.morningCash)) lines.push('', '🧪 На утро в кассе [' + reportAmount(data.morningCash) + ']');
-    lines.push('', '🔠 Неизменный размен [' + reportAmount(data.changeFund) + ']', '', '🔄Предоплаты:');
+    lines.push('', '🧪 На утро в кассе [' + reportAmount(data.morningCash, true) + ']');
+    lines.push('', '🔠 Неизменный размен [' + reportAmount(data.changeFund, true) + ']', '', '🔄Предоплаты:');
     const prepaymentsList = (Array.isArray(data.prepayments) ? data.prepayments : []).filter(item => item.date && Number(item.amount) > 0);
     if (prepaymentsList.length) {
       lines.push('');
       prepaymentsList.forEach(item => lines.push(shortDate(item.date) + '- ' + prepaymentAmount(item.amount)));
       lines.push('', 'Итого: ' + prepaymentAmount(prepaymentsList.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)));
+    } else {
+      lines.push('', 'Итого:');
     }
     return lines.join('\n');
   }
@@ -427,11 +435,11 @@
     setNumber('cashReportOnlineCashbox2', data.onlineCashbox2);
     setNumber('cashReportEatAndSplit', exactPaymentRowAmount(data.paymentRows, ['EatAndSplit']));
     setNumber('cashReportYandexFood', exactPaymentRowAmount(data.paymentRows, ['Яндекс еда', 'Яндекс.Еда', 'Yandex Food']));
-    $('cashReportExpense').value = '0';
+    $('cashReportExpense').value = '';
     $('cashReportExpenseComment').value = '';
     setNumber('cashReportCollection', data.collectionAmount);
     setNumber('cashReportCollectionActual', data.collectionActual);
-    $('cashReportMorningCash').value = '0';
+    $('cashReportMorningCash').value = '';
     $('cashReportChangeFund').value = String(Number(CONFIG.defaultChangeFund) || 0);
     terminalSlips = Array.isArray(data.terminalSlips) ? data.terminalSlips.map((slip, index) => ({ label: String(slip.label || 'Терминал ' + (index + 1)), amount: Number(slip.amount) || 0 })).filter(slip => slip.amount > 0) : [];
     prepayments = [];
@@ -485,6 +493,7 @@
   }
 
   function numeric(id) { return Number($(id).value) || 0; }
+  function reportInput(id) { return $(id).value.trim(); }
   function money(value, blankWhenZero) {
     const number = Number(value) || 0;
     if (blankWhenZero && !number) return '';
@@ -515,24 +524,24 @@
     $('cashReportMessage').value = buildTatooineCashMessage({
       location: CONFIG.reportLocation,
       date: $('cashReportDate').value.trim(),
-      totalRevenue: numeric('cashReportTotalRevenue'),
-      bankCards: numeric('cashReportBankCards'),
-      bankCards2: numeric('cashReportBankCards2'),
-      cashNonFiscal: numeric('cashReportCashNonFiscal'),
-      cashFiscal: numeric('cashReportCashFiscal'),
-      cash2: numeric('cashReportCash2'),
-      onlineCashbox2: numeric('cashReportOnlineCashbox2'),
-      eatAndSplit: numeric('cashReportEatAndSplit'),
-      yandexFood: numeric('cashReportYandexFood'),
-      tapper: numeric('cashReportTapper'),
-      settlementAccount: numeric('cashReportSettlement'),
-      settlementAccount2: numeric('cashReportSettlement2'),
-      expense: numeric('cashReportExpense'),
+      totalRevenue: reportInput('cashReportTotalRevenue'),
+      bankCards: reportInput('cashReportBankCards'),
+      bankCards2: reportInput('cashReportBankCards2'),
+      cashNonFiscal: reportInput('cashReportCashNonFiscal'),
+      cashFiscal: reportInput('cashReportCashFiscal'),
+      cash2: reportInput('cashReportCash2'),
+      onlineCashbox2: reportInput('cashReportOnlineCashbox2'),
+      eatAndSplit: reportInput('cashReportEatAndSplit'),
+      yandexFood: reportInput('cashReportYandexFood'),
+      tapper: reportInput('cashReportTapper'),
+      settlementAccount: reportInput('cashReportSettlement'),
+      settlementAccount2: reportInput('cashReportSettlement2'),
+      expense: reportInput('cashReportExpense'),
       expenseComment: $('cashReportExpenseComment').value.trim(),
-      collection: numeric('cashReportCollection'),
-      collectionActual: numeric('cashReportCollectionActual'),
-      morningCash: numeric('cashReportMorningCash'),
-      changeFund: numeric('cashReportChangeFund'),
+      collection: reportInput('cashReportCollection'),
+      collectionActual: reportInput('cashReportCollectionActual'),
+      morningCash: reportInput('cashReportMorningCash'),
+      changeFund: reportInput('cashReportChangeFund'),
       prepayments
     });
     updateComparison();

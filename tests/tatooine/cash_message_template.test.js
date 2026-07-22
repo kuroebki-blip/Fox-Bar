@@ -46,7 +46,11 @@ test('Tatooine message follows the approved Petrovka report layout', () => {
     '',
     '🧪 Безнал: 409 066',
     '',
+    '🧪 Безнал 2:',
+    '',
     '🧪 Нал: 155 068',
+    '',
+    '🧪 Нал 2:',
     '',
     '🧪 Онлайн касса 2: 30 000',
     '',
@@ -54,11 +58,19 @@ test('Tatooine message follows the approved Petrovka report layout', () => {
     '',
     '🌎Яндекс еда: 9 626',
     '',
+    '🧪 Tapper:',
+    '',
+    '🧪 Расчётный счёт:',
+    '',
+    '🧪 Расчётный счёт 2:',
+    '',
     '',
     '',
     '💀 Расход:',
     '',
     '🧪 Инкассация: 155 068 (155 070)',
+    '',
+    '🧪 На утро в кассе []',
     '',
     '🔠 Неизменный размен [100 000]',
     '',
@@ -116,10 +128,52 @@ test('EatAndSplit and Yandex Food are read from exact OCR payment rows', () => {
   assert.equal(vm.runInContext("exactPaymentRowAmount(rows,['Яндекс еда','Яндекс.Еда'])", context), 9626);
 });
 
-test('zero optional payment rows are omitted but required account rows remain independently addressable', () => {
-  context.emptyData = { location: 'ПЕТРОВКА', date: '', changeFund: 0, prepayments: [] };
+test('every report row remains visible when its value is missing', () => {
+  context.emptyData = { location: 'ПЕТРОВКА', date: '', prepayments: [] };
   const message = vm.runInContext('buildTatooineCashMessage(emptyData)', context);
-  assert.doesNotMatch(message, /Безнал 2|Расчётный счёт:/);
-  assert.match(app, /settlementAccount: numeric\('cashReportSettlement'\)/);
-  assert.match(app, /settlementAccount2: numeric\('cashReportSettlement2'\)/);
+  assert.equal(message, [
+    'TATOOINE',
+    '',
+    '🦊 ПЕТРОВКА  🦊',
+    '📈ОТЧЕТ КАССОВОЙ СМЕНЫ',
+    'ДАТА:',
+    '',
+    '🪙Общая выручка:',
+    '',
+    '🧪 Безнал:',
+    '',
+    '🧪 Безнал 2:',
+    '',
+    '🧪 Нал:',
+    '',
+    '🧪 Нал 2:',
+    '',
+    '🧪 Онлайн касса 2:',
+    '',
+    '📈EatAndSplit:',
+    '',
+    '🌎Яндекс еда:',
+    '',
+    '🧪 Tapper:',
+    '',
+    '🧪 Расчётный счёт:',
+    '',
+    '🧪 Расчётный счёт 2:',
+    '',
+    '',
+    '',
+    '💀 Расход:',
+    '',
+    '🧪 Инкассация:',
+    '',
+    '🧪 На утро в кассе []',
+    '',
+    '🔠 Неизменный размен []',
+    '',
+    '🔄Предоплаты:',
+    '',
+    'Итого:'
+  ].join('\n'));
+  assert.match(app, /settlementAccount: reportInput\('cashReportSettlement'\)/);
+  assert.match(app, /settlementAccount2: reportInput\('cashReportSettlement2'\)/);
 });

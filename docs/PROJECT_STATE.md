@@ -22,7 +22,7 @@
 
 - `frontend/candidate/index.html`: v15.13.3 SCANNER JOB SAFETY.
 - `apps-script/stock-scanner/candidate/Code.gs`: v9.4.7 TATOOINE ORIGINAL LAYOUT.
-- `frontend/tatooine/`: v1.2.0 ORIGINAL TELEGRAM LAYOUT.
+- `frontend/tatooine/`: v1.2.1 ALWAYS SHOW REPORT FIELDS (candidate; все строки отчёта сохраняются при пустых значениях).
 
 Candidate включает:
 
