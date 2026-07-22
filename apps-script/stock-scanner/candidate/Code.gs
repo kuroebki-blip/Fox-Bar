@@ -1,5 +1,5 @@
 /**
- * FO’X — документы, чеки, банкетный резерв и кассовый отчёт v9.4.4
+ * FO’X — документы, чеки, банкетный резерв и кассовый отчёт v9.4.5
  *
  * Назначение:
  * 1. Принимает облегчённые JPEG-страницы для быстрого распознавания.
@@ -16,7 +16,7 @@
  */
 
 const FOX_RECEIPTS = {
-  version: 'v9.4.4 CASH REPORT SOURCE RULES FIX',
+  version: 'v9.4.5 MULTI BOT CASH ROUTING',
 
   stockSheets: [
     'Вино',
@@ -175,6 +175,9 @@ function foxReceiptsShowConfig() {
     'GEMINI_MODEL: ' + (p.GEMINI_MODEL || FOX_RECEIPTS.defaultGeminiModel),
     'TELEGRAM_BOT_TOKEN: ' + yesNo_(p.TELEGRAM_BOT_TOKEN),
     'TELEGRAM_TARGET_CHAT_ID: ' + (p.TELEGRAM_TARGET_CHAT_ID || 'не задан — текущий Telegram-чат или личный чат пользователя'),
+    'TATOOINE_TELEGRAM_BOT_TOKEN: ' + yesNo_(p.TATOOINE_TELEGRAM_BOT_TOKEN),
+    'TATOOINE_TELEGRAM_TARGET_CHAT_ID: ' + (p.TATOOINE_TELEGRAM_TARGET_CHAT_ID || 'не задан — текущий Telegram-чат или личный чат пользователя'),
+    'TATOOINE_TELEGRAM_ALLOWED_USER_IDS: ' + (p.TATOOINE_TELEGRAM_ALLOWED_USER_IDS || 'не заданы — используются Telegram admin IDs FO’X'),
     'ДОСТУП К СКАНЕРУ: ' + (FOX_RECEIPTS.allowAllTelegramUsers ? 'все проверенные Telegram-пользователи' : 'только администраторы'),
     'ALLOW_UNVERIFIED_TEST_MODE: ' + (p.ALLOW_UNVERIFIED_TEST_MODE || 'false')
   ];
@@ -428,10 +431,11 @@ function doGet(e) {
     }
 
     const auth = authorizeRequest_(e && e.parameter ? e.parameter : {});
+    assertTelegramActionAllowed_(action, auth);
 
     if (action === 'status') {
       const jobId = requiredString_(e.parameter.jobId, 'jobId');
-      return jsonpOutput_(callback, getJobStatus_(jobId, auth.userId));
+      return jsonpOutput_(callback, getJobStatus_(jobId, auth));
     }
 
     if (action === 'catalog') {
@@ -479,11 +483,13 @@ function doGet(e) {
 }
 
 function doPost(e) {
+  let auth = null;
   try {
     const action = String((e && e.parameter && e.parameter.action) || '');
     if (!action) throw new Error('Не передан action.');
 
-    const auth = authorizeRequest_(e.parameter || {});
+    auth = authorizeRequest_(e.parameter || {});
+    assertTelegramActionAllowed_(action, auth);
 
     if (action === 'scan') {
       scanReceipt_(e.parameter, auth);
@@ -551,7 +557,7 @@ function doPost(e) {
   } catch (err) {
     const jobId = e && e.parameter ? String(e.parameter.jobId || '') : '';
     const action = e && e.parameter ? String(e.parameter.action || '') : '';
-    if (jobId) {
+    if (jobId && auth && jobMatchesTelegramRouteById_(jobId, auth)) {
       if (action === 'banquetScan') {
         try { failBanquetJob_(jobId, errorText_(err)); } catch (_) {}
       } else if (action === 'cashReportScan' || action === 'cashReportScanImages') {
@@ -994,12 +1000,20 @@ function createCashReportJob_(jobId, auth, pagesCount) {
   const sh = ss.getSheetByName(FOX_RECEIPTS.sheets.jobs);
   if (!sh) throw new Error('Не найден служебный лист «Скан_Задания».');
   const found = findRowByValue_(sh, 1, jobId, 3);
+  if (found) {
+    const existing = getJobRow_(jobId);
+    const sameUser = existing && String(existing['Telegram User ID']) === String(auth.userId);
+    const sameMode = existing && String(existing['Режим'] || '') === cashReportJobMode_(auth);
+    if (!sameUser || !sameMode || !jobMatchesTelegramRoute_(existing, auth)) {
+      throw new Error('Этот идентификатор задания уже используется другим пользователем или ботом.');
+    }
+  }
   const row = found || sh.getLastRow() + 1;
   sh.getRange(row, 1, 1, FOX_RECEIPT_HEADERS.jobs.length).setValues([[
     jobId, 'PROCESSING', 'Принимаю кассовый отчёт', 0.03, '', '', '',
     auth.userId, auth.userName, 'Кассовый отчёт', pagesCount,
     found ? sh.getRange(row, 12).getValue() || new Date() : new Date(),
-    new Date(), '', 'cash_report'
+    new Date(), '', cashReportJobMode_(auth)
   ]]);
 }
 
@@ -1562,7 +1576,9 @@ function sendCashReportToTelegram_(p, auth) {
   const job = getJobRow_(jobId);
   if (!job) throw new Error('Задание не найдено.');
   if (String(job['Telegram User ID']) !== String(auth.userId)) throw new Error('Это задание создано другим пользователем.');
-  if (String(job['Режим'] || '') !== 'cash_report') throw new Error('Это не кассовый отчёт.');
+  if (!jobMatchesTelegramRoute_(job, auth) || String(job['Режим'] || '') !== cashReportJobMode_(auth)) {
+    throw new Error('Этот кассовый отчёт относится к другому боту.');
+  }
   const current = String(job['Статус'] || '');
   // Повторная отправка разрешена: пользователь может исправить сообщение и отправить его снова.
   if (['DONE','SEND_ERROR','CASH_SENT'].indexOf(current) < 0) throw new Error('Кассовый отчёт ещё не готов.');
@@ -1570,10 +1586,10 @@ function sendCashReportToTelegram_(p, auth) {
   if (messageText.length > 4000) throw new Error('Сообщение слишком длинное для Telegram.');
 
   updateJob_(jobId, { status: 'SENDING', step: 'Отправляю кассовый отчёт в Telegram', progress: 0.45, error: '' });
-  const props = PropertiesService.getScriptProperties();
-  const token = props.getProperty('TELEGRAM_BOT_TOKEN');
-  if (!token) throw new Error('В Script Properties не задан TELEGRAM_BOT_TOKEN.');
-  const targetChatId = String(props.getProperty('TELEGRAM_TARGET_CHAT_ID') || auth.chatId || auth.userId);
+  const route = telegramRouteConfig_(auth);
+  const token = route.botToken;
+  if (!token) throw new Error('В Script Properties не задан ' + route.tokenProperty + '.');
+  const targetChatId = String(route.targetChatId || auth.chatId || auth.userId);
   const sent = sendCashStyledTelegram_(token, targetChatId, messageText);
   updateJob_(jobId, {
     status: 'CASH_SENT',
@@ -2061,9 +2077,67 @@ function shortSupplierName_(full, suggested) {
     .trim();
 }
 
-function authorizeRequest_(p) {
+function normalizeTelegramVenue_(value) {
+  return String(value || '').trim().toLowerCase() === 'tatooine' ? 'tatooine' : 'fox';
+}
+
+function parseTelegramIds_(value, fallback) {
+  const ids = String(value || '').split(/[\s,;]+/).map(function(x) { return String(x || '').trim(); }).filter(Boolean);
+  return ids.length ? ids : (fallback || []).map(String);
+}
+
+function telegramRouteConfig_(value) {
+  const venue = normalizeTelegramVenue_(value && typeof value === 'object' ? value.venue : value);
   const props = PropertiesService.getScriptProperties();
-  const botToken = props.getProperty('TELEGRAM_BOT_TOKEN');
+  if (venue === 'tatooine') {
+    return {
+      venue: venue,
+      tokenProperty: 'TATOOINE_TELEGRAM_BOT_TOKEN',
+      botToken: String(props.getProperty('TATOOINE_TELEGRAM_BOT_TOKEN') || ''),
+      targetChatId: String(props.getProperty('TATOOINE_TELEGRAM_TARGET_CHAT_ID') || ''),
+      allowedUserIds: parseTelegramIds_(props.getProperty('TATOOINE_TELEGRAM_ALLOWED_USER_IDS'), FOX_RECEIPTS.adminTelegramIds),
+      allowAllUsers: false,
+      allowUnverifiedTestMode: String(props.getProperty('TATOOINE_ALLOW_UNVERIFIED_TEST_MODE') || '').toLowerCase() === 'true'
+    };
+  }
+  return {
+    venue: 'fox',
+    tokenProperty: 'TELEGRAM_BOT_TOKEN',
+    botToken: String(props.getProperty('TELEGRAM_BOT_TOKEN') || ''),
+    targetChatId: String(props.getProperty('TELEGRAM_TARGET_CHAT_ID') || ''),
+    allowedUserIds: FOX_RECEIPTS.adminTelegramIds.map(String),
+    allowAllUsers: FOX_RECEIPTS.allowAllTelegramUsers,
+    allowUnverifiedTestMode: String(props.getProperty('ALLOW_UNVERIFIED_TEST_MODE') || '').toLowerCase() === 'true'
+  };
+}
+
+function assertTelegramActionAllowed_(action, auth) {
+  if (!auth || auth.venue !== 'tatooine') return;
+  const allowed = ['status', 'cashReportScan', 'cashReportScanImages', 'cashReportSend'];
+  if (allowed.indexOf(String(action || '')) < 0) {
+    throw new Error('Боту Tatooine доступен только кассовый отчёт.');
+  }
+}
+
+function cashReportJobMode_(auth) {
+  return auth && auth.venue === 'tatooine' ? 'cash_report:tatooine' : 'cash_report';
+}
+
+function jobMatchesTelegramRoute_(job, auth) {
+  if (!job || !auth) return false;
+  const mode = String(job['Режим'] || '');
+  if (auth.venue === 'tatooine') return mode === 'cash_report:tatooine';
+  return mode !== 'cash_report:tatooine';
+}
+
+function jobMatchesTelegramRouteById_(jobId, auth) {
+  try { return jobMatchesTelegramRoute_(getJobRow_(jobId), auth); }
+  catch (_) { return false; }
+}
+
+function authorizeRequest_(p) {
+  const route = telegramRouteConfig_(p);
+  const botToken = route.botToken;
   const initData = String(p.telegramInitData || '');
   let user = null;
   let chat = null;
@@ -2073,24 +2147,24 @@ function authorizeRequest_(p) {
     if (!validation.ok) throw new Error('Telegram авторизация не прошла: ' + validation.error);
     user = validation.user;
     chat = validation.chat || null;
-  } else if (String(props.getProperty('ALLOW_UNVERIFIED_TEST_MODE') || '').toLowerCase() === 'true') {
+  } else if (route.allowUnverifiedTestMode) {
     user = {
       id: String(p.telegramUserId || ''),
       first_name: String(p.telegramUserName || 'TEST')
     };
     chat = p.telegramChatId ? { id: String(p.telegramChatId) } : null;
   } else {
-    throw new Error('Нет проверенной Telegram-авторизации. Задай TELEGRAM_BOT_TOKEN в Script Properties.');
+    throw new Error('Нет проверенной Telegram-авторизации. Задай ' + route.tokenProperty + ' в Script Properties.');
   }
 
   const userId = String(user && user.id || '');
-  if (!FOX_RECEIPTS.allowAllTelegramUsers && FOX_RECEIPTS.adminTelegramIds.indexOf(userId) < 0) {
-    throw new Error('Нет доступа к приёмке товара. Telegram ID: ' + (userId || 'не определён'));
+  if (!route.allowAllUsers && route.allowedUserIds.indexOf(userId) < 0) {
+    throw new Error('Нет доступа к ' + (route.venue === 'tatooine' ? 'кассовому отчёту Tatooine' : 'приёмке товара') + '. Telegram ID: ' + (userId || 'не определён'));
   }
 
   const userName = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || userId;
   const chatId = String(chat && chat.id || '');
-  return { userId: userId, userName: userName, chatId: chatId, user: user, chat: chat };
+  return { userId: userId, userName: userName, chatId: chatId, user: user, chat: chat, venue: route.venue };
 }
 
 function decodeTelegramFormPart_(value) {
@@ -2196,10 +2270,10 @@ function failJob_(jobId, message) {
   const job=getJobRow_(jobId);if(job&&normalizeScanMode_(job['Режим'])==='check')upsertCheckRecord_(jobId,{status:'ERROR',error:message});
 }
 
-function getJobStatus_(jobId, userId) {
+function getJobStatus_(jobId, auth) {
   const row = getJobRow_(jobId);
   if (!row) return { ok: false, error: 'Задание не найдено.' };
-  if (String(row['Telegram User ID']) !== String(userId)) {
+  if (String(row['Telegram User ID']) !== String(auth && auth.userId) || !jobMatchesTelegramRoute_(row, auth)) {
     return { ok: false, error: 'Нет доступа к этому заданию.' };
   }
   return {

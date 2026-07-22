@@ -19,6 +19,8 @@ test('Tatooine frontend exposes only the cash-report workflow', () => {
 
 test('frontend uses the existing published handler without placeholders', () => {
   assert.match(config, /AKfycbx9XlQG6kCvWVU6OekcWAmHAVnjFXfG-_UD_pKQrQqYaWNyHzmXsmB_2LGohxETrrfTpA/);
+  assert.match(config, /venue:\s*'tatooine'/);
+  assert.match(app, /venue:\s*String\(CONFIG\.venue \|\| 'tatooine'\)/);
   assert.doesNotMatch(config, /PASTE_/);
   assert.match(app, /cashReportScanImages/);
   assert.match(app, /cashReportSend/);
