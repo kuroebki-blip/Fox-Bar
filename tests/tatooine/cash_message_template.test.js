@@ -20,7 +20,8 @@ test('Tatooine message follows the approved Petrovka report layout', () => {
     date: '21.07.2026',
     totalRevenue: 603760,
     bankCards: 409066,
-    cashNonFiscal: 155068,
+    cashNonFiscal: 150000,
+    cashFiscal: 5068,
     onlineCashbox2: 30000,
     eatAndSplit: 85000,
     yandexFood: 9626,
@@ -33,28 +34,35 @@ test('Tatooine message follows the approved Petrovka report layout', () => {
     ]
   };
   const message = vm.runInContext('buildTatooineCashMessage(data)', context);
+  assert.doesNotMatch(message, /Нал Фискал/);
   assert.equal(message, [
     'TATOOINE',
     '',
-    '🦊 ПЕТРОВКА 🦊',
-    '📈 ОТЧЕТ КАССОВОЙ СМЕНЫ',
+    '🦊 ПЕТРОВКА  🦊',
+    '📈ОТЧЕТ КАССОВОЙ СМЕНЫ',
     'ДАТА: 21.07.26',
     '',
-    '💵 Общая выручка: 603 760',
+    '🪙Общая выручка: 603 760',
     '',
-    '💳 Безнал: 409 066',
-    '💵 Нал: 155 068',
-    '🏧 Онлайн касса 2: 30 000',
-    '📈 EatAndSplit: 85 000',
-    '🟡 Яндекс еда: 9 626',
+    '🧪 Безнал: 409 066',
+    '',
+    '🧪 Нал: 155 068',
+    '',
+    '🧪 Онлайн касса 2: 30 000',
+    '',
+    '📈EatAndSplit: 85 000',
+    '',
+    '🌎Яндекс еда: 9 626',
     '',
     '',
-    '💳 Расход:',
     '',
-    '🟠 Инкассация: 155 068 (155 070)',
-    '⚔️ Неизменный размен [100 000]',
+    '💀 Расход:',
     '',
-    '🌐 Предоплаты:',
+    '🧪 Инкассация: 155 068 (155 070)',
+    '',
+    '🔠 Неизменный размен [100 000]',
+    '',
+    '🔄Предоплаты:',
     '',
     '23.07.26- 56.000',
     '30.07.26- 30.000',
@@ -82,18 +90,19 @@ test('Tatooine Telegram HTML keeps its brand and formatting without captured cus
   backendContext.message = [
     'TATOOINE',
     '',
-    '🦊 ПЕТРОВКА 🦊',
-    '📈 ОТЧЕТ КАССОВОЙ СМЕНЫ',
+    '🦊 ПЕТРОВКА  🦊',
+    '📈ОТЧЕТ КАССОВОЙ СМЕНЫ',
     'ДАТА: 21.07.26',
     '',
-    '💵 Общая выручка: 603 760',
-    '💳 Безнал: 409 066'
+    '🪙Общая выручка: 603 760',
+    '🧪 Безнал: 409 066'
   ].join('\n');
   const html = vm.runInContext("buildCashTelegramHtml_(message,'tatooine')", backendContext);
   assert.match(html, /^<b>TATOOINE<\/b>/);
-  assert.match(html, /<blockquote>🦊 ПЕТРОВКА 🦊<\/blockquote>/);
-  assert.match(html, /💵 <b>Общая выручка: 603 760<\/b>/);
-  assert.match(html, /💳 <b>Безнал:<\/b> 409 066/);
+  assert.match(html, /<blockquote>🦊 ПЕТРОВКА  🦊<\/blockquote>/);
+  assert.match(html, /🪙<b>Общая выручка: 603 760<\/b>/);
+  assert.match(html, /🧪 Безнал: 409 066/);
+  assert.doesNotMatch(html, /<b>Безнал/);
   assert.doesNotMatch(html, /🔤🔤/);
 });
 

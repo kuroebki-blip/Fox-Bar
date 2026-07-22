@@ -1,5 +1,5 @@
 /**
- * FO’X — документы, чеки, банкетный резерв и кассовый отчёт v9.4.6
+ * FO’X — документы, чеки, банкетный резерв и кассовый отчёт v9.4.7
  *
  * Назначение:
  * 1. Принимает облегчённые JPEG-страницы для быстрого распознавания.
@@ -16,7 +16,7 @@
  */
 
 const FOX_RECEIPTS = {
-  version: 'v9.4.6 TATOOINE REPORT TEMPLATE',
+  version: 'v9.4.7 TATOOINE ORIGINAL LAYOUT',
 
   stockSheets: [
     'Вино',
@@ -1769,17 +1769,20 @@ function buildTatooineCashTelegramHtml_(messageText) {
     prepayments: props.getProperty('TATOOINE_CASH_EMOJI_PREPAYMENTS') || ''
   };
   const iconForLine_ = function(trimmed) {
-    if (/^Общая выручка:/i.test(trimmed)) return [style.revenue, '💵'];
-    if (/^Безнал(?:\s+2)?:/i.test(trimmed)) return [style.cashless, '💳'];
-    if (/^Нал(?:\s+Фискал|\s+2)?:/i.test(trimmed)) return [style.cash, '💵'];
-    if (/^Онлайн касса 2:/i.test(trimmed)) return [style.online, '🏧'];
+    if (/^Общая выручка:/i.test(trimmed)) return [style.revenue, '🪙'];
+    if (/^Безнал(?:\s+2)?:/i.test(trimmed)) return [style.cashless, '🧪'];
+    if (/^Нал(?:\s+2)?:/i.test(trimmed)) return [style.cash, '🧪'];
+    if (/^Онлайн касса 2:/i.test(trimmed)) return [style.online, '🧪'];
     if (/^EatAndSplit:/i.test(trimmed)) return [style.eatAndSplit, '📈'];
-    if (/^Яндекс еда:/i.test(trimmed)) return [style.yandex, '🟡'];
-    if (/^Расход:/i.test(trimmed)) return [style.expense, '💳'];
-    if (/^Инкассация:/i.test(trimmed)) return [style.collection, '🟠'];
-    if (/^Неизменный размен/i.test(trimmed)) return [style.change, '⚔️'];
-    if (/^Предоплаты:/i.test(trimmed)) return [style.prepayments, '🌐'];
+    if (/^Яндекс еда:/i.test(trimmed)) return [style.yandex, '🌎'];
+    if (/^Расход:/i.test(trimmed)) return [style.expense, '💀'];
+    if (/^Инкассация:/i.test(trimmed)) return [style.collection, '🧪'];
+    if (/^Неизменный размен/i.test(trimmed)) return [style.change, '🔠'];
+    if (/^Предоплаты:/i.test(trimmed)) return [style.prepayments, '🔄'];
     return null;
+  };
+  const stripLeadingIcon_ = function(value) {
+    return String(value || '').replace(/^(?:🪙|🧪|📈|🌎|💀|🔠|🔄)\s*/u, '');
   };
   const lines = String(messageText || '').replace(/\r/g, '').split('\n');
   return lines.map(function(raw, index) {
@@ -1793,22 +1796,26 @@ function buildTatooineCashTelegramHtml_(messageText) {
       return '<b>TATOOINE</b>';
     }
     if (/ПЕТРОВКА/i.test(trimmed)) {
-      return '<blockquote>' + cashCustomEmojiHtml_(style.locationLeft, '🦊') + ' ПЕТРОВКА ' + cashCustomEmojiHtml_(style.locationRight, '🦊') + '</blockquote>';
+      return '<blockquote>' + cashCustomEmojiHtml_(style.locationLeft, '🦊') + ' ПЕТРОВКА  ' + cashCustomEmojiHtml_(style.locationRight, '🦊') + '</blockquote>';
     }
     if (/ОТЧ[ЕЁ]Т\s+КАССОВОЙ\s+СМЕНЫ/i.test(trimmed)) {
-      return cashCustomEmojiHtml_(style.report, '📈') + escapeTelegramHtml_(trimmed.replace(/^\S+\s*/, ''));
+      return cashCustomEmojiHtml_(style.report, '📈') + escapeTelegramHtml_(trimmed.replace(/^📈\s*/u, ''));
     }
     if (/^ДАТА:/i.test(trimmed)) return '<i>' + escapeTelegramHtml_(trimmed) + '</i>';
-    const plain = trimmed.replace(/^\S+\s*/, '');
+    const plain = stripLeadingIcon_(trimmed);
     const icon = iconForLine_(plain);
     if (icon) {
       const colon = plain.indexOf(':');
       const label = colon >= 0 ? plain.slice(0, colon + 1) : plain;
       const value = colon >= 0 ? plain.slice(colon + 1) : '';
       if (/^Общая выручка:/i.test(plain)) {
-        return cashCustomEmojiHtml_(icon[0], icon[1]) + ' <b>' + escapeTelegramHtml_(plain) + '</b>';
+        return cashCustomEmojiHtml_(icon[0], icon[1]) + '<b>' + escapeTelegramHtml_(plain) + '</b>';
       }
-      return cashCustomEmojiHtml_(icon[0], icon[1]) + ' <b>' + escapeTelegramHtml_(label) + '</b>' + escapeTelegramHtml_(value);
+      if (/^(?:Расход|Инкассация):/i.test(plain)) {
+        return cashCustomEmojiHtml_(icon[0], icon[1]) + ' <b>' + escapeTelegramHtml_(label.slice(0, -1)) + '</b>:' + escapeTelegramHtml_(value);
+      }
+      const compact = /^(?:EatAndSplit|Яндекс еда|Предоплаты):/i.test(plain);
+      return cashCustomEmojiHtml_(icon[0], icon[1]) + (compact ? '' : ' ') + escapeTelegramHtml_(plain);
     }
     return escapeTelegramHtml_(line);
   }).join('\n');

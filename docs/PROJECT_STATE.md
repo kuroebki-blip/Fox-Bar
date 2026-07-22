@@ -21,8 +21,8 @@
 ## Latest candidate in this repository
 
 - `frontend/candidate/index.html`: v15.13.3 SCANNER JOB SAFETY.
-- `apps-script/stock-scanner/candidate/Code.gs`: v9.4.6 TATOOINE REPORT TEMPLATE.
-- `frontend/tatooine/`: v1.1.1 FILE INPUT FIX.
+- `apps-script/stock-scanner/candidate/Code.gs`: v9.4.7 TATOOINE ORIGINAL LAYOUT.
+- `frontend/tatooine/`: v1.2.0 ORIGINAL TELEGRAM LAYOUT.
 
 Candidate включает:
 
@@ -44,6 +44,8 @@ Candidate включает:
 - отдельный шаблон сообщения Tatooine/Petrovka с EatAndSplit, Яндекс едой и итогом предоплат;
 - отдельный набор custom emoji Tatooine, который можно снять с пересланного эталонного сообщения.
 - копирование выбранных файлов до сброса file input для совместимости с Telegram WebView.
+- точные интервалы, эмодзи и Telegram-выделения оригинального отчёта Tatooine;
+- одна итоговая строка `Нал` из раздельно распознанных `Нал` и `Нал Фискал`.
 
 ## Known open issues
 
@@ -52,7 +54,7 @@ Candidate включает:
 3. Новые позиции банкета иногда не добавляются в `Банкеты_Резерв`.
 4. Сканер документов требует замеров скорости на реальном Android.
 5. Production v15.13.3/v9.4.6 требует живого Telegram-теста на реальных фото.
-6. Tatooine v1.1.1/v9.4.6: file input исправлен и опубликован; требуется повторный живой Telegram-тест.
+6. Tatooine v1.2.0/v9.4.7 требует публикации и живого Telegram-теста точного шаблона.
 
 ## Architecture decision
 
