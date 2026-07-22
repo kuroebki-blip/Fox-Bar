@@ -9,7 +9,7 @@
 - рабочий Web App URL сохранён; `?action=ping` вернул `v9.4.6`;
 - GitHub Pages завершил сборку со статусом `built`, публичный HTML содержит `v15.13.3` и рабочий Web App URL;
 - браузерный smoke-тест открыл главную, «Документы и чеки» и «Кассовый отчёт» без критических JavaScript-ошибок.
-- Tatooine: frontend `v1.1.0 PETROVKA REPORT TEMPLATE` опубликован по адресу `https://kuroebki-blip.github.io/Fox-Bar/tatooine/`, PR №4, merge commit `c66fa5396504d9465bafc3cbb2770213c15e073c`;
+- Tatooine: frontend `v1.1.1 FILE INPUT FIX` опубликован по адресу `https://kuroebki-blip.github.io/Fox-Bar/tatooine/`, PR №5, merge commit `e1e184acb97b3e9a5dc76623521a90d3b8520285`;
 - Tatooine использует отдельный Telegram-маршрут на backend `v9.4.6`; токен нового бота сохранён в Script Properties и распознан backend без раскрытия значения.
 
 Ещё проверить вручную:
@@ -52,7 +52,7 @@ Candidate включает:
 3. Новые позиции банкета иногда не добавляются в `Банкеты_Резерв`.
 4. Сканер документов требует замеров скорости на реальном Android.
 5. Production v15.13.3/v9.4.6 требует живого Telegram-теста на реальных фото.
-6. Tatooine v1.1.1/v9.4.6: исправление file input требует публикации и повторного живого Telegram-теста.
+6. Tatooine v1.1.1/v9.4.6: file input исправлен и опубликован; требуется повторный живой Telegram-тест.
 
 ## Architecture decision
 

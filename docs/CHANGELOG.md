@@ -2,7 +2,7 @@
 
 ## Tatooine frontend v1.1.1 — FILE INPUT FIX
 
-Статус: candidate от 22 июля 2026; автоматические тесты и публикация ожидаются.
+Статус: production с 22 июля 2026; PR №5, merge commit `e1e184acb97b3e9a5dc76623521a90d3b8520285`, 31/31 тест, повторный Telegram-тест ожидается.
 
 Что исправлено:
 
