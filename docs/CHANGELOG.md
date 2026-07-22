@@ -2,7 +2,7 @@
 
 ## Tatooine frontend v1.3.2 — DEFAULT CHANGE FUND 100K
 
-Статус: candidate от 22 июля 2026; автоматические тесты и публикация ожидаются.
+Статус: production с 22 июля 2026; PR №10, merge commit `2851cd20ef9171f81481c491b8604d9cf25f9525`, GitHub Pages опубликован, 35/35 автоматических тестов, живой Telegram-тест ожидается.
 
 Что изменено:
 
