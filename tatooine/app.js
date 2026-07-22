@@ -40,6 +40,7 @@
     let chat = null;
     try { chat = TG && TG.initDataUnsafe ? TG.initDataUnsafe.chat : null; } catch (_) {}
     return {
+      venue: String(CONFIG.venue || 'tatooine'),
       telegramUserId: user && user.id ? String(user.id) : '',
       telegramUserName: user ? ([user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || String(user.id || '')) : '',
       telegramChatId: chat && chat.id ? String(chat.id) : '',
