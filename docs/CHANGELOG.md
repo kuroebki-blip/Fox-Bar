@@ -2,7 +2,7 @@
 
 ## Tatooine frontend v1.1.0 — PETROVKA REPORT TEMPLATE
 
-Статус: candidate от 22 июля 2026; 29/29 автоматических тестов пройдены, публикация и живой Telegram-тест ожидаются.
+Статус: production с 22 июля 2026; PR №4, merge commit `c66fa5396504d9465bafc3cbb2770213c15e073c`, 30/30 тестов, живой Telegram-тест ожидается.
 
 Что изменено:
 
@@ -18,7 +18,7 @@
 
 ## Stock/scanner backend v9.4.6 — TATOOINE REPORT TEMPLATE
 
-Статус: candidate от 22 июля 2026; синтаксис и автоматические тесты пройдены, публикация ожидается.
+Статус: production с 22 июля 2026; Apps Script version `18`, публичный `ping v9.4.6`, захват custom emoji и живой Telegram-тест ожидаются.
 
 Что изменено:
 
@@ -29,7 +29,7 @@
 
 Как откатиться:
 
-- оставить Apps Script deployment на version `17` (`v9.4.5`).
+- переключить Apps Script deployment с version `18` на version `17` (`v9.4.5`).
 
 ## Tatooine frontend v1.0.1 — SEPARATE BOT ROUTING
 

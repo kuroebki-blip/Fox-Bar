@@ -2,14 +2,12 @@
 
 ## Версия
 
-- production frontend: `v1.0.1 SEPARATE BOT ROUTING`;
-- production backend: общий Apps Script Web App `v9.4.5 MULTI BOT CASH ROUTING`;
-- candidate frontend: `v1.1.0 PETROVKA REPORT TEMPLATE`;
-- candidate backend: `v9.4.6 TATOOINE REPORT TEMPLATE`;
-- статус candidate: автоматические тесты пройдены, публикация и Telegram-тест ожидаются;
+- production frontend: `v1.1.0 PETROVKA REPORT TEMPLATE`;
+- production backend: общий Apps Script Web App `v9.4.6 TATOOINE REPORT TEMPLATE`;
+- статус: production с 22 июля 2026; захват custom emoji и живой Telegram-тест ожидаются;
 - URL: `https://kuroebki-blip.github.io/Fox-Bar/tatooine/`;
-- GitHub: PR №3, merge commit `4d5c254e56760715e78f01d08272d6ef5dde5cd7`;
-- Apps Script: version `17` на сохранённом Web App URL.
+- GitHub: PR №4, merge commit `c66fa5396504d9465bafc3cbb2770213c15e073c`;
+- Apps Script: version `18` на сохранённом Web App URL.
 
 ## Состав
 
@@ -63,7 +61,7 @@ Candidate v1.1.0 формирует сообщение по эталону Tatoo
 - GitHub Pages собран со статусом `built`;
 - публичные `app.js` и `styles.css` отвечают HTTP 200;
 - браузерный smoke-тест загрузил интерфейс без критических ошибок;
-- публичный frontend показывает `v1.0.1`, backend `ping` вернул `v9.4.5`.
+- публичный frontend показывает `v1.1.0`, backend `ping` вернул `v9.4.6`.
 
 ## Живой тест
 
@@ -76,4 +74,4 @@ Candidate v1.1.0 формирует сообщение по эталону Tatoo
 
 ## Откат
 
-До публикации candidate откат не требуется. После релиза вернуть Apps Script на version `17` (`v9.4.5`), а GitHub Pages — на frontend `v1.0.1` из merge commit `4d5c254e56760715e78f01d08272d6ef5dde5cd7`.
+Вернуть Apps Script на version `17` (`v9.4.5`), а GitHub Pages — на frontend `v1.0.1` из merge commit `4d5c254e56760715e78f01d08272d6ef5dde5cd7`.

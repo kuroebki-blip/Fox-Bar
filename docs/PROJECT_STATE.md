@@ -5,12 +5,12 @@
 22 июля 2026 опубликована и автоматически проверена пара:
 
 - GitHub Pages: frontend `v15.13.3 SCANNER JOB SAFETY`, merge commit `10f766c11deabfe0403af1640e266e6dbc998a6f`;
-- Apps Script scanner/stock Web App: backend `v9.4.5 MULTI BOT CASH ROUTING`, Apps Script version `17`;
-- рабочий Web App URL сохранён; `?action=ping` вернул `v9.4.5`;
+- Apps Script scanner/stock Web App: backend `v9.4.6 TATOOINE REPORT TEMPLATE`, Apps Script version `18`;
+- рабочий Web App URL сохранён; `?action=ping` вернул `v9.4.6`;
 - GitHub Pages завершил сборку со статусом `built`, публичный HTML содержит `v15.13.3` и рабочий Web App URL;
 - браузерный smoke-тест открыл главную, «Документы и чеки» и «Кассовый отчёт» без критических JavaScript-ошибок.
-- Tatooine: отдельный frontend `v1.0.1 SEPARATE BOT ROUTING` опубликован по адресу `https://kuroebki-blip.github.io/Fox-Bar/tatooine/`, PR №3, merge commit `4d5c254e56760715e78f01d08272d6ef5dde5cd7`;
-- Tatooine использует отдельный Telegram-маршрут на существующем backend `v9.4.5`; токен нового бота сохранён в Script Properties и распознан backend без раскрытия значения.
+- Tatooine: frontend `v1.1.0 PETROVKA REPORT TEMPLATE` опубликован по адресу `https://kuroebki-blip.github.io/Fox-Bar/tatooine/`, PR №4, merge commit `c66fa5396504d9465bafc3cbb2770213c15e073c`;
+- Tatooine использует отдельный Telegram-маршрут на backend `v9.4.6`; токен нового бота сохранён в Script Properties и распознан backend без раскрытия значения.
 
 Ещё проверить вручную:
 
@@ -50,8 +50,8 @@ Candidate включает:
 2. После перевода банкета в «Пройден» иногда не снимается резерв.
 3. Новые позиции банкета иногда не добавляются в `Банкеты_Резерв`.
 4. Сканер документов требует замеров скорости на реальном Android.
-5. Production v15.13.3/v9.4.5 требует живого Telegram-теста на реальных фото.
-6. Tatooine v1.1.0/v9.4.6 требует публикации, захвата custom emoji из эталона и живого Telegram-теста.
+5. Production v15.13.3/v9.4.6 требует живого Telegram-теста на реальных фото.
+6. Tatooine v1.1.0/v9.4.6 требует захвата custom emoji из эталона и живого Telegram-теста.
 
 ## Architecture decision
 
