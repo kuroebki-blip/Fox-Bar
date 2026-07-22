@@ -138,40 +138,40 @@
 
   function buildTatooineCashMessage(data) {
     const location = String(data.location || 'ПЕТРОВКА').trim().toUpperCase();
+    const cashTotal = (Number(data.cashNonFiscal) || 0) + (Number(data.cashFiscal) || 0);
     const lines = [
       'TATOOINE',
       '',
-      '🦊 ' + location + ' 🦊',
-      '📈 ОТЧЕТ КАССОВОЙ СМЕНЫ',
+      '🦊 ' + location + '  🦊',
+      '📈ОТЧЕТ КАССОВОЙ СМЕНЫ',
       'ДАТА: ' + shortDate(data.date),
       '',
-      '💵 Общая выручка: ' + reportAmount(data.totalRevenue),
+      '🪙Общая выручка: ' + reportAmount(data.totalRevenue),
       ''
     ];
     [
-      ['💳', 'Безнал', data.bankCards],
-      ['💳', 'Безнал 2', data.bankCards2],
-      ['💵', 'Нал', data.cashNonFiscal],
-      ['💵', 'Нал Фискал', data.cashFiscal],
-      ['💵', 'Нал 2', data.cash2],
-      ['🏧', 'Онлайн касса 2', data.onlineCashbox2],
+      ['🧪 ', 'Безнал', data.bankCards],
+      ['🧪 ', 'Безнал 2', data.bankCards2],
+      ['🧪 ', 'Нал', cashTotal],
+      ['🧪 ', 'Нал 2', data.cash2],
+      ['🧪 ', 'Онлайн касса 2', data.onlineCashbox2],
       ['📈', 'EatAndSplit', data.eatAndSplit],
-      ['🟡', 'Яндекс еда', data.yandexFood],
-      ['🟢', 'Tapper', data.tapper],
-      ['🏦', 'Расчётный счёт', data.settlementAccount],
-      ['🏦', 'Расчётный счёт 2', data.settlementAccount2]
+      ['🌎', 'Яндекс еда', data.yandexFood],
+      ['🧪 ', 'Tapper', data.tapper],
+      ['🧪 ', 'Расчётный счёт', data.settlementAccount],
+      ['🧪 ', 'Расчётный счёт 2', data.settlementAccount2]
     ].forEach(item => {
       const value = reportAmount(item[2], true);
-      if (value) lines.push(item[0] + ' ' + item[1] + ': ' + value);
+      if (value) lines.push(item[0] + item[1] + ': ' + value, '');
     });
-    lines.push('', '', '💳 Расход:' + (Number(data.expense) ? ' ' + reportAmount(data.expense) : ''));
+    lines.push('', '', '💀 Расход:' + (Number(data.expense) ? ' ' + reportAmount(data.expense) : ''));
     if (data.expenseComment) lines.push('Комментарий: ' + String(data.expenseComment).trim());
     lines.push(
       '',
-      '🟠 Инкассация:' + (Number(data.collection) ? ' ' + reportAmount(data.collection) : '') + (Number(data.collectionActual) ? ' (' + reportAmount(data.collectionActual) + ')' : '')
+      '🧪 Инкассация:' + (Number(data.collection) ? ' ' + reportAmount(data.collection) : '') + (Number(data.collectionActual) ? ' (' + reportAmount(data.collectionActual) + ')' : '')
     );
-    if (Number(data.morningCash)) lines.push('💵 На утро в кассе [' + reportAmount(data.morningCash) + ']');
-    lines.push('⚔️ Неизменный размен [' + reportAmount(data.changeFund) + ']', '', '🌐 Предоплаты:');
+    if (Number(data.morningCash)) lines.push('', '🧪 На утро в кассе [' + reportAmount(data.morningCash) + ']');
+    lines.push('', '🔠 Неизменный размен [' + reportAmount(data.changeFund) + ']', '', '🔄Предоплаты:');
     const prepaymentsList = (Array.isArray(data.prepayments) ? data.prepayments : []).filter(item => item.date && Number(item.amount) > 0);
     if (prepaymentsList.length) {
       lines.push('');
