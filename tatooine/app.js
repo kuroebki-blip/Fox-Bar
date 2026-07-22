@@ -110,6 +110,76 @@
     if (totalBytes > maxTotalBytes) throw new Error('Общий размер фотографий больше 12 МБ. Уменьшите их количество.');
     return { pages: list.length, totalBytes };
   }
+
+  function normalizedPaymentName(value) {
+    return String(value || '').trim().toLowerCase().replace(/ё/g, 'е').replace(/[‐‑‒–—-]+/g, ' ').replace(/\s+/g, ' ');
+  }
+
+  function exactPaymentRowAmount(rows, names) {
+    const targets = (names || []).map(normalizedPaymentName);
+    const found = (Array.isArray(rows) ? rows : []).find(row => targets.includes(normalizedPaymentName(row && (row.name || row.row_name))));
+    return found ? Number(found.amount) || 0 : 0;
+  }
+
+  function reportAmount(value, blankWhenZero = false) {
+    const number = Number(value) || 0;
+    if (blankWhenZero && !number) return '';
+    return number.toLocaleString('ru-RU', { minimumFractionDigits: Number.isInteger(number) ? 0 : 2, maximumFractionDigits: 2 }).replace(/\u00a0|\u202f/g, ' ');
+  }
+
+  function prepaymentAmount(value) {
+    return reportAmount(value).replace(/ /g, '.');
+  }
+
+  function shortDate(value) {
+    const match = String(value || '').match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+    return match ? match[1] + '.' + match[2] + '.' + match[3].slice(-2) : String(value || '');
+  }
+
+  function buildTatooineCashMessage(data) {
+    const location = String(data.location || 'ПЕТРОВКА').trim().toUpperCase();
+    const lines = [
+      'TATOOINE',
+      '',
+      '🦊 ' + location + ' 🦊',
+      '📈 ОТЧЕТ КАССОВОЙ СМЕНЫ',
+      'ДАТА: ' + shortDate(data.date),
+      '',
+      '💵 Общая выручка: ' + reportAmount(data.totalRevenue),
+      ''
+    ];
+    [
+      ['💳', 'Безнал', data.bankCards],
+      ['💳', 'Безнал 2', data.bankCards2],
+      ['💵', 'Нал', data.cashNonFiscal],
+      ['💵', 'Нал Фискал', data.cashFiscal],
+      ['💵', 'Нал 2', data.cash2],
+      ['🏧', 'Онлайн касса 2', data.onlineCashbox2],
+      ['📈', 'EatAndSplit', data.eatAndSplit],
+      ['🟡', 'Яндекс еда', data.yandexFood],
+      ['🟢', 'Tapper', data.tapper],
+      ['🏦', 'Расчётный счёт', data.settlementAccount],
+      ['🏦', 'Расчётный счёт 2', data.settlementAccount2]
+    ].forEach(item => {
+      const value = reportAmount(item[2], true);
+      if (value) lines.push(item[0] + ' ' + item[1] + ': ' + value);
+    });
+    lines.push('', '', '💳 Расход:' + (Number(data.expense) ? ' ' + reportAmount(data.expense) : ''));
+    if (data.expenseComment) lines.push('Комментарий: ' + String(data.expenseComment).trim());
+    lines.push(
+      '',
+      '🟠 Инкассация:' + (Number(data.collection) ? ' ' + reportAmount(data.collection) : '') + (Number(data.collectionActual) ? ' (' + reportAmount(data.collectionActual) + ')' : '')
+    );
+    if (Number(data.morningCash)) lines.push('💵 На утро в кассе [' + reportAmount(data.morningCash) + ']');
+    lines.push('⚔️ Неизменный размен [' + reportAmount(data.changeFund) + ']', '', '🌐 Предоплаты:');
+    const prepaymentsList = (Array.isArray(data.prepayments) ? data.prepayments : []).filter(item => item.date && Number(item.amount) > 0);
+    if (prepaymentsList.length) {
+      lines.push('');
+      prepaymentsList.forEach(item => lines.push(shortDate(item.date) + '- ' + prepaymentAmount(item.amount)));
+      lines.push('', 'Итого: ' + prepaymentAmount(prepaymentsList.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)));
+    }
+    return lines.join('\n');
+  }
   // ===== TATOOINE TESTABLE HELPERS END =====
 
   function readFileAsDataUrl(file) {
@@ -355,6 +425,8 @@
     setNumber('cashReportSettlement', data.settlementAccount);
     setNumber('cashReportSettlement2', data.settlementAccount2);
     setNumber('cashReportOnlineCashbox2', data.onlineCashbox2);
+    setNumber('cashReportEatAndSplit', exactPaymentRowAmount(data.paymentRows, ['EatAndSplit']));
+    setNumber('cashReportYandexFood', exactPaymentRowAmount(data.paymentRows, ['Яндекс еда', 'Яндекс.Еда', 'Yandex Food']));
     $('cashReportExpense').value = '0';
     $('cashReportExpenseComment').value = '';
     setNumber('cashReportCollection', data.collectionAmount);
@@ -418,22 +490,6 @@
     if (blankWhenZero && !number) return '';
     return number.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
-  function plainMoney(value) {
-    const number = Number(value) || 0;
-    return number.toLocaleString('ru-RU', { minimumFractionDigits: Number.isInteger(number) ? 0 : 2, maximumFractionDigits: 2 });
-  }
-  function shortDate(value) {
-    const match = String(value || '').match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
-    return match ? match[1] + '.' + match[2] + '.' + match[3].slice(-2) : String(value || '');
-  }
-  function paymentPhrase(method) {
-    return { cash: 'наличными в ресторане', online: 'оплата по ссылке', card: 'картой в ресторане', account: 'расчётный счёт' }[method] || 'оплата';
-  }
-  function paymentLine(label, value) {
-    const formatted = money(value, true);
-    return '🟢 ' + label + ':' + (formatted ? ' ' + formatted : '');
-  }
-
   function updateComparison() {
     const terminalTotal = terminalSlips.reduce((sum, slip) => sum + (Number(slip.amount) || 0), 0);
     const iiko = numeric('cashReportBankCards');
@@ -456,42 +512,29 @@
   }
 
   function refreshMessage() {
-    const date = $('cashReportDate').value.trim();
-    const collection = numeric('cashReportCollection');
-    const collectionActual = numeric('cashReportCollectionActual');
-    const lines = [
-      'Tatooine',
-      '',
-      '🏜 РЕСТОРАН TATOOINE',
-      '👨‍💻 ОТЧЕТ КАССОВОЙ СМЕНЫ',
-      'ДАТА ' + date,
-      '',
-      'Общая выручка: ' + money(numeric('cashReportTotalRevenue')),
-      '',
-      paymentLine('Безнал', numeric('cashReportBankCards')),
-      paymentLine('Безнал 2', numeric('cashReportBankCards2')),
-      paymentLine('Нал', numeric('cashReportCashNonFiscal')),
-      paymentLine('Нал Фискал', numeric('cashReportCashFiscal')),
-      paymentLine('Нал 2', numeric('cashReportCash2')),
-      paymentLine('Tapper', numeric('cashReportTapper')),
-      paymentLine('Расчётный счёт', numeric('cashReportSettlement')),
-      paymentLine('Расчётный счёт 2', numeric('cashReportSettlement2')),
-      paymentLine('Онлайн-Касса 2', numeric('cashReportOnlineCashbox2')),
-      '',
-      'Расход: ' + plainMoney(numeric('cashReportExpense'))
-    ];
-    const expenseComment = $('cashReportExpenseComment').value.trim();
-    if (expenseComment) lines.push('Комментарий к расходу: ' + expenseComment);
-    lines.push(
-      '',
-      'Инкассация:' + (collection ? ' ' + plainMoney(collection) : '') + (collectionActual ? ' (' + plainMoney(collectionActual) + ')' : ''),
-      'На утро в кассе [' + plainMoney(numeric('cashReportMorningCash')) + ']',
-      'Неизменный размен [' + plainMoney(numeric('cashReportChangeFund')) + ']'
-    );
-    prepayments.filter(item => item.date && Number(item.amount) > 0).forEach(item => {
-      lines.push('', '🟢 Предоплата: ' + shortDate(item.date), plainMoney(item.amount) + ' ' + paymentPhrase(item.method));
+    $('cashReportMessage').value = buildTatooineCashMessage({
+      location: CONFIG.reportLocation,
+      date: $('cashReportDate').value.trim(),
+      totalRevenue: numeric('cashReportTotalRevenue'),
+      bankCards: numeric('cashReportBankCards'),
+      bankCards2: numeric('cashReportBankCards2'),
+      cashNonFiscal: numeric('cashReportCashNonFiscal'),
+      cashFiscal: numeric('cashReportCashFiscal'),
+      cash2: numeric('cashReportCash2'),
+      onlineCashbox2: numeric('cashReportOnlineCashbox2'),
+      eatAndSplit: numeric('cashReportEatAndSplit'),
+      yandexFood: numeric('cashReportYandexFood'),
+      tapper: numeric('cashReportTapper'),
+      settlementAccount: numeric('cashReportSettlement'),
+      settlementAccount2: numeric('cashReportSettlement2'),
+      expense: numeric('cashReportExpense'),
+      expenseComment: $('cashReportExpenseComment').value.trim(),
+      collection: numeric('cashReportCollection'),
+      collectionActual: numeric('cashReportCollectionActual'),
+      morningCash: numeric('cashReportMorningCash'),
+      changeFund: numeric('cashReportChangeFund'),
+      prepayments
     });
-    $('cashReportMessage').value = lines.join('\n');
     updateComparison();
   }
 
@@ -551,7 +594,8 @@
     [
       'cashReportDate', 'cashReportTotalRevenue', 'cashReportBankCards', 'cashReportBankCards2',
       'cashReportCashNonFiscal', 'cashReportCashFiscal', 'cashReportCash2', 'cashReportTapper',
-      'cashReportSettlement', 'cashReportSettlement2', 'cashReportOnlineCashbox2', 'cashReportExpense',
+      'cashReportSettlement', 'cashReportSettlement2', 'cashReportOnlineCashbox2', 'cashReportEatAndSplit',
+      'cashReportYandexFood', 'cashReportExpense',
       'cashReportExpenseComment', 'cashReportCollection', 'cashReportCollectionActual',
       'cashReportMorningCash', 'cashReportChangeFund'
     ].forEach(id => {
@@ -595,6 +639,6 @@
     checkBackend();
   }
 
-  window.TatooineCashTest = Object.freeze({ base64DecodedBytes, validateOcrImages, updateComparison });
+  window.TatooineCashTest = Object.freeze({ base64DecodedBytes, validateOcrImages, exactPaymentRowAmount, buildTatooineCashMessage, updateComparison });
   init();
 })();
