@@ -2,7 +2,7 @@
 
 ## Tatooine frontend v1.3.3 — HIDE EMPTY PREPAYMENTS
 
-Статус: candidate от 22 июля 2026; автоматические тесты и публикация ожидаются.
+Статус: production с 22 июля 2026; PR №11, merge commit `cab4dfb72a3534276bc207b3eadc95bebb289344`, GitHub Pages опубликован, 35/35 автоматических тестов, живой Telegram-тест ожидается.
 
 Что изменено:
 
