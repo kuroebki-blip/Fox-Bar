@@ -9,7 +9,7 @@
 - рабочий Web App URL сохранён; `?action=ping` вернул `v9.4.7`;
 - GitHub Pages завершил сборку со статусом `built`, публичный HTML содержит `v15.13.3` и рабочий Web App URL;
 - браузерный smoke-тест открыл главную, «Документы и чеки» и «Кассовый отчёт» без критических JavaScript-ошибок.
-- Tatooine: frontend `v1.2.0 ORIGINAL TELEGRAM LAYOUT` опубликован по адресу `https://kuroebki-blip.github.io/Fox-Bar/tatooine/`, PR №6, merge commit `daed7bba8edffdef19eb525f01a7ce5eec115a6e`;
+- Tatooine: frontend `v1.2.1 ALWAYS SHOW REPORT FIELDS` опубликован по адресу `https://kuroebki-blip.github.io/Fox-Bar/tatooine/`, PR №7, merge commit `524fbb2e09651919ed3bb86d4ce8bec495575ec9`;
 - Tatooine использует отдельный Telegram-маршрут на backend `v9.4.7`; токен нового бота сохранён в Script Properties и распознан backend без раскрытия значения.
 
 Ещё проверить вручную:
@@ -22,7 +22,7 @@
 
 - `frontend/candidate/index.html`: v15.13.3 SCANNER JOB SAFETY.
 - `apps-script/stock-scanner/candidate/Code.gs`: v9.4.7 TATOOINE ORIGINAL LAYOUT.
-- `frontend/tatooine/`: v1.2.1 ALWAYS SHOW REPORT FIELDS (candidate; все строки отчёта сохраняются при пустых значениях).
+- `frontend/tatooine/`: v1.2.1 ALWAYS SHOW REPORT FIELDS.
 
 Candidate включает:
 
@@ -54,7 +54,7 @@ Candidate включает:
 3. Новые позиции банкета иногда не добавляются в `Банкеты_Резерв`.
 4. Сканер документов требует замеров скорости на реальном Android.
 5. Production v15.13.3/v9.4.7 требует живого Telegram-теста на реальных фото.
-6. Tatooine v1.2.0/v9.4.7 опубликован; требуется живой Telegram-тест точного шаблона.
+6. Tatooine v1.2.1/v9.4.7 опубликован; требуется живой Telegram-тест строк с пустыми значениями и точного шаблона.
 
 ## Architecture decision
 

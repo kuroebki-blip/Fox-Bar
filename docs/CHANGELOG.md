@@ -2,7 +2,7 @@
 
 ## Tatooine frontend v1.2.1 — ALWAYS SHOW REPORT FIELDS
 
-Статус: candidate от 22 июля 2026; 31/31 автоматических тестов, живой Telegram-тест ожидается.
+Статус: production с 22 июля 2026; PR №7, merge commit `524fbb2e09651919ed3bb86d4ce8bec495575ec9`, GitHub Pages опубликован, 31/31 автоматических тестов, живой Telegram-тест ожидается.
 
 Что изменено:
 
