@@ -182,8 +182,6 @@
       lines.push('');
       prepaymentsList.forEach(item => lines.push(shortDate(item.date) + '- ' + prepaymentAmount(item.amount)));
       lines.push('', 'Итого: ' + prepaymentAmount(prepaymentsList.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)));
-    } else {
-      lines.push('', 'Итого:');
     }
     return lines.join('\n');
   }
