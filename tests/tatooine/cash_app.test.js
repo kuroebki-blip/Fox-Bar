@@ -26,15 +26,18 @@ test('frontend uses the existing published handler without placeholders', () => 
   assert.match(app, /cashReportSend/);
 });
 
-test('cash message is branded Tatooine and preserves required payment rows', () => {
+test('cash message is branded Tatooine and keeps only the approved report rows', () => {
   assert.match(app, /'TATOOINE'/);
   assert.match(app, /ПЕТРОВКА/);
   assert.match(app, /EatAndSplit/);
   assert.match(app, /Яндекс еда/);
   assert.match(html + app, /Оплата QR/);
   assert.match(app, /terminalSlips/);
-  assert.match(app, /Расчётный счёт 2/);
   assert.match(app, /Инкассация:/);
+  assert.doesNotMatch(html + app, /cashReportBankCards2|cashReportCash2|cashReportTapper|cashReportSettlement|cashReportMorningCash/);
+  assert.match(html + app, /cashReportCashTotal/);
+  assert.match(html + app, /iiko 041/i);
+  assert.match(app, /result\.iikoReportCode/);
 });
 
 test('photos are sent as reduced images and are not uploaded as PDF', () => {

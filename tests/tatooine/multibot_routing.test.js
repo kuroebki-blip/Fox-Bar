@@ -71,3 +71,26 @@ test('job creation, status and sending use route-aware helpers', () => {
   assert.match(backend, /getJobStatus_\(jobId, auth\)/);
   assert.match(backend, /!jobMatchesTelegramRoute_\(row, auth\)/);
 });
+
+test('Tatooine and FO’X OCR use only iiko report 041', () => {
+  assert.match(backend, /recognizeCashReportWithGemini_\(images, pagesCount, auth && auth\.venue\)/);
+  assert.match(backend, /normalizeTelegramVenue_\(venue\) === 'tatooine'/);
+  assert.match(backend, /Для обоих ресторанов единственный источник даты, общей выручки и всех платёжных строк — документ с номером\/формой «041»/);
+  assert.match(backend, /Игнорируй любые другие отчёты iiko/);
+  assert.match(backend, /replaceIiko041Core_/);
+  assert.match(backend, /iikoReportCode: isIikoReport041_\(r\.iiko_report_code\) \? '041' : ''/);
+});
+
+test('unconfirmed iiko 041 data is cleared instead of using another report', () => {
+  const helperBlock = backend.match(/function isIikoReport041_\([\s\S]*?(?=function recognizeIikoCoreWithGemini_\()/);
+  assert.ok(helperBlock, 'iiko 041 helper block must exist');
+  const helperContext = vm.createContext({ number_: value => Number(value) || 0 });
+  vm.runInContext(helperBlock[0], helperContext, { filename: 'Code.gs' });
+  helperContext.primary = { report_date:'21.07.2026', total_revenue:999, payment_rows:[{row_name:'Wrong'}], notes:'' };
+  helperContext.unconfirmed = { iiko_report_code:'040', report_date:'22.07.2026', total_revenue:1000, payment_rows:[{row_name:'Wrong 2'}] };
+  const cleared = vm.runInContext('replaceIiko041Core_(primary,unconfirmed)', helperContext);
+  assert.equal(cleared.report_date, '');
+  assert.equal(cleared.total_revenue, 0);
+  assert.deepEqual(Array.from(cleared.payment_rows), []);
+  assert.match(cleared.notes, /041 не подтверждён/);
+});

@@ -1,5 +1,5 @@
 /**
- * FO’X — документы, чеки, банкетный резерв и кассовый отчёт v9.4.7
+ * FO’X — документы, чеки, банкетный резерв и кассовый отчёт v9.4.8
  *
  * Назначение:
  * 1. Принимает облегчённые JPEG-страницы для быстрого распознавания.
@@ -16,7 +16,7 @@
  */
 
 const FOX_RECEIPTS = {
-  version: 'v9.4.7 TATOOINE ORIGINAL LAYOUT',
+  version: 'v9.4.8 CASH IIKO 041 SOURCE',
 
   stockSheets: [
     'Вино',
@@ -1042,7 +1042,7 @@ function scanCashReport_(p, auth) {
   updateJob_(jobId, { status: 'PROCESSING', step: 'Передаю PDF напрямую в Gemini без сохранения', progress: 0.18, error: '' });
   SpreadsheetApp.flush();
 
-  const raw = recognizeCashReportWithGemini_(pdfBase64, pagesCount);
+  const raw = recognizeCashReportWithGemini_(pdfBase64, pagesCount, auth && auth.venue);
   const result = sanitizeCashReportResult_(raw, pagesCount);
   result.jobId = jobId;
 
@@ -1065,7 +1065,7 @@ function scanCashReportImages_(p, auth) {
   createCashReportJob_(jobId, auth, pagesCount);
   updateJob_(jobId, { status:'PROCESSING', step:'Распознаю фотографии кассового отчёта напрямую', progress:0.18, error:'' });
   SpreadsheetApp.flush();
-  const raw = recognizeCashReportWithGemini_(images, pagesCount);
+  const raw = recognizeCashReportWithGemini_(images, pagesCount, auth && auth.venue);
   const result = sanitizeCashReportResult_(raw, pagesCount);
   result.jobId = jobId;
   updateJob_(jobId, { status:'DONE', step:'Проверь суммы и сверку терминалов', progress:1, resultJson:JSON.stringify(result), pdfFileId:'', pdfUrl:'', error:'' });
@@ -1097,11 +1097,12 @@ function failCashReportJob_(jobId, message) {
   updateJob_(jobId, { status: 'ERROR', step: 'Ошибка распознавания кассового отчёта', progress: 1, error: message });
 }
 
-function recognizeCashReportWithGemini_(pdfBase64, pagesCount) {
+function recognizeCashReportWithGemini_(pdfBase64, pagesCount, venue) {
   const props = PropertiesService.getScriptProperties();
   const apiKey = props.getProperty('GEMINI_API_KEY');
   if (!apiKey) throw new Error('В Script Properties не задан GEMINI_API_KEY.');
   const model = normalizeGeminiModel_(props.getProperty('GEMINI_MODEL') || FOX_RECEIPTS.defaultGeminiModel);
+  const isTatooine = normalizeTelegramVenue_(venue) === 'tatooine';
   let mediaParts;
   if (Array.isArray(pdfBase64)) {
     if (!pdfBase64.length) throw new Error('Не переданы фотографии кассового отчёта.');
@@ -1116,11 +1117,15 @@ function recognizeCashReportWithGemini_(pdfBase64, pagesCount) {
   }
 
   const prompt = [
-    'Ты распознаёшь кассовый отчёт ресторана FO’X из iiko и сводные банковские слипы терминалов.',
+    isTatooine
+      ? 'Ты распознаёшь кассовый отчёт ресторана Tatooine из отчёта iiko 041 и сводные банковские слипы терминалов.'
+      : 'Ты распознаёшь кассовый отчёт ресторана FO’X из отчёта iiko 041 и сводные банковские слипы терминалов.',
     'PDF содержит ' + pagesCount + ' страниц/фотографий. На одной фотографии могут одновременно находиться длинные отчёты iiko и несколько маленьких терминальных слипов.',
     'Верни только JSON без Markdown. Не выдумывай значения. Если поле не найдено — число 0, строка "", массив [].',
     '',
     'ПРАВИЛА ДЛЯ ОТЧЁТА IIKO:',
+    'Для обоих ресторанов единственный источник даты, общей выручки и всех платёжных строк — документ с номером/формой «041». Запиши iiko_report_code="041" только если номер 041 действительно виден на этом документе.',
+    'Игнорируй любые другие отчёты iiko при заполнении report_date, total_revenue, fiscal_total, non_fiscal_total и payment_rows. Если отчёт 041 отсутствует или номер не читается — оставь эти поля пустыми/нулевыми, не подставляй значения из другого отчёта.',
     'report_date — дата кассовой смены строго ДД.ММ.ГГГГ. Бери её ТОЛЬКО из длинного отчёта iiko (шапка «Итого по смене»/«Кассовая смена»). Не бери дату с банковских слипов и не бери рукописную дату с конверта.',
     'fiscal_total — итог раздела ФИСКАЛЬНЫЕ типы оплат.',
     'non_fiscal_total — итог раздела НЕФИСКАЛЬНЫЕ типы оплат.',
@@ -1186,6 +1191,7 @@ function recognizeCashReportWithGemini_(pdfBase64, pagesCount) {
   const schema = {
     type: 'OBJECT',
     properties: {
+      iiko_report_code: { type: 'STRING' },
       report_date: { type: 'STRING' },
       fiscal_total: { type: 'NUMBER' },
       non_fiscal_total: { type: 'NUMBER' },
@@ -1231,7 +1237,7 @@ function recognizeCashReportWithGemini_(pdfBase64, pagesCount) {
       },
       notes: { type: 'STRING' }
     },
-    required: ['report_date','fiscal_total','non_fiscal_total','envelope_date','total_revenue','bank_cards','bank_cards_2','cash_non_fiscal','cash_fiscal','cash_2','tapper','settlement_account','settlement_account_2','online_cashbox_2','collection_amount','collection_actual','payment_rows','terminal_slips','notes']
+    required: ['iiko_report_code','report_date','fiscal_total','non_fiscal_total','envelope_date','total_revenue','bank_cards','bank_cards_2','cash_non_fiscal','cash_fiscal','cash_2','tapper','settlement_account','settlement_account_2','online_cashbox_2','collection_amount','collection_actual','payment_rows','terminal_slips','notes']
   };
   const parts = mediaParts.concat([{ text:prompt }]);
   const body = { contents: [{ role: 'user', parts: parts }], generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0.1, maxOutputTokens: 4096 } };
@@ -1246,10 +1252,10 @@ function recognizeCashReportWithGemini_(pdfBase64, pagesCount) {
 
   // Узкая повторная проверка длинного отчёта iiko запускается только при конфликте даты
   // или если сумма извлечённых платёжных строк не сходится с итогом раздела.
-  if (iikoCoreNeedsVerification_(primary)) {
+  if (iikoCoreNeedsVerification_(primary) || !isIikoReport041_(primary.iiko_report_code)) {
     try {
-      const verifiedIiko = recognizeIikoCoreWithGemini_(apiKey, model, mediaParts);
-      primary = mergeVerifiedIikoCore_(primary, verifiedIiko);
+      const verifiedIiko = recognizeIikoCoreWithGemini_(apiKey, model, mediaParts, venue);
+      primary = replaceIiko041Core_(primary, verifiedIiko);
     } catch (verifyIikoError) {
       primary.notes = [String(primary.notes || '').trim(), 'Повторная проверка iiko: ' + errorText_(verifyIikoError)].filter(Boolean).join(' | ');
     }
@@ -1490,10 +1496,34 @@ function mergeVerifiedIikoCore_(primary, verified) {
   return primary;
 }
 
-function recognizeIikoCoreWithGemini_(apiKey, model, mediaParts) {
+function isIikoReport041_(value) {
+  return /(?:^|\D)0*41(?:\D|$)/.test(String(value || ''));
+}
+
+function replaceIiko041Core_(primary, verified) {
+  primary = primary && typeof primary === 'object' ? primary : {};
+  verified = verified && typeof verified === 'object' ? verified : {};
+  const confirmed = isIikoReport041_(verified.iiko_report_code);
+  primary.iiko_report_code = confirmed ? '041' : '';
+  primary.report_date = confirmed ? String(verified.report_date || '') : '';
+  primary.total_revenue = confirmed ? number_(verified.total_revenue) : 0;
+  primary.fiscal_total = confirmed ? number_(verified.fiscal_total) : 0;
+  primary.non_fiscal_total = confirmed ? number_(verified.non_fiscal_total) : 0;
+  primary.payment_rows = confirmed && Array.isArray(verified.payment_rows) ? verified.payment_rows : [];
+  if (!confirmed) {
+    primary.notes = [String(primary.notes || '').trim(), 'Отчёт iiko 041 не подтверждён.'].filter(Boolean).join(' | ');
+  }
+  return primary;
+}
+
+function recognizeIikoCoreWithGemini_(apiKey, model, mediaParts, venue) {
+  const isTatooine = normalizeTelegramVenue_(venue) === 'tatooine';
   const prompt = [
-    'Распознай ТОЛЬКО длинный кассовый отчёт iiko FO’X. Игнорируй маленькие банковские слипы и рукописный конверт.',
+    isTatooine
+      ? 'Распознай ТОЛЬКО отчёт iiko с номером/формой 041 ресторана Tatooine. Игнорируй другие отчёты iiko, маленькие банковские слипы и рукописный конверт.'
+      : 'Распознай ТОЛЬКО отчёт iiko с номером/формой 041 ресторана FO’X. Игнорируй другие отчёты iiko, маленькие банковские слипы и рукописный конверт.',
     'Верни только JSON без Markdown.',
+    'iiko_report_code — напечатанный номер отчёта. Верни "041" только если номер 041 действительно виден; иначе пустую строку и нулевые значения.',
     'report_date бери только из шапки длинного отчёта iiko рядом с «Итого по смене»/«Кассовая смена». Формат ДД.ММ.ГГГГ.',
     'total_revenue — «Итого (Все типы оплат)».',
     'fiscal_total — итог раздела ФИСКАЛЬНЫЕ типы оплат.',
@@ -1507,6 +1537,7 @@ function recognizeIikoCoreWithGemini_(apiKey, model, mediaParts) {
   const schema = {
     type:'OBJECT',
     properties:{
+      iiko_report_code:{type:'STRING'},
       report_date:{type:'STRING'},
       total_revenue:{type:'NUMBER'},
       fiscal_total:{type:'NUMBER'},
@@ -1524,7 +1555,7 @@ function recognizeIikoCoreWithGemini_(apiKey, model, mediaParts) {
         }
       }
     },
-    required:['report_date','total_revenue','fiscal_total','non_fiscal_total','payment_rows']
+    required:['iiko_report_code','report_date','total_revenue','fiscal_total','non_fiscal_total','payment_rows']
   };
   const parts = mediaParts.concat([{text:prompt}]);
   const body = {contents:[{role:'user',parts:parts}],generationConfig:{responseMimeType:'application/json',responseSchema:schema,temperature:0.1,maxOutputTokens:3072}};
@@ -1625,6 +1656,7 @@ function sanitizeCashReportResult_(r, pagesCount) {
   }).filter(function(x) { return x.amount > 0; }) : [];
 
   return {
+    iikoReportCode: isIikoReport041_(r.iiko_report_code) ? '041' : '',
     reportDate: resolveCashReportDate_(r.report_date, r.envelope_date, slips),
     fiscalTotal: number_(r.fiscal_total),
     nonFiscalTotal: number_(r.non_fiscal_total),

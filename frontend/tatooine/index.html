@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0e1116">
-  <title>Tatooine Cash Report v1.2.1</title>
+  <title>Tatooine Cash Report v1.3.0</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Unbounded:wght@600;700&display=swap" rel="stylesheet">
@@ -22,13 +22,13 @@
 
   <main class="shell">
     <section class="intro">
-      <span class="version" id="appVersion">v1.2.1</span>
+      <span class="version" id="appVersion">v1.3.0</span>
       <h1>Кассовый отчёт</h1>
-      <p>Добавьте длинный отчёт iiko, конверт и все сводные слипы терминалов. На одной фотографии может быть несколько документов.</p>
+      <p>Добавьте отчёт iiko 041, конверт и все сводные слипы терминалов. На одной фотографии может быть несколько документов.</p>
     </section>
 
     <div class="status" id="cashReportStatus" aria-live="polite">
-      Добавьте фотографии отчёта iiko и всех терминальных слипов.
+      Добавьте фотографии отчёта iiko 041 и всех терминальных слипов.
       <div class="progress"><i id="cashReportProgress"></i></div>
     </div>
 
@@ -60,13 +60,7 @@
         <label class="field"><span>Дата смены</span><input id="cashReportDate" type="text" inputmode="numeric" placeholder="ДД.ММ.ГГГГ"></label>
         <label class="field"><span>Общая выручка</span><input id="cashReportTotalRevenue" type="number" inputmode="decimal" step="0.01"></label>
         <label class="field"><span>Безнал — Банковские карты</span><input id="cashReportBankCards" type="number" inputmode="decimal" step="0.01"></label>
-        <label class="field"><span>Безнал 2</span><input id="cashReportBankCards2" type="number" inputmode="decimal" step="0.01"></label>
-        <label class="field"><span>Нал — нефискальный</span><input id="cashReportCashNonFiscal" type="number" inputmode="decimal" step="0.01"></label>
-        <label class="field"><span>Нал Фискал</span><input id="cashReportCashFiscal" type="number" inputmode="decimal" step="0.01"></label>
-        <label class="field"><span>Нал 2</span><input id="cashReportCash2" type="number" inputmode="decimal" step="0.01"></label>
-        <label class="field"><span>Tapper</span><input id="cashReportTapper" type="number" inputmode="decimal" step="0.01"></label>
-        <label class="field"><span>Расчётный счёт</span><input id="cashReportSettlement" type="number" inputmode="decimal" step="0.01"></label>
-        <label class="field"><span>Расчётный счёт 2</span><input id="cashReportSettlement2" type="number" inputmode="decimal" step="0.01"></label>
+        <label class="field"><span>Нал</span><input id="cashReportCashTotal" type="number" inputmode="decimal" step="0.01"></label>
         <label class="field"><span>Онлайн-Касса 2</span><input id="cashReportOnlineCashbox2" type="number" inputmode="decimal" step="0.01"></label>
         <label class="field"><span>EatAndSplit</span><input id="cashReportEatAndSplit" type="number" inputmode="decimal" step="0.01"></label>
         <label class="field full"><span>Яндекс еда</span><input id="cashReportYandexFood" type="number" inputmode="decimal" step="0.01"></label>
@@ -83,7 +77,6 @@
         <label class="field"><span>Комментарий к расходу</span><input id="cashReportExpenseComment" type="text" placeholder="Необязательно"></label>
         <label class="field"><span>Инкассация с конверта</span><input id="cashReportCollection" type="number" inputmode="decimal" step="0.01"></label>
         <label class="field"><span>Значение в скобках</span><input id="cashReportCollectionActual" type="number" inputmode="decimal" step="0.01"></label>
-        <label class="field"><span>На утро в кассе</span><input id="cashReportMorningCash" type="number" inputmode="decimal" step="0.01"></label>
         <label class="field"><span>Неизменный размен</span><input id="cashReportChangeFund" type="number" inputmode="decimal" step="0.01"></label>
       </div>
 

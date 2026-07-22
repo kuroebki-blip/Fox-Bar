@@ -21,8 +21,8 @@
 ## Latest candidate in this repository
 
 - `frontend/candidate/index.html`: v15.13.3 SCANNER JOB SAFETY.
-- `apps-script/stock-scanner/candidate/Code.gs`: v9.4.7 TATOOINE ORIGINAL LAYOUT.
-- `frontend/tatooine/`: v1.2.1 ALWAYS SHOW REPORT FIELDS.
+- `apps-script/stock-scanner/candidate/Code.gs`: v9.4.8 CASH IIKO 041 SOURCE.
+- `frontend/tatooine/`: v1.3.0 IIKO 041 REPORT TEMPLATE.
 
 Candidate включает:
 
@@ -46,6 +46,8 @@ Candidate включает:
 - копирование выбранных файлов до сброса file input для совместимости с Telegram WebView.
 - точные интервалы, эмодзи и Telegram-выделения оригинального отчёта Tatooine;
 - одна итоговая строка `Нал` из раздельно распознанных `Нал` и `Нал Фискал`.
+- сокращённый итоговый шаблон Tatooine без `Безнал 2`, `Нал 2`, Tapper, расчётных счетов и строки `На утро в кассе`;
+- отчёт iiko 041 как единственный источник iiko-данных для FO’X и Tatooine.
 
 ## Known open issues
 
