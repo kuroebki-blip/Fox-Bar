@@ -10,7 +10,7 @@
 - GitHub Pages завершил сборку со статусом `built`, публичный HTML содержит `v15.13.3` и рабочий Web App URL;
 - браузерный smoke-тест открыл главную, «Документы и чеки» и «Кассовый отчёт» без критических JavaScript-ошибок.
 - Tatooine: отдельный frontend `v1.0.1 SEPARATE BOT ROUTING` опубликован по адресу `https://kuroebki-blip.github.io/Fox-Bar/tatooine/`, PR №3, merge commit `4d5c254e56760715e78f01d08272d6ef5dde5cd7`;
-- Tatooine использует отдельный Telegram-маршрут на существующем backend `v9.4.5`; токен нового бота ещё нужно сохранить в Script Properties.
+- Tatooine использует отдельный Telegram-маршрут на существующем backend `v9.4.5`; токен нового бота сохранён в Script Properties и распознан backend без раскрытия значения.
 
 Ещё проверить вручную:
 
@@ -21,8 +21,8 @@
 ## Latest candidate in this repository
 
 - `frontend/candidate/index.html`: v15.13.3 SCANNER JOB SAFETY.
-- `apps-script/stock-scanner/candidate/Code.gs`: v9.4.5 MULTI BOT CASH ROUTING.
-- `frontend/tatooine/`: v1.0.1 SEPARATE BOT ROUTING.
+- `apps-script/stock-scanner/candidate/Code.gs`: v9.4.6 TATOOINE REPORT TEMPLATE.
+- `frontend/tatooine/`: v1.1.0 PETROVKA REPORT TEMPLATE.
 
 Candidate включает:
 
@@ -41,6 +41,8 @@ Candidate включает:
 - раннюю проверку 20 страниц и 12 МБ OCR-изображений.
 - отдельные Telegram-токен, целевой чат и список доступа для Tatooine;
 - изоляцию заданий кассового отчёта FO’X и Tatooine при общем Web App URL.
+- отдельный шаблон сообщения Tatooine/Petrovka с EatAndSplit, Яндекс едой и итогом предоплат;
+- отдельный набор custom emoji Tatooine, который можно снять с пересланного эталонного сообщения.
 
 ## Known open issues
 
@@ -49,7 +51,7 @@ Candidate включает:
 3. Новые позиции банкета иногда не добавляются в `Банкеты_Резерв`.
 4. Сканер документов требует замеров скорости на реальном Android.
 5. Production v15.13.3/v9.4.5 требует живого Telegram-теста на реальных фото.
-6. Tatooine v1.0.1 требует токена отдельного бота в Script Properties, публикации и живого Telegram-теста.
+6. Tatooine v1.1.0/v9.4.6 требует публикации, захвата custom emoji из эталона и живого Telegram-теста.
 
 ## Architecture decision
 

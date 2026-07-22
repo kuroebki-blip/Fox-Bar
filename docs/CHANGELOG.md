@@ -1,5 +1,36 @@
 # FO’X — Changelog
 
+## Tatooine frontend v1.1.0 — PETROVKA REPORT TEMPLATE
+
+Статус: candidate от 22 июля 2026; 29/29 автоматических тестов пройдены, публикация и живой Telegram-тест ожидаются.
+
+Что изменено:
+
+- сообщение строится по предоставленному образцу Tatooine/Petrovka;
+- добавлены редактируемые строки EatAndSplit и Яндекс еда из точных `paymentRows` OCR;
+- нулевые дополнительные способы оплаты скрываются;
+- добавлен итог предоплат и формат сумм с точками;
+- обязательные строки `Расчётный счёт` и `Расчётный счёт 2` сохранены раздельно.
+
+Как откатиться:
+
+- вернуть frontend Tatooine на v1.0.1 из merge commit `4d5c254e56760715e78f01d08272d6ef5dde5cd7`.
+
+## Stock/scanner backend v9.4.6 — TATOOINE REPORT TEMPLATE
+
+Статус: candidate от 22 июля 2026; синтаксис и автоматические тесты пройдены, публикация ожидается.
+
+Что изменено:
+
+- Telegram HTML-шаблон Tatooine отделён от оформления FO’X;
+- заголовок Tatooine больше не подменяется логотипом FO’X;
+- добавлен безопасный захват custom emoji из пересланного эталонного сообщения через `tatooineCashCaptureTelegramStyle()`;
+- при отсутствии или отклонении custom emoji сохраняется отправка обычного текста.
+
+Как откатиться:
+
+- оставить Apps Script deployment на version `17` (`v9.4.5`).
+
 ## Tatooine frontend v1.0.1 — SEPARATE BOT ROUTING
 
 Статус: production с 22 июля 2026; PR №3, merge commit `4d5c254e56760715e78f01d08272d6ef5dde5cd7`, живой Telegram-тест ожидается.

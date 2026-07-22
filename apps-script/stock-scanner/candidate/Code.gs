@@ -1,5 +1,5 @@
 /**
- * FO’X — документы, чеки, банкетный резерв и кассовый отчёт v9.4.5
+ * FO’X — документы, чеки, банкетный резерв и кассовый отчёт v9.4.6
  *
  * Назначение:
  * 1. Принимает облегчённые JPEG-страницы для быстрого распознавания.
@@ -16,7 +16,7 @@
  */
 
 const FOX_RECEIPTS = {
-  version: 'v9.4.5 MULTI BOT CASH ROUTING',
+  version: 'v9.4.6 TATOOINE REPORT TEMPLATE',
 
   stockSheets: [
     'Вино',
@@ -334,6 +334,82 @@ function foxCashCaptureTelegramStyle() {
     reportEmojiFound: Boolean(reportId),
     chatId: chatId || ''
   };
+}
+
+/**
+ * Сохраняет custom emoji из пересланного эталонного отчёта Tatooine.
+ * Токен читается только из Script Properties; таблицы и изображения не изменяются.
+ */
+function tatooineCashCaptureTelegramStyle() {
+  const props = PropertiesService.getScriptProperties();
+  const token = props.getProperty('TATOOINE_TELEGRAM_BOT_TOKEN');
+  if (!token) throw new Error('В Script Properties не задан TATOOINE_TELEGRAM_BOT_TOKEN.');
+
+  const webhook = telegramApiCall_(token, 'getWebhookInfo', {});
+  if (webhook && webhook.result && webhook.result.url) {
+    throw new Error('У бота Tatooine включён webhook. getUpdates недоступен, пока webhook активен.');
+  }
+  const updates = telegramApiCall_(token, 'getUpdates', {
+    offset: -100,
+    limit: 100,
+    timeout: 0,
+    allowed_updates: JSON.stringify(['message'])
+  });
+  const rows = (updates && updates.result || []).map(function(u) {
+    const m = u.message || u.edited_message || null;
+    if (!m) return null;
+    return {
+      chatId: m.chat && m.chat.id,
+      text: String(m.text || m.caption || ''),
+      entities: m.entities || m.caption_entities || []
+    };
+  }).filter(Boolean);
+  let full = null;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    if (/ОТЧ[ЕЁ]Т\s+КАССОВОЙ\s+СМЕНЫ/i.test(rows[i].text) && hasCustomEmoji_(rows[i])) {
+      full = rows[i];
+      break;
+    }
+  }
+  if (!full) throw new Error('Эталон Tatooine с custom emoji не найден. Перешли исходное сообщение новому боту и повтори запуск.');
+
+  const custom = full.entities.filter(function(e) { return e.type === 'custom_emoji' && e.custom_emoji_id; }).sort(byEntityOffset_);
+  const firstNl = full.text.indexOf('\n') < 0 ? full.text.length : full.text.indexOf('\n');
+  const logoIds = custom.filter(function(e) { return e.offset < firstNl; }).map(function(e) { return String(e.custom_emoji_id); });
+  const idsForLine_ = function(pattern) {
+    return custom.filter(function(e) { return pattern.test(entityLineText_(full.text, e)); }).map(function(e) { return String(e.custom_emoji_id); });
+  };
+  const saveFirst_ = function(propertyName, pattern) {
+    const ids = idsForLine_(pattern);
+    if (ids[0]) props.setProperty(propertyName, ids[0]);
+    return Boolean(ids[0]);
+  };
+  if (logoIds.length) props.setProperty('TATOOINE_CASH_EMOJI_LOGO_IDS', logoIds.join(','));
+  const locationIds = idsForLine_(/ПЕТРОВКА/i);
+  if (locationIds[0]) props.setProperty('TATOOINE_CASH_EMOJI_LOCATION_LEFT', locationIds[0]);
+  if (locationIds[1]) props.setProperty('TATOOINE_CASH_EMOJI_LOCATION_RIGHT', locationIds[locationIds.length - 1]);
+  const found = {
+    report: saveFirst_('TATOOINE_CASH_EMOJI_REPORT', /ОТЧ[ЕЁ]Т\s+КАССОВОЙ\s+СМЕНЫ/i),
+    revenue: saveFirst_('TATOOINE_CASH_EMOJI_REVENUE', /Общая выручка/i),
+    cashless: saveFirst_('TATOOINE_CASH_EMOJI_CASHLESS', /Безнал:/i),
+    cash: saveFirst_('TATOOINE_CASH_EMOJI_CASH', /(?:^|\s)Нал:/i),
+    online: saveFirst_('TATOOINE_CASH_EMOJI_ONLINE', /Онлайн касса 2/i),
+    eatAndSplit: saveFirst_('TATOOINE_CASH_EMOJI_EATANDSPLIT', /EatAndSplit/i),
+    yandex: saveFirst_('TATOOINE_CASH_EMOJI_YANDEX', /Яндекс еда/i),
+    expense: saveFirst_('TATOOINE_CASH_EMOJI_EXPENSE', /Расход:/i),
+    collection: saveFirst_('TATOOINE_CASH_EMOJI_COLLECTION', /Инкассация:/i),
+    change: saveFirst_('TATOOINE_CASH_EMOJI_CHANGE', /Неизменный размен/i),
+    prepayments: saveFirst_('TATOOINE_CASH_EMOJI_PREPAYMENTS', /Предоплаты:/i)
+  };
+  if (full.chatId) props.setProperty('TATOOINE_CASH_STYLE_CHAT_ID', String(full.chatId));
+  props.setProperty('TATOOINE_CASH_STYLE_CAPTURED_AT', new Date().toISOString());
+
+  const capturedCount = Object.keys(found).filter(function(key) { return found[key]; }).length;
+  const message = 'Стиль Tatooine сохранён: логотип ' + logoIds.length + ' символов, строки ' + capturedCount + ' из 11.';
+  Logger.log(message);
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (ss) ss.toast(message, 'Tatooine — стиль отчёта', 10);
+  return { ok: true, logoSymbols: logoIds.length, capturedLines: capturedCount, locationFound: locationIds.length >= 2 };
 }
 
 function foxCashTestTelegramStyle() {
@@ -1590,7 +1666,7 @@ function sendCashReportToTelegram_(p, auth) {
   const token = route.botToken;
   if (!token) throw new Error('В Script Properties не задан ' + route.tokenProperty + '.');
   const targetChatId = String(route.targetChatId || auth.chatId || auth.userId);
-  const sent = sendCashStyledTelegram_(token, targetChatId, messageText);
+  const sent = sendCashStyledTelegram_(token, targetChatId, messageText, auth.venue);
   updateJob_(jobId, {
     status: 'CASH_SENT',
     step: sent.usedFallback ? 'Кассовый отчёт отправлен без custom emoji' : 'Кассовый отчёт отправлен в Telegram',
@@ -1599,8 +1675,8 @@ function sendCashReportToTelegram_(p, auth) {
   });
 }
 
-function sendCashStyledTelegram_(token, targetChatId, messageText) {
-  const html = buildCashTelegramHtml_(messageText);
+function sendCashStyledTelegram_(token, targetChatId, messageText, venue) {
+  const html = buildCashTelegramHtml_(messageText, venue);
   const styled = UrlFetchApp.fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
     method: 'post',
     payload: {
@@ -1629,7 +1705,8 @@ function sendCashStyledTelegram_(token, targetChatId, messageText) {
   return { ok: true, usedFallback: true, warning: String(body.description || 'Custom emoji не приняты Telegram.') };
 }
 
-function buildCashTelegramHtml_(messageText) {
+function buildCashTelegramHtml_(messageText, venue) {
+  if (normalizeTelegramVenue_(venue) === 'tatooine') return buildTatooineCashTelegramHtml_(messageText);
   const props = PropertiesService.getScriptProperties();
   const style = {
     logoF: props.getProperty('CASH_EMOJI_LOGO_F') || '',
@@ -1668,6 +1745,70 @@ function buildCashTelegramHtml_(messageText) {
     }
     if (/^🟢/.test(trimmed)) {
       return cashCustomEmojiHtml_(style.bullet, '🟢') + escapeTelegramHtml_(trimmed.replace(/^🟢\s*/, ''));
+    }
+    return escapeTelegramHtml_(line);
+  }).join('\n');
+}
+
+function buildTatooineCashTelegramHtml_(messageText) {
+  const props = PropertiesService.getScriptProperties();
+  const style = {
+    logo: String(props.getProperty('TATOOINE_CASH_EMOJI_LOGO_IDS') || '').split(',').map(function(x) { return x.trim(); }).filter(Boolean),
+    locationLeft: props.getProperty('TATOOINE_CASH_EMOJI_LOCATION_LEFT') || '',
+    locationRight: props.getProperty('TATOOINE_CASH_EMOJI_LOCATION_RIGHT') || '',
+    report: props.getProperty('TATOOINE_CASH_EMOJI_REPORT') || '',
+    revenue: props.getProperty('TATOOINE_CASH_EMOJI_REVENUE') || '',
+    cashless: props.getProperty('TATOOINE_CASH_EMOJI_CASHLESS') || '',
+    cash: props.getProperty('TATOOINE_CASH_EMOJI_CASH') || '',
+    online: props.getProperty('TATOOINE_CASH_EMOJI_ONLINE') || '',
+    eatAndSplit: props.getProperty('TATOOINE_CASH_EMOJI_EATANDSPLIT') || '',
+    yandex: props.getProperty('TATOOINE_CASH_EMOJI_YANDEX') || '',
+    expense: props.getProperty('TATOOINE_CASH_EMOJI_EXPENSE') || '',
+    collection: props.getProperty('TATOOINE_CASH_EMOJI_COLLECTION') || '',
+    change: props.getProperty('TATOOINE_CASH_EMOJI_CHANGE') || '',
+    prepayments: props.getProperty('TATOOINE_CASH_EMOJI_PREPAYMENTS') || ''
+  };
+  const iconForLine_ = function(trimmed) {
+    if (/^Общая выручка:/i.test(trimmed)) return [style.revenue, '💵'];
+    if (/^Безнал(?:\s+2)?:/i.test(trimmed)) return [style.cashless, '💳'];
+    if (/^Нал(?:\s+Фискал|\s+2)?:/i.test(trimmed)) return [style.cash, '💵'];
+    if (/^Онлайн касса 2:/i.test(trimmed)) return [style.online, '🏧'];
+    if (/^EatAndSplit:/i.test(trimmed)) return [style.eatAndSplit, '📈'];
+    if (/^Яндекс еда:/i.test(trimmed)) return [style.yandex, '🟡'];
+    if (/^Расход:/i.test(trimmed)) return [style.expense, '💳'];
+    if (/^Инкассация:/i.test(trimmed)) return [style.collection, '🟠'];
+    if (/^Неизменный размен/i.test(trimmed)) return [style.change, '⚔️'];
+    if (/^Предоплаты:/i.test(trimmed)) return [style.prepayments, '🌐'];
+    return null;
+  };
+  const lines = String(messageText || '').replace(/\r/g, '').split('\n');
+  return lines.map(function(raw, index) {
+    const line = String(raw || '');
+    const trimmed = line.trim();
+    if (!trimmed) return '';
+    if (index === 0 && /^TATOOINE$/i.test(trimmed)) {
+      if (style.logo.length >= trimmed.length) {
+        return trimmed.split('').map(function(_, i) { return cashCustomEmojiHtml_(style.logo[i], '🔤'); }).join('');
+      }
+      return '<b>TATOOINE</b>';
+    }
+    if (/ПЕТРОВКА/i.test(trimmed)) {
+      return '<blockquote>' + cashCustomEmojiHtml_(style.locationLeft, '🦊') + ' ПЕТРОВКА ' + cashCustomEmojiHtml_(style.locationRight, '🦊') + '</blockquote>';
+    }
+    if (/ОТЧ[ЕЁ]Т\s+КАССОВОЙ\s+СМЕНЫ/i.test(trimmed)) {
+      return cashCustomEmojiHtml_(style.report, '📈') + escapeTelegramHtml_(trimmed.replace(/^\S+\s*/, ''));
+    }
+    if (/^ДАТА:/i.test(trimmed)) return '<i>' + escapeTelegramHtml_(trimmed) + '</i>';
+    const plain = trimmed.replace(/^\S+\s*/, '');
+    const icon = iconForLine_(plain);
+    if (icon) {
+      const colon = plain.indexOf(':');
+      const label = colon >= 0 ? plain.slice(0, colon + 1) : plain;
+      const value = colon >= 0 ? plain.slice(colon + 1) : '';
+      if (/^Общая выручка:/i.test(plain)) {
+        return cashCustomEmojiHtml_(icon[0], icon[1]) + ' <b>' + escapeTelegramHtml_(plain) + '</b>';
+      }
+      return cashCustomEmojiHtml_(icon[0], icon[1]) + ' <b>' + escapeTelegramHtml_(label) + '</b>' + escapeTelegramHtml_(value);
     }
     return escapeTelegramHtml_(line);
   }).join('\n');

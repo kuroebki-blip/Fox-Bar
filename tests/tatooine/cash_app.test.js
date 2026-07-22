@@ -27,8 +27,10 @@ test('frontend uses the existing published handler without placeholders', () => 
 });
 
 test('cash message is branded Tatooine and preserves required payment rows', () => {
-  assert.match(app, /'Tatooine'/);
-  assert.match(app, /РЕСТОРАН TATOOINE/);
+  assert.match(app, /'TATOOINE'/);
+  assert.match(app, /ПЕТРОВКА/);
+  assert.match(app, /EatAndSplit/);
+  assert.match(app, /Яндекс еда/);
   assert.match(html + app, /Оплата QR/);
   assert.match(app, /terminalSlips/);
   assert.match(app, /Расчётный счёт 2/);
