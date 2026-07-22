@@ -627,8 +627,8 @@
       try { TG.setHeaderColor('#0e1116'); TG.setBackgroundColor('#0e1116'); } catch (_) {}
       try { TG.disableVerticalSwipes(); } catch (_) {}
     }
-    $('cashReportCamera').addEventListener('change', async event => { const files = event.target.files; event.target.value = ''; await appendFiles(files); });
-    $('cashReportGallery').addEventListener('change', async event => { const files = event.target.files; event.target.value = ''; await appendFiles(files); });
+    $('cashReportCamera').addEventListener('change', async event => { const files = Array.from(event.target.files || []); event.target.value = ''; await appendFiles(files); });
+    $('cashReportGallery').addEventListener('change', async event => { const files = Array.from(event.target.files || []); event.target.value = ''; await appendFiles(files); });
     $('cashReportReset').addEventListener('click', () => { if (pages.length && !window.confirm('Удалить все фотографии кассового отчёта?')) return; resetAll(); });
     $('cashReportRecognize').addEventListener('click', recognize);
     $('cashReportAddSlip').addEventListener('click', addSlip);
