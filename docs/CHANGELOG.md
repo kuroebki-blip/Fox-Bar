@@ -2,7 +2,7 @@
 
 ## Tatooine frontend v1.0.1 — SEPARATE BOT ROUTING
 
-Статус: candidate от 22 июля 2026; автоматические тесты ожидаются.
+Статус: production с 22 июля 2026; PR №3, merge commit `4d5c254e56760715e78f01d08272d6ef5dde5cd7`, живой Telegram-тест ожидается.
 
 Что изменено:
 
@@ -16,7 +16,7 @@
 
 ## Stock/scanner backend v9.4.5 — MULTI BOT CASH ROUTING
 
-Статус: candidate от 22 июля 2026; автоматические тесты и публикация ожидаются.
+Статус: production с 22 июля 2026; Apps Script version `17`, публичный `ping v9.4.5`, живой Telegram-тест ожидается.
 
 Что изменено:
 
@@ -29,7 +29,7 @@
 
 Как откатиться:
 
-- оставить рабочее Apps Script-развёртывание на version `16` (`v9.4.4`).
+- переключить рабочее Apps Script-развёртывание с version `17` на version `16` (`v9.4.4`).
 
 ## Tatooine frontend v1.0.0 — CASH REPORT ONLY
 
