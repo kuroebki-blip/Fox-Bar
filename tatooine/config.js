@@ -1,5 +1,5 @@
 window.TATOOINE_CONFIG = Object.freeze({
-  version: 'v1.1.0 PETROVKA REPORT TEMPLATE',
+  version: 'v1.1.1 FILE INPUT FIX',
   apiUrl: 'https://script.google.com/macros/s/AKfycbx9XlQG6kCvWVU6OekcWAmHAVnjFXfG-_UD_pKQrQqYaWNyHzmXsmB_2LGohxETrrfTpA/exec',
   venue: 'tatooine',
   restaurantName: 'Tatooine',
