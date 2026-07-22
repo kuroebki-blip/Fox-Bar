@@ -2,14 +2,12 @@
 
 ## Версия
 
-- production frontend: `v1.1.1 FILE INPUT FIX`;
-- production backend: общий Apps Script Web App `v9.4.6 TATOOINE REPORT TEMPLATE`;
-- candidate frontend: `v1.2.0 ORIGINAL TELEGRAM LAYOUT`;
-- candidate backend: `v9.4.7 TATOOINE ORIGINAL LAYOUT`;
+- production frontend: `v1.2.0 ORIGINAL TELEGRAM LAYOUT`;
+- production backend: общий Apps Script Web App `v9.4.7 TATOOINE ORIGINAL LAYOUT`;
 - статус: production с 22 июля 2026; custom emoji захвачены, живой Telegram-тест отчёта ожидается;
 - URL: `https://kuroebki-blip.github.io/Fox-Bar/tatooine/`;
-- GitHub: PR №5, merge commit `e1e184acb97b3e9a5dc76623521a90d3b8520285`;
-- Apps Script: version `18` на сохранённом Web App URL.
+- GitHub: PR №6, merge commit `daed7bba8edffdef19eb525f01a7ce5eec115a6e`;
+- Apps Script: version `19` на сохранённом Web App URL.
 
 ## Состав
 
@@ -48,7 +46,7 @@ Candidate v1.1.0 формирует сообщение по эталону Tatoo
 
 Frontend v1.1.1 копирует выбранные фотографии до очистки file input. Это устраняет потерю `FileList` в Telegram WebView после закрытия камеры или галереи; живой повторный тест ожидается.
 
-Candidate v1.2.0 повторяет оригинальные пустые строки, эмодзи и выделения. Значения полей `Нал` и `Нал Фискал` складываются только при формировании сообщения и выводятся одной строкой `Нал`; распознанные поля в форме остаются раздельными.
+Frontend v1.2.0 повторяет оригинальные пустые строки, эмодзи и выделения. Значения полей `Нал` и `Нал Фискал` складываются только при формировании сообщения и выводятся одной строкой `Нал`; распознанные поля в форме остаются раздельными.
 
 ## Сохранённые правила кассового отчёта
 
@@ -67,7 +65,7 @@ Candidate v1.2.0 повторяет оригинальные пустые стр
 - GitHub Pages собран со статусом `built`;
 - публичные `app.js` и `styles.css` отвечают HTTP 200;
 - браузерный smoke-тест загрузил интерфейс без критических ошибок;
-- публичный frontend показывает `v1.1.0`, backend `ping` вернул `v9.4.6`.
+- публичный frontend показывает `v1.2.0`, backend `ping` вернул `v9.4.7`.
 
 ## Живой тест
 
@@ -78,4 +76,4 @@ Candidate v1.2.0 повторяет оригинальные пустые стр
 
 ## Откат
 
-Вернуть Apps Script на version `17` (`v9.4.5`), а GitHub Pages — на frontend `v1.0.1` из merge commit `4d5c254e56760715e78f01d08272d6ef5dde5cd7`.
+Вернуть Apps Script на version `18` (`v9.4.6`), а GitHub Pages — на frontend `v1.1.1` из merge commit `e1e184acb97b3e9a5dc76623521a90d3b8520285`.

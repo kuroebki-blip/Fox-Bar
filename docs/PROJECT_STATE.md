@@ -5,12 +5,12 @@
 22 июля 2026 опубликована и автоматически проверена пара:
 
 - GitHub Pages: frontend `v15.13.3 SCANNER JOB SAFETY`, merge commit `10f766c11deabfe0403af1640e266e6dbc998a6f`;
-- Apps Script scanner/stock Web App: backend `v9.4.6 TATOOINE REPORT TEMPLATE`, Apps Script version `18`;
-- рабочий Web App URL сохранён; `?action=ping` вернул `v9.4.6`;
+- Apps Script scanner/stock Web App: backend `v9.4.7 TATOOINE ORIGINAL LAYOUT`, Apps Script version `19`;
+- рабочий Web App URL сохранён; `?action=ping` вернул `v9.4.7`;
 - GitHub Pages завершил сборку со статусом `built`, публичный HTML содержит `v15.13.3` и рабочий Web App URL;
 - браузерный smoke-тест открыл главную, «Документы и чеки» и «Кассовый отчёт» без критических JavaScript-ошибок.
-- Tatooine: frontend `v1.1.1 FILE INPUT FIX` опубликован по адресу `https://kuroebki-blip.github.io/Fox-Bar/tatooine/`, PR №5, merge commit `e1e184acb97b3e9a5dc76623521a90d3b8520285`;
-- Tatooine использует отдельный Telegram-маршрут на backend `v9.4.6`; токен нового бота сохранён в Script Properties и распознан backend без раскрытия значения.
+- Tatooine: frontend `v1.2.0 ORIGINAL TELEGRAM LAYOUT` опубликован по адресу `https://kuroebki-blip.github.io/Fox-Bar/tatooine/`, PR №6, merge commit `daed7bba8edffdef19eb525f01a7ce5eec115a6e`;
+- Tatooine использует отдельный Telegram-маршрут на backend `v9.4.7`; токен нового бота сохранён в Script Properties и распознан backend без раскрытия значения.
 
 Ещё проверить вручную:
 
@@ -53,8 +53,8 @@ Candidate включает:
 2. После перевода банкета в «Пройден» иногда не снимается резерв.
 3. Новые позиции банкета иногда не добавляются в `Банкеты_Резерв`.
 4. Сканер документов требует замеров скорости на реальном Android.
-5. Production v15.13.3/v9.4.6 требует живого Telegram-теста на реальных фото.
-6. Tatooine v1.2.0/v9.4.7 требует публикации и живого Telegram-теста точного шаблона.
+5. Production v15.13.3/v9.4.7 требует живого Telegram-теста на реальных фото.
+6. Tatooine v1.2.0/v9.4.7 опубликован; требуется живой Telegram-тест точного шаблона.
 
 ## Architecture decision
 

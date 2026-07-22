@@ -2,7 +2,7 @@
 
 ## Tatooine frontend v1.2.0 — ORIGINAL TELEGRAM LAYOUT
 
-Статус: candidate от 22 июля 2026; автоматические тесты и публикация ожидаются.
+Статус: production с 22 июля 2026; PR №6, merge commit `daed7bba8edffdef19eb525f01a7ce5eec115a6e`, 31/31 тест, живой Telegram-тест ожидается.
 
 Что изменено:
 
@@ -18,7 +18,7 @@
 
 ## Stock/scanner backend v9.4.7 — TATOOINE ORIGINAL LAYOUT
 
-Статус: candidate от 22 июля 2026; синтаксис и автоматические тесты пройдены, публикация ожидается.
+Статус: production с 22 июля 2026; Apps Script version `19`, публичный `ping v9.4.7`, живой Telegram-тест ожидается.
 
 Что изменено:
 
@@ -28,7 +28,7 @@
 
 Как откатиться:
 
-- оставить Apps Script deployment на version `18` (`v9.4.6`).
+- переключить Apps Script deployment с version `19` на version `18` (`v9.4.6`).
 
 ## Tatooine frontend v1.1.1 — FILE INPUT FIX
 
