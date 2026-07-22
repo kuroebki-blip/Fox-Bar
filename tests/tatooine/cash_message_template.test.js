@@ -8,11 +8,19 @@ const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '../..');
 const app = fs.readFileSync(path.join(root, 'frontend/tatooine/app.js'), 'utf8');
+const configSource = fs.readFileSync(path.join(root, 'frontend/tatooine/config.js'), 'utf8');
 const backend = fs.readFileSync(path.join(root, 'apps-script/stock-scanner/candidate/Code.gs'), 'utf8');
 const helperMatch = app.match(/\/\/ ===== TATOOINE TESTABLE HELPERS START =====([\s\S]*?)\/\/ ===== TATOOINE TESTABLE HELPERS END =====/);
 assert.ok(helperMatch, 'Tatooine helper block must exist');
 const context = vm.createContext({ CONFIG: Object.freeze({ maxOcrPages: 20, maxOcrImageBytes: 6 * 1024 * 1024, maxOcrTotalBytes: 12 * 1024 * 1024 }) });
 vm.runInContext(helperMatch[1], context, { filename: 'frontend/tatooine/app.js' });
+
+test('Tatooine uses 100000 as the default change fund', () => {
+  const configContext = vm.createContext({ window: {} });
+  vm.runInContext(configSource, configContext, { filename: 'frontend/tatooine/config.js' });
+  assert.equal(configContext.window.TATOOINE_CONFIG.defaultChangeFund, 100000);
+  assert.match(app, /cashReportChangeFund'\)\.value = String\(Number\(CONFIG\.defaultChangeFund\) \|\| 0\)/);
+});
 
 test('Tatooine message follows the approved Petrovka report layout', () => {
   context.data = {
@@ -145,9 +153,8 @@ test('every report row remains visible when its value is missing', () => {
     '',
     '🔠 Неизменный размен []',
     '',
-    '🔄Предоплаты:',
-    '',
-    'Итого:'
+    '🔄Предоплаты:'
   ].join('\n'));
+  assert.doesNotMatch(message, /Итого:/);
   assert.doesNotMatch(app, /bankCards2|cash2|tapper|settlementAccount|morningCash/);
 });
