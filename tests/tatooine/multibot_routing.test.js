@@ -94,3 +94,9 @@ test('unconfirmed iiko 041 data is cleared instead of using another report', () 
   assert.deepEqual(Array.from(cleared.payment_rows), []);
   assert.match(cleared.notes, /041 не подтверждён/);
 });
+
+test('collection OCR accepts the separators used on real envelopes', () => {
+  assert.match(backend, /после разделителя «\/», «\\\\», «-» либо внутри круглых скобок/);
+  assert.match(backend, /Инкассация: 90616 \/ 96620/);
+  assert.match(backend, /collection_amount=90616 и collection_actual=96620/);
+});

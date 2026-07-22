@@ -21,7 +21,7 @@
 ## Latest candidate in this repository
 
 - `frontend/candidate/index.html`: v15.13.3 SCANNER JOB SAFETY.
-- `apps-script/stock-scanner/candidate/Code.gs`: v9.4.8 CASH IIKO 041 SOURCE.
+- `apps-script/stock-scanner/candidate/Code.gs`: v9.4.9 ENVELOPE COLLECTION SEPARATORS.
 - `frontend/tatooine/`: v1.3.0 IIKO 041 REPORT TEMPLATE.
 
 Candidate включает:
@@ -48,6 +48,7 @@ Candidate включает:
 - одна итоговая строка `Нал` из раздельно распознанных `Нал` и `Нал Фискал`.
 - сокращённый итоговый шаблон Tatooine без `Безнал 2`, `Нал 2`, Tapper, расчётных счетов и строки `На утро в кассе`;
 - отчёт iiko 041 как единственный источник iiko-данных для FO’X и Tatooine.
+- распознавание второго значения инкассации после `/`, `\\`, `-` или в круглых скобках.
 
 ## Known open issues
 
