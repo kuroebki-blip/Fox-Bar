@@ -18,7 +18,7 @@
 
 ## Stock/scanner backend v9.4.6 — TATOOINE REPORT TEMPLATE
 
-Статус: production с 22 июля 2026; Apps Script version `18`, публичный `ping v9.4.6`, захват custom emoji и живой Telegram-тест ожидаются.
+Статус: production с 22 июля 2026; Apps Script version `18`, публичный `ping v9.4.6`, custom emoji 8/8 и 11/11 захвачены, живой Telegram-тест ожидается.
 
 Что изменено:
 
