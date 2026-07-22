@@ -142,9 +142,6 @@
 
   function buildTatooineCashMessage(data) {
     const location = String(data.location || 'ПЕТРОВКА').trim().toUpperCase();
-    const cashTotal = hasReportValue(data.cashNonFiscal) || hasReportValue(data.cashFiscal)
-      ? (Number(data.cashNonFiscal) || 0) + (Number(data.cashFiscal) || 0)
-      : '';
     const lines = [
       'TATOOINE',
       '',
@@ -157,15 +154,10 @@
     ];
     [
       ['🧪 ', 'Безнал', data.bankCards],
-      ['🧪 ', 'Безнал 2', data.bankCards2],
-      ['🧪 ', 'Нал', cashTotal],
-      ['🧪 ', 'Нал 2', data.cash2],
+      ['🧪 ', 'Нал', data.cashTotal],
       ['🧪 ', 'Онлайн касса 2', data.onlineCashbox2],
       ['📈', 'EatAndSplit', data.eatAndSplit],
-      ['🌎', 'Яндекс еда', data.yandexFood],
-      ['🧪 ', 'Tapper', data.tapper],
-      ['🧪 ', 'Расчётный счёт', data.settlementAccount],
-      ['🧪 ', 'Расчётный счёт 2', data.settlementAccount2]
+      ['🌎', 'Яндекс еда', data.yandexFood]
     ].forEach(item => {
       const value = reportAmount(item[2], true);
       lines.push(item[0] + item[1] + ':' + (value ? ' ' + value : ''), '');
@@ -176,7 +168,6 @@
       '',
       '🧪 Инкассация:' + (hasReportValue(data.collection) ? ' ' + reportAmount(data.collection) : '') + (hasReportValue(data.collectionActual) ? ' (' + reportAmount(data.collectionActual) + ')' : '')
     );
-    lines.push('', '🧪 На утро в кассе [' + reportAmount(data.morningCash, true) + ']');
     lines.push('', '🔠 Неизменный размен [' + reportAmount(data.changeFund, true) + ']', '', '🔄Предоплаты:');
     const prepaymentsList = (Array.isArray(data.prepayments) ? data.prepayments : []).filter(item => item.date && Number(item.amount) > 0);
     if (prepaymentsList.length) {
@@ -362,7 +353,7 @@
     pages = [];
     invalidateRecognition();
     renderPages();
-    setStatus('', 'Добавьте фотографии отчёта iiko и всех терминальных слипов.');
+    setStatus('', 'Добавьте фотографии отчёта iiko 041 и всех терминальных слипов.');
   }
 
   async function pollJob(expectedJobId, finalStatuses, maxMs) {
@@ -406,7 +397,11 @@
       if (activeJobId !== jobId) throw new Error('Операция отменена.');
       result = status.result || {};
       renderResult(result);
-      setStatus('ok', 'Отчёт распознан. Проверьте суммы и сверку терминалов.', 1);
+      if (String(result.iikoReportCode || '') === '041') {
+        setStatus('ok', 'Отчёт iiko 041 распознан. Проверьте суммы и сверку терминалов.', 1);
+      } else {
+        setStatus('warn', 'Отчёт iiko 041 не подтверждён. Значения iiko оставлены пустыми — добавьте фотографию отчёта 041.', 1);
+      }
       haptic('success');
     } catch (error) {
       setStatus('err', String(error && error.message ? error.message : error), 1);
@@ -425,13 +420,7 @@
     $('cashReportDate').value = data.reportDate || '';
     setNumber('cashReportTotalRevenue', data.totalRevenue);
     setNumber('cashReportBankCards', data.bankCards);
-    setNumber('cashReportBankCards2', data.bankCards2);
-    setNumber('cashReportCashNonFiscal', data.cashNonFiscal);
-    setNumber('cashReportCashFiscal', data.cashFiscal);
-    setNumber('cashReportCash2', data.cash2);
-    setNumber('cashReportTapper', data.tapper);
-    setNumber('cashReportSettlement', data.settlementAccount);
-    setNumber('cashReportSettlement2', data.settlementAccount2);
+    setNumber('cashReportCashTotal', (Number(data.cashNonFiscal) || 0) + (Number(data.cashFiscal) || 0));
     setNumber('cashReportOnlineCashbox2', data.onlineCashbox2);
     setNumber('cashReportEatAndSplit', exactPaymentRowAmount(data.paymentRows, ['EatAndSplit']));
     setNumber('cashReportYandexFood', exactPaymentRowAmount(data.paymentRows, ['Яндекс еда', 'Яндекс.Еда', 'Yandex Food']));
@@ -439,7 +428,6 @@
     $('cashReportExpenseComment').value = '';
     setNumber('cashReportCollection', data.collectionAmount);
     setNumber('cashReportCollectionActual', data.collectionActual);
-    $('cashReportMorningCash').value = '';
     $('cashReportChangeFund').value = String(Number(CONFIG.defaultChangeFund) || 0);
     terminalSlips = Array.isArray(data.terminalSlips) ? data.terminalSlips.map((slip, index) => ({ label: String(slip.label || 'Терминал ' + (index + 1)), amount: Number(slip.amount) || 0 })).filter(slip => slip.amount > 0) : [];
     prepayments = [];
@@ -526,21 +514,14 @@
       date: $('cashReportDate').value.trim(),
       totalRevenue: reportInput('cashReportTotalRevenue'),
       bankCards: reportInput('cashReportBankCards'),
-      bankCards2: reportInput('cashReportBankCards2'),
-      cashNonFiscal: reportInput('cashReportCashNonFiscal'),
-      cashFiscal: reportInput('cashReportCashFiscal'),
-      cash2: reportInput('cashReportCash2'),
+      cashTotal: reportInput('cashReportCashTotal'),
       onlineCashbox2: reportInput('cashReportOnlineCashbox2'),
       eatAndSplit: reportInput('cashReportEatAndSplit'),
       yandexFood: reportInput('cashReportYandexFood'),
-      tapper: reportInput('cashReportTapper'),
-      settlementAccount: reportInput('cashReportSettlement'),
-      settlementAccount2: reportInput('cashReportSettlement2'),
       expense: reportInput('cashReportExpense'),
       expenseComment: $('cashReportExpenseComment').value.trim(),
       collection: reportInput('cashReportCollection'),
       collectionActual: reportInput('cashReportCollectionActual'),
-      morningCash: reportInput('cashReportMorningCash'),
       changeFund: reportInput('cashReportChangeFund'),
       prepayments
     });
@@ -601,12 +582,11 @@
 
   function bindInputs() {
     [
-      'cashReportDate', 'cashReportTotalRevenue', 'cashReportBankCards', 'cashReportBankCards2',
-      'cashReportCashNonFiscal', 'cashReportCashFiscal', 'cashReportCash2', 'cashReportTapper',
-      'cashReportSettlement', 'cashReportSettlement2', 'cashReportOnlineCashbox2', 'cashReportEatAndSplit',
+      'cashReportDate', 'cashReportTotalRevenue', 'cashReportBankCards', 'cashReportCashTotal',
+      'cashReportOnlineCashbox2', 'cashReportEatAndSplit',
       'cashReportYandexFood', 'cashReportExpense',
       'cashReportExpenseComment', 'cashReportCollection', 'cashReportCollectionActual',
-      'cashReportMorningCash', 'cashReportChangeFund'
+      'cashReportChangeFund'
     ].forEach(id => {
       $(id).addEventListener('input', refreshMessage);
       $(id).addEventListener('change', refreshMessage);
@@ -621,7 +601,7 @@
       if (!TG || !TG.initData) {
         setStatus('warn', 'Обработчик подключён (' + String(ping.version || '') + '). Для распознавания откройте приложение через Telegram.');
       } else {
-        setStatus('ok', 'Обработчик подключён. Добавьте фотографии отчёта iiko и терминальных слипов.');
+        setStatus('ok', 'Обработчик подключён. Добавьте фотографии отчёта iiko 041 и терминальных слипов.');
       }
     } catch (error) {
       setStatus('err', String(error && error.message ? error.message : error));
