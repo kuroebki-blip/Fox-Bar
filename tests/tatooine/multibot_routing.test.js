@@ -106,3 +106,13 @@ test('terminal OCR understands overlapping detail montages and deduplicates slip
   assert.match(backend, /Не создавай дубликаты/);
   assert.match(backend, /Не считай одинаковый слип в соседних секторах дважды/);
 });
+
+test('primary and repeat terminal OCR distinguish zero, six and eight without iiko bias', () => {
+  const digitRules = backend.match(/КРИТИЧЕСКАЯ ПРОВЕРКА ЦИФР 0\/6\/8/g) || [];
+  assert.equal(digitRules.length, 2);
+  assert.match(backend, /«0» имеет один замкнутый овал без перетяжки/);
+  assert.match(backend, /«8» — два замкнутых овала с перетяжкой посередине/);
+  assert.match(backend, /Не заменяй «0» на «8»/);
+  assert.match(backend, /не подгоняй результат под сумму iiko/);
+  assert.match(backend, /Если цифра 0\/6\/8 остаётся неоднозначной, не угадывай/);
+});

@@ -20,7 +20,7 @@
 ## Current release source in this repository
 
 - `frontend/candidate/index.html`: v15.14.0 TERMINAL DETAIL MONTAGE.
-- `apps-script/stock-scanner/candidate/Code.gs`: v9.6.0 TERMINAL DETAIL MONTAGE.
+- `apps-script/stock-scanner/candidate/Code.gs`: v9.6.1 TERMINAL DIGIT CHECK.
 - `frontend/tatooine/`: v1.4.0 TERMINAL DETAIL MONTAGE.
 
 Текущий release source включает:
@@ -53,6 +53,7 @@
 - весь блок предоплат Tatooine скрыт, если предоплаты не добавлены.
 - кассовый отчёт Tatooine доступен любому пользователю с валидной Telegram Mini App-авторизацией, без списка разрешённых ID.
 - кассовый OCR FO’X и Tatooine формирует одно детальное изображение 2×2 на каждую исходную фотографию, не увеличивая число Gemini-запросов.
+- основной и повторный OCR отдельно проверяют форму `0/6/8`; неоднозначные терминальные суммы не угадываются и требуют ручной проверки.
 
 ## Known open issues
 
@@ -60,8 +61,8 @@
 2. После перевода банкета в «Пройден» иногда не снимается резерв.
 3. Новые позиции банкета иногда не добавляются в `Банкеты_Резерв`.
 4. Сканер документов требует замеров скорости на реальном Android.
-5. Production v15.14.0/v9.6.0 требует живого OCR/Telegram-теста отчёта iiko 041, терминальных слипов и инкассации с конверта на реальных фото FO’X.
-6. Tatooine v1.4.0/v9.6.0 опубликован; требуется живой тест входа пользователя вне прежнего списка ID и повторный OCR/Telegram-тест терминальных слипов, EatAndSplit, отчёта iiko 041, конверта, размена `100 000` и скрытия пустого блока предоплат.
+5. Backend candidate v9.6.1 требует живого OCR-теста терминальных слипов с проблемными цифрами `0/6/8`; production остаётся v9.6.0.
+6. Tatooine v1.4.0/v9.6.0 опубликован; frontend camera candidate v1.5.0 хранится отдельно и требует живого Android-теста.
 
 ## Architecture decision
 
