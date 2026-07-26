@@ -1,8 +1,22 @@
 # FO’X — Changelog
 
-## Stock/scanner backend v9.6.1 — TERMINAL DIGIT CHECK
+## Stock/scanner backend v9.6.2 — TATOOINE ORIGINAL IMAGE OCR
 
 Статус: candidate от 26 июля 2026; автоматические тесты и deployment ожидаются.
+
+Что изменено:
+
+- обе OCR-попытки Tatooine получают явное правило цельной исходной фотографии без монтажных секторов;
+- нечитабельные цифры Tatooine запрещено восстанавливать по арифметике, компонентам или сумме iiko;
+- монтажная логика FO’X не меняется.
+
+Как откатиться:
+
+- Apps Script deployment переключить на version `25` (`v9.6.1 TERMINAL DIGIT CHECK`).
+
+## Stock/scanner backend v9.6.1 — TERMINAL DIGIT CHECK
+
+Статус: production с 26 июля 2026; Apps Script version `25`, публичный `ping` вернул `v9.6.1`, 39/39 автоматических тестов. Пользователь подтвердил, что ошибки терминальных цифр сохранились.
 
 Что изменено:
 

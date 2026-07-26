@@ -116,3 +116,10 @@ test('primary and repeat terminal OCR distinguish zero, six and eight without ii
   assert.match(backend, /не подгоняй результат под сумму iiko/);
   assert.match(backend, /Если цифра 0\/6\/8 остаётся неоднозначной, не угадывай/);
 });
+
+test('Tatooine original-image OCR avoids montage assumptions in both passes', () => {
+  assert.match(backend, /Каждое переданное изображение Tatooine — одна цельная исходная фотография без монтажа/);
+  assert.match(backend, /Каждое изображение Tatooine — одна цельная исходная фотография без монтажа/);
+  assert.match(backend, /recognizeTerminalSlipsWithGemini_\(apiKey, model, mediaParts, venue\)/);
+  assert.match(backend, /Не восстанавливай плохо читаемый total_amount сложением card_amount и qr_amount/);
+});
