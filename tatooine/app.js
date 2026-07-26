@@ -287,21 +287,19 @@
     const image = await loadImage(page.dataUrl, 'Не удалось подготовить фотографию для OCR.');
     const rawWidth = image.naturalWidth || image.width;
     const rawHeight = image.naturalHeight || image.height;
-    const montage = cashOcrMontageSpec(rawWidth, rawHeight, 3200);
+    const scale = Math.min(1, 3200 / Math.max(rawWidth, rawHeight));
+    const width = Math.max(1, Math.round(rawWidth * scale));
+    const height = Math.max(1, Math.round(rawHeight * scale));
     const canvas = document.createElement('canvas');
-    canvas.width = montage.outputWidth;
-    canvas.height = montage.outputHeight;
+    canvas.width = width;
+    canvas.height = height;
     const context = canvas.getContext('2d', { alpha: false });
     context.imageSmoothingEnabled = true;
     context.imageSmoothingQuality = 'high';
     context.fillStyle = '#fff';
     context.fillRect(0, 0, canvas.width, canvas.height);
-    montage.tiles.forEach(tile => context.drawImage(
-      image,
-      tile.sourceX, tile.sourceY, tile.sourceWidth, tile.sourceHeight,
-      tile.targetX, tile.targetY, tile.targetWidth, tile.targetHeight
-    ));
-    const dataUrl = await canvasToJpeg(canvas, .9);
+    context.drawImage(image, 0, 0, width, height);
+    const dataUrl = await canvasToJpeg(canvas, .94);
     return { mimeType: 'image/jpeg', data: dataUrl.slice(dataUrl.indexOf(',') + 1), width: canvas.width, height: canvas.height };
   }
 
