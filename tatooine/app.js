@@ -11,6 +11,7 @@
   let terminalSlips = [];
   let prepayments = [];
   let pollingToken = 0;
+  let cameraStream = null;
 
   const $ = id => document.getElementById(id);
   const sleep = ms => new Promise(resolve => {
@@ -338,6 +339,85 @@
     }
   }
 
+  function usesAndroidTelegramCamera() {
+    return Boolean(TG && /Android/i.test(String(navigator.userAgent || '')));
+  }
+
+  function stopCameraStream() {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      cameraStream = null;
+    }
+    const video = $('cashCameraVideo');
+    if (video) video.srcObject = null;
+  }
+
+  function closeCamera() {
+    stopCameraStream();
+    $('cashCameraOverlay').hidden = true;
+  }
+
+  async function openCamera() {
+    if (!usesAndroidTelegramCamera() || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      $('cashReportCamera').click();
+      return;
+    }
+    setStatus('', 'Запрашиваю доступ к камере…');
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 3840 },
+          height: { ideal: 2160 }
+        }
+      });
+      const video = $('cashCameraVideo');
+      video.srcObject = cameraStream;
+      $('cashCameraOverlay').hidden = false;
+      await video.play();
+      setStatus('', 'Камера открыта. Сфотографируйте весь документ.');
+    } catch (_) {
+      closeCamera();
+      setStatus('warn', 'Telegram не дал доступ к камере. Открываю обычный выбор фотографии.');
+      $('cashReportCamera').click();
+    }
+  }
+
+  async function captureCameraPhoto() {
+    const video = $('cashCameraVideo');
+    const width = Number(video.videoWidth) || 0;
+    const height = Number(video.videoHeight) || 0;
+    if (!width || !height) {
+      setStatus('warn', 'Камера ещё не готова. Подождите секунду и повторите снимок.');
+      return;
+    }
+    const button = $('cashCameraShot');
+    button.disabled = true;
+    try {
+      const canvas = $('cashCameraCanvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d');
+      context.drawImage(video, 0, 0, width, height);
+      const blob = await new Promise((resolve, reject) => {
+        canvas.toBlob(value => {
+          if (value) resolve(value);
+          else reject(new Error('Не удалось сохранить снимок.'));
+        }, 'image/jpeg', .95);
+      });
+      const file = typeof File === 'function'
+        ? new File([blob], 'tatooine-camera-' + Date.now() + '.jpg', { type: 'image/jpeg' })
+        : blob;
+      closeCamera();
+      await appendFiles([file]);
+    } catch (error) {
+      setStatus('err', String(error && error.message ? error.message : error));
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   function renderPages() {
     const root = $('cashReportPages');
     root.innerHTML = '';
@@ -649,8 +729,13 @@
       try { TG.setHeaderColor('#0e1116'); TG.setBackgroundColor('#0e1116'); } catch (_) {}
       try { TG.disableVerticalSwipes(); } catch (_) {}
     }
+    $('cashReportCameraButton').addEventListener('click', openCamera);
     $('cashReportCamera').addEventListener('change', async event => { const files = Array.from(event.target.files || []); event.target.value = ''; await appendFiles(files); });
     $('cashReportGallery').addEventListener('change', async event => { const files = Array.from(event.target.files || []); event.target.value = ''; await appendFiles(files); });
+    $('cashCameraClose').addEventListener('click', closeCamera);
+    $('cashCameraShot').addEventListener('click', captureCameraPhoto);
+    $('cashCameraOverlay').addEventListener('click', event => { if (event.target === $('cashCameraOverlay')) closeCamera(); });
+    window.addEventListener('pagehide', stopCameraStream);
     $('cashReportReset').addEventListener('click', () => { if (pages.length && !window.confirm('Удалить все фотографии кассового отчёта?')) return; resetAll(); });
     $('cashReportRecognize').addEventListener('click', recognize);
     $('cashReportAddSlip').addEventListener('click', addSlip);
@@ -661,6 +746,6 @@
     checkBackend();
   }
 
-  window.TatooineCashTest = Object.freeze({ base64DecodedBytes, validateOcrImages, cashOcrMontageSpec, exactPaymentRowAmount, buildTatooineCashMessage, updateComparison });
+  window.TatooineCashTest = Object.freeze({ base64DecodedBytes, validateOcrImages, cashOcrMontageSpec, exactPaymentRowAmount, buildTatooineCashMessage, updateComparison, usesAndroidTelegramCamera });
   init();
 })();

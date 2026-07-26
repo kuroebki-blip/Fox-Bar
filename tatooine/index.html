@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0e1116">
-  <title>Tatooine Cash Report v1.4.0</title>
+  <title>Tatooine Cash Report v1.5.0</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Unbounded:wght@600;700&display=swap" rel="stylesheet">
@@ -22,7 +22,7 @@
 
   <main class="shell">
     <section class="intro">
-      <span class="version" id="appVersion">v1.4.0</span>
+      <span class="version" id="appVersion">v1.5.0</span>
       <h1>Кассовый отчёт</h1>
       <p>Добавьте отчёт iiko 041, конверт и все сводные слипы терминалов. На одной фотографии может быть несколько документов.</p>
     </section>
@@ -36,10 +36,10 @@
       <input id="cashReportCamera" class="file-input" type="file" accept="image/*" capture="environment">
       <input id="cashReportGallery" class="file-input" type="file" accept="image/*" multiple>
       <div class="source-grid">
-        <label class="source primary" for="cashReportCamera">
+        <button class="source primary" id="cashReportCameraButton" type="button">
           <span class="source-icon">📷</span>
           <span><b>Сфотографировать</b><small>Откроется основная камера телефона.</small></span>
-        </label>
+        </button>
         <label class="source" for="cashReportGallery">
           <span class="source-icon">🖼️</span>
           <span><b>Выбрать фотографии</b><small>Можно выбрать несколько файлов сразу.</small></span>
@@ -89,6 +89,19 @@
       <div class="summary">После отправки текст можно исправить и отправить повторно.</div>
     </section>
   </main>
+
+  <div class="camera-overlay" id="cashCameraOverlay" hidden>
+    <div class="camera-card" role="dialog" aria-modal="true" aria-labelledby="cashCameraTitle">
+      <div class="camera-head">
+        <h2 id="cashCameraTitle">Сфотографировать отчёт</h2>
+        <button class="camera-close" id="cashCameraClose" type="button" aria-label="Закрыть камеру">✕</button>
+      </div>
+      <video id="cashCameraVideo" autoplay muted playsinline></video>
+      <canvas id="cashCameraCanvas" hidden></canvas>
+      <p>Расположите весь документ в кадре. Лучше снимать без бликов и теней.</p>
+      <button class="button primary wide" id="cashCameraShot" type="button">📷 Сделать снимок</button>
+    </div>
+  </div>
 
   <div class="confirm" id="cashConfirm" hidden>
     <div class="confirm-card" role="dialog" aria-modal="true" aria-labelledby="cashConfirmTitle">
