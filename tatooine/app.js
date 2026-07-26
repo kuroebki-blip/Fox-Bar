@@ -395,19 +395,41 @@
     const button = $('cashCameraShot');
     button.disabled = true;
     try {
-      const canvas = $('cashCameraCanvas');
-      canvas.width = width;
-      canvas.height = height;
-      const context = canvas.getContext('2d');
-      context.drawImage(video, 0, 0, width, height);
-      const blob = await new Promise((resolve, reject) => {
-        canvas.toBlob(value => {
-          if (value) resolve(value);
-          else reject(new Error('Не удалось сохранить снимок.'));
-        }, 'image/jpeg', .95);
-      });
+      const track = cameraStream && cameraStream.getVideoTracks ? cameraStream.getVideoTracks()[0] : null;
+      let blob = null;
+      if (track && typeof ImageCapture === 'function') {
+        const capture = new ImageCapture(track);
+        try {
+          const capabilities = typeof capture.getPhotoCapabilities === 'function'
+            ? await capture.getPhotoCapabilities()
+            : null;
+          const settings = {};
+          if (capabilities && capabilities.imageWidth && capabilities.imageWidth.max) {
+            settings.imageWidth = capabilities.imageWidth.max;
+          }
+          if (capabilities && capabilities.imageHeight && capabilities.imageHeight.max) {
+            settings.imageHeight = capabilities.imageHeight.max;
+          }
+          blob = await capture.takePhoto(settings);
+        } catch (_) {
+          try { blob = await capture.takePhoto(); } catch (_) {}
+        }
+      }
+      if (!blob) {
+        const canvas = $('cashCameraCanvas');
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext('2d');
+        context.drawImage(video, 0, 0, width, height);
+        blob = await new Promise((resolve, reject) => {
+          canvas.toBlob(value => {
+            if (value) resolve(value);
+            else reject(new Error('Не удалось сохранить снимок.'));
+          }, 'image/jpeg', .95);
+        });
+      }
       const file = typeof File === 'function'
-        ? new File([blob], 'tatooine-camera-' + Date.now() + '.jpg', { type: 'image/jpeg' })
+        ? new File([blob], 'tatooine-camera-' + Date.now() + '.jpg', { type: blob.type || 'image/jpeg' })
         : blob;
       closeCamera();
       await appendFiles([file]);
