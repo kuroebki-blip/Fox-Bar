@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.13.3 — SCANNER JOB SAFETY</title>
+<title>FO'X App v15.14.0 — TERMINAL DETAIL MONTAGE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -2196,6 +2196,24 @@ function validateOcrImagesPayload_(images){
   if(totalBytes>RECEIPT_MAX_OCR_TOTAL_BYTES)throw new Error('Общий размер OCR-фотографий больше 12 МБ. Уменьши количество страниц.');
   return {pages:list.length,totalBytes};
 }
+function cashOcrMontageSpec_(width,height,maxSide=3200){
+  const sourceWidth=Math.max(2,Math.round(Number(width)||0));
+  const sourceHeight=Math.max(2,Math.round(Number(height)||0));
+  const scale=Math.min(1,Math.max(2,Number(maxSide)||3200)/Math.max(sourceWidth,sourceHeight));
+  const outputWidth=Math.max(2,Math.round(sourceWidth*scale));
+  const outputHeight=Math.max(2,Math.round(sourceHeight*scale));
+  const cropWidth=Math.max(1,Math.round(sourceWidth*.58));
+  const cropHeight=Math.max(1,Math.round(sourceHeight*.58));
+  const leftWidth=Math.floor(outputWidth/2),topHeight=Math.floor(outputHeight/2);
+  const xs=[0,sourceWidth-cropWidth],ys=[0,sourceHeight-cropHeight],tiles=[];
+  ys.forEach((sourceY,row)=>xs.forEach((sourceX,column)=>tiles.push({
+    sourceX,sourceY,sourceWidth:cropWidth,sourceHeight:cropHeight,
+    targetX:column?leftWidth:0,targetY:row?topHeight:0,
+    targetWidth:column?outputWidth-leftWidth:leftWidth,
+    targetHeight:row?outputHeight-topHeight:topHeight
+  })));
+  return {outputWidth,outputHeight,tiles};
+}
 // ===== SCANNER TESTABLE HELPERS END =====
 
 
@@ -2830,12 +2848,33 @@ async function dataUrlToOcrImage_(dataUrl,maxSide=1800,quality=.82){
   if(comma<0)throw new Error('Страница повредилась при подготовке OCR.');
   return {mimeType:'image/jpeg',data:out.slice(comma+1),width:w,height:h};
 }
+async function dataUrlToCashOcrMontage_(dataUrl,maxSide=3200,quality=.9){
+  const img=await new Promise((resolve,reject)=>{const el=new Image();el.onload=()=>resolve(el);el.onerror=()=>reject(new Error('Не удалось подготовить детальную страницу кассового отчёта'));el.src=dataUrl;});
+  const rawW=img.naturalWidth||img.width,rawH=img.naturalHeight||img.height;
+  const montage=cashOcrMontageSpec_(rawW,rawH,maxSide);
+  const canvas=document.createElement('canvas');canvas.width=montage.outputWidth;canvas.height=montage.outputHeight;
+  const ctx=canvas.getContext('2d',{alpha:false});ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
+  montage.tiles.forEach(tile=>ctx.drawImage(img,tile.sourceX,tile.sourceY,tile.sourceWidth,tile.sourceHeight,tile.targetX,tile.targetY,tile.targetWidth,tile.targetHeight));
+  const out=await canvasToJpegDataUrl_(canvas,quality),comma=out.indexOf(',');
+  if(comma<0)throw new Error('Детальная страница повредилась при подготовке OCR.');
+  return {mimeType:'image/jpeg',data:out.slice(comma+1),width:canvas.width,height:canvas.height};
+}
 async function buildOcrImagesPayload_(pages,onProgress){
   assertOcrPageCount_(pages.length);
   const images=[];
   for(let i=0;i<pages.length;i++){
     if(onProgress)onProgress(i,pages.length);
     images.push(await dataUrlToOcrImage_(pages[i].dataUrl,1800,.82));
+  }
+  validateOcrImagesPayload_(images);
+  return images;
+}
+async function buildCashOcrImagesPayload_(pages,onProgress){
+  assertOcrPageCount_(pages.length);
+  const images=[];
+  for(let i=0;i<pages.length;i++){
+    if(onProgress)onProgress(i,pages.length);
+    images.push(await dataUrlToCashOcrMontage_(pages[i].dataUrl));
   }
   validateOcrImagesPayload_(images);
   return images;
@@ -2992,7 +3031,7 @@ async function sendReceiptToTelegram(){
 
 
 
-// ===== FO’X v15.13.3 — FAST IMAGE SCANNER + job safety =====
+// ===== FO’X v15.14.0 — TERMINAL DETAIL MONTAGE =====
 let cashReportPages=[];
 let cashReportPdfBlob=null;
 let cashReportJobId='';
@@ -3078,7 +3117,7 @@ async function startCashReportRecognition(){
     const pagesSnapshot=cashReportPages.map(page=>Object.assign({},page));
     invalidateCashReportRecognition_();
     setCashReportStatus('', 'Подготавливаю фотографии для быстрого распознавания…',.06);
-    const images=await buildOcrImagesPayload_(pagesSnapshot,(i,total)=>setCashReportStatus('', 'Подготавливаю фото '+(i+1)+' из '+total+'…',.06+.08*(i/Math.max(1,total))));
+    const images=await buildCashOcrImagesPayload_(pagesSnapshot,(i,total)=>setCashReportStatus('', 'Собираю детальную страницу '+(i+1)+' из '+total+'…',.06+.08*(i/Math.max(1,total))));
     cashReportJobId='cash'+Date.now()+'_'+Math.random().toString(36).slice(2,8);cashReportResult=null;cashReportPdfBlob=null;
     const activeJobId=cashReportJobId;
     document.getElementById('cashReportResultCard').hidden=true;resetCashReportSendButton_();
