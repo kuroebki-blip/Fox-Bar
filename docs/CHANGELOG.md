@@ -1,5 +1,25 @@
 # FO’X — Changelog
 
+## Cash OCR bundle — TERMINAL DETAIL MONTAGE
+
+Версии: FO’X frontend `v15.14.0`, Tatooine frontend `v1.4.0`, backend `v9.6.0`.
+
+Статус: candidate от 26 июля 2026; автоматические тесты и публикация ожидаются.
+
+Что изменено:
+
+- каждая исходная фотография кассового отчёта локально преобразуется в одну монтажную страницу 2×2 из перекрывающихся увеличенных секторов;
+- количество изображений и Gemini API-вызовов не увеличивается;
+- максимальная сторона кассового OCR увеличена с 1800 до 3200 пикселей, JPEG quality — с 0.82 до 0.90;
+- backend предупреждён о перекрытиях и не должен считать один физический слип дважды;
+- обычный сканер документов FO’X сохраняет прежний быстрый pipeline 1800/0.82.
+
+Как откатиться:
+
+- frontend FO’X вернуть на merge commit `10f766c11deabfe0403af1640e266e6dbc998a6f`;
+- frontend Tatooine вернуть на merge commit `cab4dfb72a3534276bc207b3eadc95bebb289344`;
+- Apps Script deployment переключить обратно на version `22` (`v9.5.0`).
+
 ## Stock/scanner backend v9.5.0 — TATOOINE OPEN CASH ACCESS
 
 Статус: production с 26 июля 2026; Apps Script version `22`, публичный `ping v9.5.0`, 35/35 автоматических тестов, живой Telegram-тест ожидается.

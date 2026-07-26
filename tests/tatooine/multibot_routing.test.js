@@ -100,3 +100,9 @@ test('collection OCR accepts the separators used on real envelopes', () => {
   assert.match(backend, /Инкассация: 90616 \/ 96620/);
   assert.match(backend, /collection_amount=90616 и collection_actual=96620/);
 });
+
+test('terminal OCR understands overlapping detail montages and deduplicates slips', () => {
+  assert.match(backend, /монтажом 2×2 из четырёх перекрывающихся увеличенных секторов/);
+  assert.match(backend, /Не создавай дубликаты/);
+  assert.match(backend, /Не считай одинаковый слип в соседних секторах дважды/);
+});

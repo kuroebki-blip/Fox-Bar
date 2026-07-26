@@ -20,9 +20,9 @@
 
 ## Latest candidate in this repository
 
-- `frontend/candidate/index.html`: v15.13.3 SCANNER JOB SAFETY.
-- `apps-script/stock-scanner/candidate/Code.gs`: v9.5.0 TATOOINE OPEN CASH ACCESS.
-- `frontend/tatooine/`: v1.3.3 HIDE EMPTY PREPAYMENTS.
+- `frontend/candidate/index.html`: v15.14.0 TERMINAL DETAIL MONTAGE.
+- `apps-script/stock-scanner/candidate/Code.gs`: v9.6.0 TERMINAL DETAIL MONTAGE.
+- `frontend/tatooine/`: v1.4.0 TERMINAL DETAIL MONTAGE.
 
 Candidate включает:
 
@@ -53,6 +53,7 @@ Candidate включает:
 - стандартный неизменный размен Tatooine `100 000` при открытии приложения и после нового распознавания.
 - весь блок предоплат Tatooine скрыт, если предоплаты не добавлены.
 - кассовый отчёт Tatooine доступен любому пользователю с валидной Telegram Mini App-авторизацией, без списка разрешённых ID.
+- кассовый OCR FO’X и Tatooine формирует одно детальное изображение 2×2 на каждую исходную фотографию, не увеличивая число Gemini-запросов.
 
 ## Known open issues
 

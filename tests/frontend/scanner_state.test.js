@@ -49,6 +49,16 @@ test('OCR payload rejects a decoded total over 12 MiB', () => {
   );
 });
 
+test('cash OCR montage keeps one image but enlarges four overlapping sectors', () => {
+  const spec = evaluate('cashOcrMontageSpec_(4000,3000,3200)');
+  assert.equal(spec.outputWidth, 3200);
+  assert.equal(spec.outputHeight, 2400);
+  assert.equal(spec.tiles.length, 4);
+  assert.equal(spec.tiles[0].sourceWidth, 2320);
+  assert.equal(spec.tiles[1].sourceX, 1680);
+  assert.match(html, /buildCashOcrImagesPayload_\(pagesSnapshot/);
+});
+
 test('stale PDF upload is guarded before it mutates global result', () => {
   assert.match(html, /receiptResult&&receiptJobIsActive_\(receiptJobId,jobId\)/);
   assert.match(html, /if\(!receiptJobIsActive_\(receiptJobId,jobId\)\)throw new Error\('Операция отменена\.'\)/);

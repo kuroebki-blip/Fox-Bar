@@ -63,6 +63,17 @@ test('OCR payload limits are enforced before upload', () => {
   assert.throws(() => vm.runInContext('validateOcrImages(pages)', context), /Максимум 20/);
 });
 
+test('Tatooine cash OCR uses one high-detail montage per source photo', () => {
+  const spec = vm.runInContext('cashOcrMontageSpec(4000,3000,3200)', context);
+  assert.equal(spec.outputWidth, 3200);
+  assert.equal(spec.outputHeight, 2400);
+  assert.equal(spec.tiles.length, 4);
+  assert.equal(spec.tiles[0].sourceWidth, 2320);
+  assert.equal(spec.tiles[1].sourceX, 1680);
+  assert.match(app, /montage\.tiles\.forEach/);
+  assert.doesNotMatch(app, /images\.push\(await toOcrImage[^\n]*\);\s*images\.push/);
+});
+
 test('editing pages invalidates a previous recognition job', () => {
   assert.match(app, /pages\.splice\(index, 1\);\s*invalidateRecognition\(\)/);
   assert.match(app, /\[pages\[index\], pages\[target\]\] = \[pages\[target\], pages\[index\]\];\s*invalidateRecognition\(\)/);

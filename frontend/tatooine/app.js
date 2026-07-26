@@ -111,6 +111,29 @@
     return { pages: list.length, totalBytes };
   }
 
+  function cashOcrMontageSpec(width, height, maxSide = 3200) {
+    const sourceWidth = Math.max(2, Math.round(Number(width) || 0));
+    const sourceHeight = Math.max(2, Math.round(Number(height) || 0));
+    const scale = Math.min(1, Math.max(2, Number(maxSide) || 3200) / Math.max(sourceWidth, sourceHeight));
+    const outputWidth = Math.max(2, Math.round(sourceWidth * scale));
+    const outputHeight = Math.max(2, Math.round(sourceHeight * scale));
+    const cropWidth = Math.max(1, Math.round(sourceWidth * .58));
+    const cropHeight = Math.max(1, Math.round(sourceHeight * .58));
+    const leftWidth = Math.floor(outputWidth / 2);
+    const topHeight = Math.floor(outputHeight / 2);
+    const xs = [0, sourceWidth - cropWidth];
+    const ys = [0, sourceHeight - cropHeight];
+    const tiles = [];
+    ys.forEach((sourceY, row) => xs.forEach((sourceX, column) => tiles.push({
+      sourceX, sourceY, sourceWidth: cropWidth, sourceHeight: cropHeight,
+      targetX: column ? leftWidth : 0,
+      targetY: row ? topHeight : 0,
+      targetWidth: column ? outputWidth - leftWidth : leftWidth,
+      targetHeight: row ? outputHeight - topHeight : topHeight
+    })));
+    return { outputWidth, outputHeight, tiles };
+  }
+
   function normalizedPaymentName(value) {
     return String(value || '')
       .trim()
@@ -261,20 +284,22 @@
     const image = await loadImage(page.dataUrl, 'Не удалось подготовить фотографию для OCR.');
     const rawWidth = image.naturalWidth || image.width;
     const rawHeight = image.naturalHeight || image.height;
-    const scale = Math.min(1, 1800 / Math.max(rawWidth, rawHeight));
-    const width = Math.max(1, Math.round(rawWidth * scale));
-    const height = Math.max(1, Math.round(rawHeight * scale));
+    const montage = cashOcrMontageSpec(rawWidth, rawHeight, 3200);
     const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
+    canvas.width = montage.outputWidth;
+    canvas.height = montage.outputHeight;
     const context = canvas.getContext('2d', { alpha: false });
     context.imageSmoothingEnabled = true;
     context.imageSmoothingQuality = 'high';
     context.fillStyle = '#fff';
-    context.fillRect(0, 0, width, height);
-    context.drawImage(image, 0, 0, width, height);
-    const dataUrl = await canvasToJpeg(canvas, .82);
-    return { mimeType: 'image/jpeg', data: dataUrl.slice(dataUrl.indexOf(',') + 1), width, height };
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    montage.tiles.forEach(tile => context.drawImage(
+      image,
+      tile.sourceX, tile.sourceY, tile.sourceWidth, tile.sourceHeight,
+      tile.targetX, tile.targetY, tile.targetWidth, tile.targetHeight
+    ));
+    const dataUrl = await canvasToJpeg(canvas, .9);
+    return { mimeType: 'image/jpeg', data: dataUrl.slice(dataUrl.indexOf(',') + 1), width: canvas.width, height: canvas.height };
   }
 
   async function buildOcrImages(snapshot) {
@@ -634,6 +659,6 @@
     checkBackend();
   }
 
-  window.TatooineCashTest = Object.freeze({ base64DecodedBytes, validateOcrImages, exactPaymentRowAmount, buildTatooineCashMessage, updateComparison });
+  window.TatooineCashTest = Object.freeze({ base64DecodedBytes, validateOcrImages, cashOcrMontageSpec, exactPaymentRowAmount, buildTatooineCashMessage, updateComparison });
   init();
 })();
