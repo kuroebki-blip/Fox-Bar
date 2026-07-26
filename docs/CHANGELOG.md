@@ -4,7 +4,7 @@
 
 Версии: FO’X frontend `v15.14.0`, Tatooine frontend `v1.4.0`, backend `v9.6.0`.
 
-Статус: candidate от 26 июля 2026; автоматические тесты и публикация ожидаются.
+Статус: production с 26 июля 2026; Apps Script version `24`, frontend merge commit `4cb04d2b810b62ee6b3658e33ca6f4954e524ee4`, GitHub Pages опубликован успешно, публичный `ping` вернул `v9.6.0`, 38/38 автоматических тестов. Живой OCR/Telegram-тест ожидается.
 
 Что изменено:
 
