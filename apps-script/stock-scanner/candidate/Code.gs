@@ -1,5 +1,5 @@
 /**
- * FO’X — документы, чеки, банкетный резерв и кассовый отчёт v9.4.9
+ * FO’X — документы, чеки, банкетный резерв и кассовый отчёт v9.5.0
  *
  * Назначение:
  * 1. Принимает облегчённые JPEG-страницы для быстрого распознавания.
@@ -16,7 +16,7 @@
  */
 
 const FOX_RECEIPTS = {
-  version: 'v9.4.9 ENVELOPE COLLECTION SEPARATORS',
+  version: 'v9.5.0 TATOOINE OPEN CASH ACCESS',
 
   stockSheets: [
     'Вино',
@@ -2276,8 +2276,8 @@ function telegramRouteConfig_(value) {
       tokenProperty: 'TATOOINE_TELEGRAM_BOT_TOKEN',
       botToken: String(props.getProperty('TATOOINE_TELEGRAM_BOT_TOKEN') || ''),
       targetChatId: String(props.getProperty('TATOOINE_TELEGRAM_TARGET_CHAT_ID') || ''),
-      allowedUserIds: parseTelegramIds_(props.getProperty('TATOOINE_TELEGRAM_ALLOWED_USER_IDS'), FOX_RECEIPTS.adminTelegramIds),
-      allowAllUsers: false,
+      allowedUserIds: [],
+      allowAllUsers: true,
       allowUnverifiedTestMode: String(props.getProperty('TATOOINE_ALLOW_UNVERIFIED_TEST_MODE') || '').toLowerCase() === 'true'
     };
   }

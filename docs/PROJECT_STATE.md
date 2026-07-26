@@ -21,7 +21,7 @@
 ## Latest candidate in this repository
 
 - `frontend/candidate/index.html`: v15.13.3 SCANNER JOB SAFETY.
-- `apps-script/stock-scanner/candidate/Code.gs`: v9.4.9 ENVELOPE COLLECTION SEPARATORS.
+- `apps-script/stock-scanner/candidate/Code.gs`: v9.5.0 TATOOINE OPEN CASH ACCESS.
 - `frontend/tatooine/`: v1.3.3 HIDE EMPTY PREPAYMENTS.
 
 Candidate включает:
@@ -52,6 +52,7 @@ Candidate включает:
 - нормализация строк `Оплата EatAndSplit`/`Оплата Яндекс еда` из реального отчёта iiko 041.
 - стандартный неизменный размен Tatooine `100 000` при открытии приложения и после нового распознавания.
 - весь блок предоплат Tatooine скрыт, если предоплаты не добавлены.
+- кассовый отчёт Tatooine доступен любому пользователю с валидной Telegram Mini App-авторизацией, без списка разрешённых ID.
 
 ## Known open issues
 

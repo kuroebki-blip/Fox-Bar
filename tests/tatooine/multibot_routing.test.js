@@ -29,13 +29,13 @@ const context = vm.createContext({
 });
 vm.runInContext(helpers[0], context, { filename: 'Code.gs' });
 
-test('Tatooine selects its own token, chat and access list', () => {
+test('Tatooine selects its own token and chat but accepts every verified Telegram user', () => {
   const route = vm.runInContext("telegramRouteConfig_({venue:'tatooine'})", context);
   assert.equal(route.venue, 'tatooine');
   assert.equal(route.botToken, 'tatooine-token');
   assert.equal(route.targetChatId, '-2002');
-  assert.deepEqual(Array.from(route.allowedUserIds), ['77', '88']);
-  assert.equal(route.allowAllUsers, false);
+  assert.deepEqual(Array.from(route.allowedUserIds), []);
+  assert.equal(route.allowAllUsers, true);
 });
 
 test('FO’X keeps its existing Telegram route', () => {
