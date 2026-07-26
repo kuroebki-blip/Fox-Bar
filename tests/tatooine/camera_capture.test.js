@@ -14,3 +14,12 @@ test('Android camera requests a still photo before using the video-frame fallbac
   assert.ok(takePhoto > imageCapture, 'full-resolution takePhoto call is missing');
   assert.ok(drawVideoFrame > takePhoto, 'canvas must remain only after the still-photo attempt');
 });
+
+test('OCR keeps one coherent image instead of rearranging montage tiles', () => {
+  const functionStart = source.indexOf('async function toOcrImage(page)');
+  const functionEnd = source.indexOf('async function buildOcrImages(', functionStart);
+  const ocrSource = source.slice(functionStart, functionEnd);
+
+  assert.match(ocrSource, /context\.drawImage\(image, 0, 0, width, height\)/);
+  assert.doesNotMatch(ocrSource, /montage\.tiles|tile\.sourceX|tile\.targetX/);
+});
