@@ -5,12 +5,12 @@
 22 июля 2026 опубликована и автоматически проверена пара:
 
 - GitHub Pages: frontend `v15.13.3 SCANNER JOB SAFETY`, merge commit `10f766c11deabfe0403af1640e266e6dbc998a6f`;
-- Apps Script scanner/stock Web App: backend `v9.4.9 ENVELOPE COLLECTION SEPARATORS`, Apps Script version `21`;
-- рабочий Web App URL сохранён; `?action=ping` вернул `v9.4.9`;
+- Apps Script scanner/stock Web App: backend `v9.5.0 TATOOINE OPEN CASH ACCESS`, Apps Script version `22`;
+- рабочий Web App URL сохранён; `?action=ping` вернул `v9.5.0`;
 - GitHub Pages завершил сборку со статусом `built`, публичный HTML содержит `v15.13.3` и рабочий Web App URL;
 - браузерный smoke-тест открыл главную, «Документы и чеки» и «Кассовый отчёт» без критических JavaScript-ошибок.
 - Tatooine: frontend `v1.3.3 HIDE EMPTY PREPAYMENTS` опубликован по адресу `https://kuroebki-blip.github.io/Fox-Bar/tatooine/`, PR №11, merge commit `cab4dfb72a3534276bc207b3eadc95bebb289344`;
-- Tatooine использует отдельный Telegram-маршрут на backend `v9.4.9`; токен нового бота сохранён в Script Properties и распознан backend без раскрытия значения.
+- Tatooine использует отдельный Telegram-маршрут на backend `v9.5.0`; токен нового бота сохранён в Script Properties, а кассовый отчёт доступен любому пользователю с валидной Telegram Mini App-авторизацией.
 
 Ещё проверить вручную:
 
@@ -60,8 +60,8 @@ Candidate включает:
 2. После перевода банкета в «Пройден» иногда не снимается резерв.
 3. Новые позиции банкета иногда не добавляются в `Банкеты_Резерв`.
 4. Сканер документов требует замеров скорости на реальном Android.
-5. Production v15.13.3/v9.4.9 требует живого OCR/Telegram-теста отчёта iiko 041 и инкассации с конверта на реальных фото FO’X.
-6. Tatooine v1.3.3/v9.4.9 опубликован; требуется повторный живой OCR/Telegram-тест EatAndSplit, отчёта iiko 041, конверта, размена `100 000` и скрытия пустого блока предоплат.
+5. Production v15.13.3/v9.5.0 требует живого OCR/Telegram-теста отчёта iiko 041 и инкассации с конверта на реальных фото FO’X.
+6. Tatooine v1.3.3/v9.5.0 опубликован; требуется живой тест входа пользователя вне прежнего списка ID и повторный OCR/Telegram-тест EatAndSplit, отчёта iiko 041, конверта, размена `100 000` и скрытия пустого блока предоплат.
 
 ## Architecture decision
 

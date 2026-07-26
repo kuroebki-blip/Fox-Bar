@@ -2,7 +2,7 @@
 
 ## Stock/scanner backend v9.5.0 — TATOOINE OPEN CASH ACCESS
 
-Статус: candidate от 26 июля 2026; автоматические тесты и публикация ожидаются.
+Статус: production с 26 июля 2026; Apps Script version `22`, публичный `ping v9.5.0`, 35/35 автоматических тестов, живой Telegram-тест ожидается.
 
 Что изменено:
 
