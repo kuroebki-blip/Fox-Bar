@@ -1,0 +1,15 @@
+{
+  "name": "fox-bar",
+  "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": "^20.19.0 || ^22.13.0 || >=24"
+  },
+  "scripts": {
+    "lint:check": "eslint tatooine/app.js tatooine/config.js"
+  },
+  "devDependencies": {
+    "eslint": "10.8.0",
+    "globals": "17.7.0"
+  }
+}
