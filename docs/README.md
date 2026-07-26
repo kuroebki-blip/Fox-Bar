@@ -28,6 +28,7 @@
 - [`RELEASE_CHECKLIST.md`](../RELEASE_CHECKLIST.md) — выпуск и откат.
 - [`DEPLOYMENT.md`](../DEPLOYMENT.md) — GitHub Pages, Apps Script и проверка публикации.
 - [`SECURITY.md`](../SECURITY.md) — секреты и безопасный аудит.
+- [`ESLINT_CANDIDATE_REPORT.md`](ESLINT_CANDIDATE_REPORT.md) — область и результаты диагностической проверки JavaScript.
 - [PR-шаблон](../.github/PULL_REQUEST_TEMPLATE.md) — обязательное описание Pull Request.
 
 `PROJECT_STATE.md` является источником текущего состояния. Технические документы описывают устойчивые правила и не должны выдавать candidate за production.

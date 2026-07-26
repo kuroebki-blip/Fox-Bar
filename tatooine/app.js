@@ -13,7 +13,9 @@
   let pollingToken = 0;
 
   const $ = id => document.getElementById(id);
-  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const sleep = ms => new Promise(resolve => {
+    setTimeout(resolve, ms);
+  });
 
   function escapeHtml(value) {
     return String(value || '').replace(/[&<>"']/g, char => ({
