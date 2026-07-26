@@ -1,5 +1,5 @@
 window.TATOOINE_CONFIG = Object.freeze({
-  version: 'v1.4.0 TERMINAL DETAIL MONTAGE',
+  version: 'v1.5.0 ANDROID TELEGRAM CAMERA',
   apiUrl: 'https://script.google.com/macros/s/AKfycbx9XlQG6kCvWVU6OekcWAmHAVnjFXfG-_UD_pKQrQqYaWNyHzmXsmB_2LGohxETrrfTpA/exec',
   venue: 'tatooine',
   restaurantName: 'Tatooine',
