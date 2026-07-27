@@ -18,6 +18,7 @@
 - [`Cloudinary.md`](Cloudinary.md) — загрузка фотографий банкетов.
 - [`GoogleSheets.md`](GoogleSheets.md) — безопасная работа с таблицами.
 - [`AppsScript.md`](AppsScript.md) — обработчики и выпуск Apps Script.
+- [`DATA_SCHEMA.md`](DATA_SCHEMA.md) — подтверждённая из production export схема банкетов и candidate-план `Media JSON`.
 
 ## Процесс
 

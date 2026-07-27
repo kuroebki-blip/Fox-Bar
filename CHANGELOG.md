@@ -6,6 +6,7 @@
 
 ### Added
 
+- Candidate `v16.0.0` Banquets Upgrade: idempotent save by banquet ID, backward-compatible `Media JSON` support, multi-photo frontend gallery and sequential OCR, preservation of unknown goods, and local regression tests.
 - Developer Kit: архитектура, состояние проекта, правила разработки, безопасность, чек-листы и документация компонентов.
 - Candidate Tatooine `v1.5.0`: встроенная задняя камера для Telegram WebView на Android с fallback на обычный выбор фотографии.
 - Candidate Tatooine `v1.5.1`: полноразмерный Android-снимок через `ImageCapture` с сохранением canvas fallback.
@@ -13,10 +14,13 @@
 
 ### Changed
 
-- Нет изменений рабочего приложения.
+- Candidate `v16.0.0`: Stock/Reserve backend reads the banquet status directly from the Banquets sheet before saving a reserve; terminal statuses are retained after late OCR.
+- Candidate `v16.0.0`: reserve status updates report the actual number of changed rows and fail when no active reserve exists.
 
 ### Fixed
 
+- Candidate `v16.0.0`: repeated save POSTs with the same banquet ID no longer append a duplicate row.
+- Candidate `v16.0.0`: unknown banquet goods are retained with quantity and unit as `Требует сопоставления` instead of being discarded before reconciliation.
 - Android Telegram больше не зависит только от необязательной поддержки HTML `capture` при съёмке кассового отчёта.
 - Снимок Android-камеры больше не ограничивается разрешением preview-видеопотока, если WebView поддерживает `ImageCapture`.
 - Tatooine больше не переставляет и не дублирует фрагменты документа перед отправкой в OCR.
