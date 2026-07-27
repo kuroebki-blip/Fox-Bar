@@ -3413,31 +3413,53 @@ function setBanquetOrderSent_(banquetId, sent) {
 
 function setBanquetReserveStatus_(banquetId, status) {
   banquetId = requiredString_(banquetId, 'banquetId');
-  const normalized = normalizeBanquetStatusForReserve_(status);
-  const sh = getSpreadsheet_().getSheetByName(FOX_RECEIPTS.sheets.banquetReserve);
-  if (!sh || sh.getLastRow() < 3) return { banquetId:banquetId, recognized:false };
-  const rows = sh.getRange(3, 1, sh.getLastRow() - 2, FOX_RECEIPT_HEADERS.banquetReserve.length).getValues();
-  rows.forEach(function(r, i) {
-    if (String(r[0]) === String(banquetId) && String(r[16]).toUpperCase() !== 'YES') {
-      sh.getRange(i + 3, 4).setValue(normalized);
-    }
-  });
-  SpreadsheetApp.flush();
-  return getOneBanquetReserveSummary_(banquetId);
+  const lock = LockService.getDocumentLock();
+  if (!lock.tryLock(30000)) throw new Error('Таблица сейчас занята. Повтори через минуту.');
+  try {
+    // Не доверяем status из URL: он может быть устаревшим к моменту запроса.
+    const normalized = getCurrentBanquetStatus_(banquetId);
+    const sh = getSpreadsheet_().getSheetByName(FOX_RECEIPTS.sheets.banquetReserve);
+    if (!sh || sh.getLastRow() < 3) throw new Error('Резерв этого банкета не найден: обновлено 0 строк.');
+    const rows = sh.getRange(3, 1, sh.getLastRow() - 2, FOX_RECEIPT_HEADERS.banquetReserve.length).getValues();
+    let changedCount = 0;
+    rows.forEach(function(r, i) {
+      if (String(r[0]) === String(banquetId) && String(r[16]).toUpperCase() !== 'YES') {
+        sh.getRange(i + 3, 4).setValue(normalized);
+        sh.getRange(i + 3, 16).setValue(new Date());
+        changedCount++;
+      }
+    });
+    if (!changedCount) throw new Error('Резерв этого банкета не найден: обновлено 0 строк.');
+    SpreadsheetApp.flush();
+    const summary = getOneBanquetReserveSummary_(banquetId);
+    summary.changedCount = changedCount;
+    return summary;
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function archiveBanquetReserve_(banquetId) {
   banquetId = requiredString_(banquetId, 'banquetId');
-  const sh = getSpreadsheet_().getSheetByName(FOX_RECEIPTS.sheets.banquetReserve);
-  if (!sh || sh.getLastRow() < 3) return;
-  const rows = sh.getRange(3, 1, sh.getLastRow() - 2, FOX_RECEIPT_HEADERS.banquetReserve.length).getValues();
-  rows.forEach(function(r, i) {
-    if (String(r[0]) === String(banquetId) && String(r[16]).toUpperCase() !== 'YES') {
-      sh.getRange(i + 3, 17).setValue('YES');
-      sh.getRange(i + 3, 16).setValue(new Date());
-    }
-  });
-  SpreadsheetApp.flush();
+  const lock = LockService.getDocumentLock();
+  if (!lock.tryLock(30000)) throw new Error('Таблица сейчас занята. Повтори через минуту.');
+  try {
+    const sh = getSpreadsheet_().getSheetByName(FOX_RECEIPTS.sheets.banquetReserve);
+    if (!sh || sh.getLastRow() < 3) return { banquetId:banquetId, changedCount:0 };
+    const rows = sh.getRange(3, 1, sh.getLastRow() - 2, FOX_RECEIPT_HEADERS.banquetReserve.length).getValues();
+    let changedCount = 0;
+    rows.forEach(function(r, i) {
+      if (String(r[0]) === String(banquetId) && String(r[16]).toUpperCase() !== 'YES') {
+        sh.getRange(i + 3, 17).setValue('YES');
+        sh.getRange(i + 3, 16).setValue(new Date());
+        changedCount++;
+      }
+    });
+    SpreadsheetApp.flush();
+    return { banquetId:banquetId, changedCount:changedCount };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function getBanquetReserveSummaries_() {

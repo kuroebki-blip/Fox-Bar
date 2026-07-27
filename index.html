@@ -1869,12 +1869,15 @@ async function changeBanquetStatus(banquet,nextStatus){
   renderBanquets();
   setSyncStatus('', 'Сохраняю статус банкета…');
 
+  let primaryStatusPosted=false;
   try{
     if(isApiConfigured()){
       await postBanqForm({action:'updateStatus',id:banquet.id,status:normalized});
+      primaryStatusPosted=true;
       if(isStockApiConfigured()){
-        const stockRes=await jsonp(STOCK_API_URL,Object.assign({action:'banquetStatusUpdate',banquetId:banquet.id,status:normalized},receiptAuthParams()));
+        const stockRes=await jsonp(STOCK_API_URL,Object.assign({action:'banquetStatusUpdate',banquetId:banquet.id},receiptAuthParams()));
         if(!stockRes||!stockRes.ok) throw new Error(stockRes&&stockRes.error?stockRes.error:'Банкет сохранён, но резерв не пересчитан.');
+        if(Number(stockRes.summary&&stockRes.summary.changedCount||0)===0) throw new Error('Банкет сохранён, но резерв не обновлён: 0 строк.');
       }
       await loadBanquets();
       setSyncStatus('ok','Статус сохранён: '+getBanqStatusMeta(normalized).label+'. Банкетный резерв пересчитан.');
@@ -1884,9 +1887,14 @@ async function changeBanquetStatus(banquet,nextStatus){
     }
     hap('ok');
   }catch(err){
-    banquet.status=previous;
-    renderBanquets();
-    setSyncStatus('err','Не удалось сохранить статус банкета.');
+    if(primaryStatusPosted){
+      await loadBanquets().catch(()=>{});
+      setSyncStatus('warn','Статус банкета сохранён, но резерв не обновлён: '+String(err&&err.message?err.message:err));
+    }else{
+      banquet.status=previous;
+      renderBanquets();
+      setSyncStatus('err','Не удалось сохранить статус банкета.');
+    }
   }
 }
 

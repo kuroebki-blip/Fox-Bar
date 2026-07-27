@@ -126,6 +126,7 @@ function listBanquets_() {
 }
 
 function saveBanquet_(p) {
+  return withBanquetLock_(function() {
   const sh = getSheet_();
   ensureHeaders_(sh);
 
@@ -203,6 +204,7 @@ function saveBanquet_(p) {
   const returnedMediaColumn = mediaColumn || FOXBANQ.HEADERS.length + 1;
   savedRow[returnedMediaColumn - 1] = mediaToJson_(persistedMedia);
   return banquetClientItem_(savedRow, returnedMediaColumn);
+  });
 }
 
 function findActiveBanquetRowById_(sh, id) {
@@ -297,6 +299,7 @@ function normalizeBanquetStatus_(status) {
 }
 
 function updateBanquetStatus_(id, status) {
+  return withBanquetLock_(function() {
   id = String(id || '').trim();
   if (!id) throw new Error('Не указан ID банкета');
 
@@ -325,9 +328,11 @@ function updateBanquetStatus_(id, status) {
   }
 
   throw new Error('Банкет не найден: ' + id);
+  });
 }
 
 function deleteBanquet_(id) {
+  return withBanquetLock_(function() {
   id = String(id || '').trim();
   if (!id) throw new Error('Не указан ID');
 
@@ -348,6 +353,17 @@ function deleteBanquet_(id) {
   }
 
   return false;
+  });
+}
+
+function withBanquetLock_(work) {
+  const lock = LockService.getDocumentLock();
+  if (!lock.tryLock(30000)) throw new Error('Таблица банкетов сейчас занята. Повтори через минуту.');
+  try {
+    return work();
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function assertAdmin_(telegramUserId) {
