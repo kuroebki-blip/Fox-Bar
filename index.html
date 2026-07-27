@@ -227,7 +227,13 @@ body.mode-hub #backBtn{display:none}
 .banq-status.cancelled{color:#F08B7D;border-color:rgba(240,139,125,.4);background:rgba(240,139,125,.10)}
 .banq-name{font-size:15px;font-weight:700;margin-bottom:3px}
 .banq-comment{font-size:13px;color:var(--muted);line-height:1.45;margin:5px 0 9px}
-.banq-img{display:block;width:100%;border-radius:12px;border:1px solid var(--line);margin-top:8px}
+.banq-img{display:block;width:100%;height:180px;object-fit:cover;border-radius:12px;border:1px solid var(--line);margin-top:8px;background:#000}
+.banq-media-open{position:relative;display:block;width:100%;padding:0;border:0;background:transparent;cursor:pointer;text-align:left}
+.banq-media-open .banq-img{margin-top:8px}
+.banq-media-count{position:absolute;right:9px;bottom:9px;border-radius:999px;padding:4px 8px;background:rgba(0,0,0,.72);color:#fff;font-size:12px;font-weight:700}
+.banq-media-strip{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;margin-top:8px;padding-bottom:2px}
+.banq-media-strip .banq-media-open{flex:0 0 76%;scroll-snap-align:start}
+.banq-media-strip .banq-img{height:150px;margin:0}
 .banq-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 .small-btn{border:1px solid var(--line-strong);background:transparent;color:var(--muted);
   font-family:inherit;font-size:12px;font-weight:600;padding:9px 10px;border-radius:10px;cursor:pointer}
@@ -304,8 +310,26 @@ body.mode-hub #backBtn{display:none}
 .photo-pick-text{display:flex;flex-direction:column;gap:2px;min-width:0}
 .photo-pick-text b{font-size:14px;font-weight:700;color:var(--text)}
 .photo-pick-text i{font-style:normal;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.banq-photo-tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.banq-photo-tools .small-btn{cursor:pointer}
 .photo-preview{margin-top:10px;border:1px solid var(--line);background:var(--surface-2);border-radius:14px;padding:10px}
-.photo-preview img{display:block;width:100%;max-height:260px;object-fit:contain;border-radius:10px;background:#000}
+.banq-photo-preview-list{display:flex;flex-direction:column;gap:9px}
+.banq-photo-preview-item{display:grid;grid-template-columns:92px 1fr;gap:10px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:8px}
+.banq-photo-preview-item img{display:block;width:92px;height:76px;object-fit:cover;border-radius:8px;background:#000;cursor:pointer}
+.banq-photo-preview-meta{min-width:0;display:flex;flex-direction:column;gap:7px}
+.banq-photo-preview-name{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.banq-photo-preview-actions{display:flex;gap:6px;flex-wrap:wrap}
+.banq-photo-preview-actions .small-btn{padding:7px 8px}
+.banq-form-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.banq-gallery-modal{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:16px}
+.banq-gallery-modal[hidden]{display:none}
+.banq-gallery-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.84)}
+.banq-gallery-dialog{position:relative;z-index:1;width:min(100%,720px);height:min(82vh,760px);display:grid;place-items:center}
+.banq-gallery-dialog img{max-width:100%;max-height:100%;object-fit:contain;border-radius:12px;background:#000}
+.banq-gallery-close,.banq-gallery-nav{position:absolute;border:0;border-radius:999px;background:rgba(16,18,22,.82);color:#fff;width:42px;height:42px;font-size:30px;line-height:1;cursor:pointer}
+.banq-gallery-close{right:0;top:-4px}.banq-gallery-nav{top:50%;transform:translateY(-50%)}.banq-gallery-nav.prev{left:-4px}.banq-gallery-nav.next{right:-4px}
+.banq-gallery-count{position:absolute;bottom:-2px;left:50%;transform:translateX(-50%);border-radius:999px;background:rgba(16,18,22,.82);color:#fff;padding:6px 10px;font-size:12px;font-weight:700}
+@media(max-width:480px){.banq-gallery-modal{padding:8px}.banq-gallery-nav.prev{left:0}.banq-gallery-nav.next{right:0}.banq-gallery-dialog{height:88vh}.banq-img{height:160px}}
 .photo-clear{margin-top:9px;width:100%;border:1px solid rgba(240,139,125,.35);background:transparent;color:#F0B0A7;
   border-radius:10px;padding:10px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer}
 .photo-clear:active{background:rgba(240,139,125,.12)}
@@ -620,17 +644,21 @@ body.mode-cash-report #backBtn{display:inline-flex}
       </div>
       <div class="form-field full">
         <label>Фото заказа</label>
-        <input id="banqPhoto" class="photo-input-hidden" type="file" accept="image/*">
+        <input id="banqPhoto" class="photo-input-hidden" type="file" accept="image/*" multiple>
+        <input id="banqPhotoCamera" class="photo-input-hidden" type="file" accept="image/*" capture="environment">
         <label for="banqPhoto" class="photo-pick" id="banqPhotoPick">
           <span class="photo-pick-ico">＋</span>
           <span class="photo-pick-text">
             <b>Добавить фото заказа</b>
-            <i id="banqPhotoHint">Скрин или фото листа банкета</i>
+            <i id="banqPhotoHint">Можно выбрать несколько изображений</i>
           </span>
         </label>
+        <div class="banq-photo-tools">
+          <label for="banqPhoto" class="small-btn">＋ Добавить ещё</label>
+          <label for="banqPhotoCamera" class="small-btn">📷 Снять фото</label>
+        </div>
         <div class="photo-preview" id="banqPhotoPreview" hidden>
-          <img id="banqPhotoPreviewImg" alt="Предпросмотр фото">
-          <button type="button" class="photo-clear" id="banqPhotoClear">Убрать фото</button>
+          <div id="banqPhotoPreviewList" class="banq-photo-preview-list"></div>
         </div>
       </div>
       <div class="form-field full">
@@ -638,10 +666,24 @@ body.mode-cash-report #backBtn{display:inline-flex}
         <textarea id="banqComment" placeholder="Зал, ответственный, уточнения по заказу…"></textarea>
       </div>
     </div>
-      <button class="save-btn" type="submit">Добавить банкет</button>
+      <div class="banq-form-actions">
+        <button class="save-btn" type="submit">Добавить банкет</button>
+        <button class="small-btn" id="banqCancelEdit" type="button" hidden>Отменить редактирование</button>
+      </div>
     </form>
   </div>
 </section>
+
+<div class="banq-gallery-modal" id="banqGalleryModal" hidden>
+  <div class="banq-gallery-backdrop" data-banq-gallery-close></div>
+  <section class="banq-gallery-dialog" role="dialog" aria-modal="true" aria-label="Фотографии банкета">
+    <button class="banq-gallery-close" type="button" data-banq-gallery-close aria-label="Закрыть">×</button>
+    <button class="banq-gallery-nav prev" type="button" id="banqGalleryPrev" aria-label="Предыдущее фото">‹</button>
+    <img id="banqGalleryImage" alt="Фото банкета">
+    <button class="banq-gallery-nav next" type="button" id="banqGalleryNext" aria-label="Следующее фото">›</button>
+    <div class="banq-gallery-count" id="banqGalleryCount">1 / 1</div>
+  </section>
+</div>
 
 
 <section class="app-screen" id="receiptsScreen">
@@ -1405,6 +1447,12 @@ const ADMIN_TELEGRAM_IDS = [
 const BANQ_LOCAL_FALLBACK_KEY='fox_banquets_v2_local_fallback';
 let banquets=[];
 let banqSharedMode=false;
+let banqMediaSupported=false;
+let banqPendingMedia=[];
+let banqEditingBanquet=null;
+let banqReplaceIndex=-1;
+let banqGalleryUrls=[];
+let banqGalleryIndex=0;
 
 function getTgUser(){
   try{ return TG && TG.initDataUnsafe && TG.initDataUnsafe.user ? TG.initDataUnsafe.user : null; }
@@ -1502,6 +1550,7 @@ async function loadBanquets(){
 
   if(!isApiConfigured()){
     banqSharedMode=false;
+    banqMediaSupported=false;
     try{ banquets=JSON.parse(localStorage.getItem(BANQ_LOCAL_FALLBACK_KEY)||'[]'); }catch(e){ banquets=[]; }
     setSyncStatus('warn','Работает локальный тестовый режим. Чтобы все видели одни и те же фото, подключи Apps Script Web App и Cloudinary.');
     renderBanquets();
@@ -1512,6 +1561,7 @@ async function loadBanquets(){
     setSyncStatus('', 'Загружаю общую базу банкетов…');
     const res=await jsonp(BANQ_API_URL,{action:'list'});
     if(!res || !res.ok) throw new Error(res && res.error ? res.error : 'bad response');
+    banqMediaSupported=Boolean(res.mediaSupported);
     banquets=(res.items||[]).map(x=>({
       id:String(x.id||''),
       date:String(x.date||''),
@@ -1522,6 +1572,7 @@ async function loadBanquets(){
       photo:String(x.imageUrl||x.photo||''),
       fileId:String(x.fileId||''),
       imageUrls:(x.imageUrls||[]).map(String).filter(Boolean),
+      media:Array.isArray(x.media)?x.media.map((item,index)=>({url:String(item&&item.url||''),publicId:String(item&&item.publicId||''),order:Number(item&&item.order)||index})).filter(item=>item.url):[],
       reserve:null
     })).filter(x=>x.id && x.date);
     banqSharedMode=true;
@@ -1535,6 +1586,7 @@ async function loadBanquets(){
     renderBanquets();
   }catch(e){
     banqSharedMode=false;
+    banqMediaSupported=false;
     try{ banquets=JSON.parse(localStorage.getItem(BANQ_LOCAL_FALLBACK_KEY)||'[]'); }catch(_){ banquets=[]; }
     setSyncStatus('err','Не удалось загрузить общую базу. Проверь URL Web App и доступы. Сейчас показан локальный резерв.');
     renderBanquets();
@@ -1742,6 +1794,7 @@ function renderBanqDay(){
         '<button class="small-btn status-completed '+(meta.key==='completed'?'active':'')+'" type="button" data-status="Выполнено">✓ Пройден</button>'+ 
         '<button class="small-btn status-cancelled '+(meta.key==='cancelled'?'active':'')+'" type="button" data-status="Отменено">× Отменён</button>'+ 
         (b.photo?'<button class="small-btn reserve-scan" type="button" data-reserve-scan>'+scanLabel+'</button>':'')+
+        '<button class="small-btn" type="button" data-edit-photos>🖼 Изменить фото</button>'+
         '<button class="small-btn order'+orderClass+'" type="button" data-order-sent'+orderDisabled+'>'+orderLabel+'</button>'+ 
         '<button class="small-btn danger" type="button" data-del="'+escapeHtml(b.id)+'">Удалить</button>'+ 
       '</div>' : '';
@@ -1772,6 +1825,9 @@ function renderBanqDay(){
         finally{orderSent.disabled=false;}
       };
     }
+
+    const editPhotos=card.querySelector('[data-edit-photos]');
+    if(editPhotos) editPhotos.onclick=()=>openBanqPhotoEditor_(b);
 
     const del=card.querySelector('[data-del]');
     if(del){
@@ -1829,6 +1885,7 @@ async function changeBanquetStatus(banquet,nextStatus){
 
 function getBanqImageUrls(b){
   const urls=[];
+  if(Array.isArray(b.media)) b.media.forEach(item=>{if(item&&item.url) urls.push(String(item.url));});
   if(b.imageUrls && b.imageUrls.length) b.imageUrls.forEach(u=>urls.push(u));
   if(b.photo) urls.push(b.photo);
   if(b.fileId){
@@ -1840,32 +1897,58 @@ function getBanqImageUrls(b){
 }
 function renderBanqPhotoHtml(b){
   const urls=getBanqImageUrls(b);
-  if(!urls.length) return '<div class="banq-empty">Фото заказа не добавлено</div>';
-  const first=escapeHtml(urls[0]);
-  return '<img class="banq-img" src="'+first+'" alt="Фото заказа" data-img-urls="'+escapeHtml(JSON.stringify(urls))+'" data-img-i="0">'+
-    '<a class="banq-photo-link" href="'+first+'" target="_blank" rel="noopener">Открыть фото отдельно</a>';
+  if(!urls.length) return '';
+  const gallery=escapeHtml(JSON.stringify(urls));
+  if(urls.length===1){
+    return '<button class="banq-media-open" type="button" data-banq-gallery="'+gallery+'" data-banq-gallery-index="0">'+
+      '<img class="banq-img" src="'+escapeHtml(urls[0])+'" alt="Фото заказа"></button>';
+  }
+  return '<div class="banq-media-strip">'+urls.map((url,index)=>
+    '<button class="banq-media-open" type="button" data-banq-gallery="'+gallery+'" data-banq-gallery-index="'+index+'">'+
+      '<img class="banq-img" src="'+escapeHtml(url)+'" alt="Фото заказа '+(index+1)+'">'+
+      '<span class="banq-media-count">'+(index+1)+' / '+urls.length+'</span></button>'
+  ).join('')+'</div>';
 }
 function attachBanqImageFallbacks(root){
-  root.querySelectorAll('img.banq-img[data-img-urls]').forEach(img=>{
+  root.querySelectorAll('img.banq-img').forEach(img=>{
     img.onerror=()=>{
-      let urls=[];
-      try{ urls=JSON.parse(img.dataset.imgUrls||'[]'); }catch(e){}
-      let i=Number(img.dataset.imgI||0)+1;
-      if(i<urls.length){
-        img.dataset.imgI=String(i);
-        img.src=urls[i];
-        const link=img.parentElement && img.parentElement.querySelector('.banq-photo-link');
-        if(link) link.href=urls[i];
-      }else{
-        img.classList.add('err');
-        const empty=document.createElement('div');
-        empty.className='banq-empty';
-        empty.textContent='Фото не открылось внутри приложения. Нажми «Открыть фото отдельно».';
-        img.insertAdjacentElement('afterend', empty);
-      }
+      img.classList.add('err');
+      const empty=document.createElement('div');
+      empty.className='banq-empty';
+      empty.textContent='Это фото не открылось.';
+      img.insertAdjacentElement('afterend', empty);
+    };
+  });
+  root.querySelectorAll('[data-banq-gallery]').forEach(button=>{
+    button.onclick=()=>{
+      try{openBanqGallery_(JSON.parse(button.dataset.banqGallery||'[]'),Number(button.dataset.banqGalleryIndex||0));}catch(_){ }
     };
   });
 }
+function openBanqGallery_(urls,index){
+  banqGalleryUrls=(Array.isArray(urls)?urls:[]).filter(Boolean);
+  if(!banqGalleryUrls.length) return;
+  banqGalleryIndex=Math.max(0,Math.min(Number(index)||0,banqGalleryUrls.length-1));
+  document.getElementById('banqGalleryModal').hidden=false;
+  renderBanqGallery_();
+}
+function renderBanqGallery_(){
+  if(!banqGalleryUrls.length) return;
+  const image=document.getElementById('banqGalleryImage');
+  image.src=banqGalleryUrls[banqGalleryIndex];
+  image.alt='Фото банкета '+(banqGalleryIndex+1);
+  document.getElementById('banqGalleryCount').textContent=(banqGalleryIndex+1)+' / '+banqGalleryUrls.length;
+  document.getElementById('banqGalleryPrev').hidden=banqGalleryUrls.length<2;
+  document.getElementById('banqGalleryNext').hidden=banqGalleryUrls.length<2;
+}
+function closeBanqGallery_(){document.getElementById('banqGalleryModal').hidden=true;banqGalleryUrls=[];}
+function stepBanqGallery_(delta){if(!banqGalleryUrls.length)return;banqGalleryIndex=(banqGalleryIndex+delta+banqGalleryUrls.length)%banqGalleryUrls.length;renderBanqGallery_();}
+document.querySelectorAll('[data-banq-gallery-close]').forEach(button=>button.onclick=closeBanqGallery_);
+document.getElementById('banqGalleryPrev').onclick=()=>stepBanqGallery_(-1);
+document.getElementById('banqGalleryNext').onclick=()=>stepBanqGallery_(1);
+let banqGalleryTouchStart=0;
+document.getElementById('banqGalleryImage').addEventListener('touchstart',event=>{banqGalleryTouchStart=event.changedTouches[0].clientX;},{passive:true});
+document.getElementById('banqGalleryImage').addEventListener('touchend',event=>{const delta=event.changedTouches[0].clientX-banqGalleryTouchStart;if(Math.abs(delta)>45)stepBanqGallery_(delta>0?-1:1);},{passive:true});
 
 function pluralRu(n,a,b,c){
   n=Math.abs(n)%100; const n1=n%10;
@@ -1881,26 +1964,103 @@ function formatBytes(bytes){
   if(bytes<1024*1024) return Math.round(bytes/1024)+' KB';
   return (bytes/1024/1024).toFixed(1)+' MB';
 }
-function setPhotoUi(file){
+function banqMediaUrls_(items){
+  return (items||[]).map(item=>item.previewUrl||item.url).filter(Boolean);
+}
+function releaseBanqPreview_(item){
+  if(item&&item.previewUrl&&item.file) URL.revokeObjectURL(item.previewUrl);
+}
+function resetBanqPendingMedia_(){
+  banqPendingMedia.forEach(releaseBanqPreview_);
+  banqPendingMedia=[];
+  banqReplaceIndex=-1;
+  renderBanqPhotoUi_();
+}
+function renderBanqPhotoUi_(){
   const hint=document.getElementById('banqPhotoHint');
   const preview=document.getElementById('banqPhotoPreview');
-  const img=document.getElementById('banqPhotoPreviewImg');
-
-  if(!file){
-    if(hint) hint.textContent='Скрин или фото листа банкета';
-    if(preview) preview.hidden=true;
-    if(img) img.removeAttribute('src');
-    return;
+  const list=document.getElementById('banqPhotoPreviewList');
+  if(hint) hint.textContent=banqPendingMedia.length
+    ? 'Выбрано фото: '+banqPendingMedia.length
+    : 'Можно выбрать несколько изображений';
+  if(!preview||!list) return;
+  preview.hidden=!banqPendingMedia.length;
+  list.innerHTML='';
+  banqPendingMedia.forEach((item,index)=>{
+    const card=document.createElement('div');
+    card.className='banq-photo-preview-item';
+    const image=document.createElement('img');
+    image.src=item.previewUrl||item.url;
+    image.alt='Предпросмотр фото '+(index+1);
+    image.onclick=()=>openBanqGallery_(banqMediaUrls_(banqPendingMedia),index);
+    image.onerror=()=>{image.classList.add('err');};
+    const meta=document.createElement('div');
+    meta.className='banq-photo-preview-meta';
+    const name=document.createElement('div');
+    name.className='banq-photo-preview-name';
+    name.textContent=(item.file&&item.file.name)||('Фото '+(index+1))+(item.uploaded?' · загружено':'');
+    const actions=document.createElement('div');
+    actions.className='banq-photo-preview-actions';
+    [['↑','up'],['↓','down'],['↻','rotate'],['Заменить','replace'],['Удалить','delete']].forEach(([label,action])=>{
+      const button=document.createElement('button');
+      button.type='button';button.className='small-btn';button.textContent=label;button.dataset.action=action;
+      button.disabled=(action==='up'&&index===0)||(action==='down'&&index===banqPendingMedia.length-1)||(!item.file&&action==='rotate');
+      button.onclick=()=>handleBanqPendingAction_(action,index);
+      actions.appendChild(button);
+    });
+    meta.appendChild(name);meta.appendChild(actions);card.appendChild(image);card.appendChild(meta);list.appendChild(card);
+  });
+}
+async function handleBanqPendingAction_(action,index){
+  const item=banqPendingMedia[index];
+  if(!item) return;
+  if(action==='delete'){
+    releaseBanqPreview_(item);banqPendingMedia.splice(index,1);renderBanqPhotoUi_();return;
   }
-
-  if(hint) hint.textContent=file.name+' · '+formatBytes(file.size);
-
-  if(preview && img){
-    const url=URL.createObjectURL(file);
-    img.onload=()=>URL.revokeObjectURL(url);
-    img.src=url;
-    preview.hidden=false;
+  if(action==='up'&&index>0){[banqPendingMedia[index-1],banqPendingMedia[index]]=[banqPendingMedia[index],banqPendingMedia[index-1]];renderBanqPhotoUi_();return;}
+  if(action==='down'&&index<banqPendingMedia.length-1){[banqPendingMedia[index+1],banqPendingMedia[index]]=[banqPendingMedia[index],banqPendingMedia[index+1]];renderBanqPhotoUi_();return;}
+  if(action==='replace'){banqReplaceIndex=index;document.getElementById('banqPhoto').click();return;}
+  if(action==='rotate'&&item.file){
+    try{item.file=await rotateBanqFile_(item.file);releaseBanqPreview_(item);item.previewUrl=URL.createObjectURL(item.file);item.uploaded=false;item.url='';item.publicId='';renderBanqPhotoUi_();}
+    catch(err){setSyncStatus('err',String(err&&err.message?err.message:err));}
   }
+}
+function rotateBanqFile_(file){
+  return new Promise((resolve,reject)=>{
+    const image=new Image();const source=URL.createObjectURL(file);
+    image.onload=()=>{
+      try{const canvas=document.createElement('canvas');canvas.width=image.naturalHeight;canvas.height=image.naturalWidth;const ctx=canvas.getContext('2d');ctx.translate(canvas.width/2,canvas.height/2);ctx.rotate(Math.PI/2);ctx.drawImage(image,-image.naturalWidth/2,-image.naturalHeight/2);canvas.toBlob(blob=>{URL.revokeObjectURL(source);if(!blob){reject(new Error('Не удалось повернуть фото.'));return;}resolve(new File([blob],file.name.replace(/(\.[^.]+)?$/,'-rotated$1'),{type:'image/jpeg'}));},'image/jpeg',.94);}
+      catch(err){URL.revokeObjectURL(source);reject(err);}
+    };
+    image.onerror=()=>{URL.revokeObjectURL(source);reject(new Error('Это фото нельзя повернуть. Используй JPG или PNG.'));};image.src=source;
+  });
+}
+function addBanqFiles_(files){
+  const list=Array.from(files||[]).filter(file=>String(file.type||'').startsWith('image/'));
+  if(banqReplaceIndex>=0){
+    const file=list[0];
+    if(file&&banqPendingMedia[banqReplaceIndex]){releaseBanqPreview_(banqPendingMedia[banqReplaceIndex]);banqPendingMedia[banqReplaceIndex]={file:file,previewUrl:URL.createObjectURL(file),url:'',publicId:'',signature:[file.name,file.size,file.lastModified].join(':')};}
+    banqReplaceIndex=-1;renderBanqPhotoUi_();return;
+  }
+  list.forEach(file=>{
+    const signature=[file.name,file.size,file.lastModified].join(':');
+    if(banqPendingMedia.some(item=>item.signature===signature)) return;
+    banqPendingMedia.push({file:file,previewUrl:URL.createObjectURL(file),url:'',publicId:'',signature:signature});
+  });
+  renderBanqPhotoUi_();
+}
+function openBanqPhotoEditor_(banquet){
+  banqEditingBanquet=banquet;
+  resetBanqPendingMedia_();
+  const media=Array.isArray(banquet.media)&&banquet.media.length?banquet.media:getBanqImageUrls(banquet).map((url,index)=>({url:url,publicId:index===0?banquet.cloudinaryPublicId||'':'',order:index}));
+  banqPendingMedia=media.map((item,index)=>({url:String(item.url||''),publicId:String(item.publicId||''),previewUrl:String(item.url||''),signature:'remote:'+String(item.url||'')+':'+index,uploaded:true})).filter(item=>item.url);
+  document.getElementById('banqDate').value=banquet.date||todayIso;
+  document.getElementById('banqTime').value=banquet.time||'';
+  document.getElementById('banqName').value=banquet.name||'';
+  document.getElementById('banqComment').value=banquet.comment||'';
+  document.getElementById('banqStatus').value=normalizeBanqStatus(banquet.status);
+  const form=document.getElementById('banqForm');form.querySelector('.save-btn').textContent='Сохранить изменения';document.getElementById('banqCancelEdit').hidden=false;
+  renderBanqPhotoUi_();form.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 function escapeHtml(s){
@@ -2007,124 +2167,92 @@ async function postBanqForm(fields){
 }
 
 const banqPhotoInput=document.getElementById('banqPhoto');
-const banqPhotoClear=document.getElementById('banqPhotoClear');
 if(banqPhotoInput){
-  banqPhotoInput.addEventListener('change',()=>setPhotoUi(banqPhotoInput.files && banqPhotoInput.files[0]));
+  banqPhotoInput.addEventListener('change',()=>{addBanqFiles_(banqPhotoInput.files);banqPhotoInput.value='';});
 }
-if(banqPhotoClear){
-  banqPhotoClear.addEventListener('click',()=>{
-    if(banqPhotoInput) banqPhotoInput.value='';
-    setPhotoUi(null);
-  });
+const banqPhotoCameraInput=document.getElementById('banqPhotoCamera');
+if(banqPhotoCameraInput){
+  banqPhotoCameraInput.addEventListener('change',()=>{addBanqFiles_(banqPhotoCameraInput.files);banqPhotoCameraInput.value='';});
 }
+document.getElementById('banqCancelEdit').onclick=()=>{
+  banqEditingBanquet=null;resetBanqPendingMedia_();document.getElementById('banqForm').reset();document.getElementById('banqDate').value=selectedBanqDate||todayIso;document.getElementById('banqStatus').value='Актуально';document.getElementById('banqForm').querySelector('.save-btn').textContent='Добавить банкет';document.getElementById('banqCancelEdit').hidden=true;
+};
 
+async function uploadBanqPendingMedia_(){
+  const total=banqPendingMedia.length;
+  for(let index=0;index<total;index++){
+    const item=banqPendingMedia[index];
+    if(item.url) continue;
+    setSyncStatus('', 'Загрузка '+(index+1)+' из '+total+'…');
+    const uploaded=await uploadPhotoToCloudinary(item.file);
+    item.url=uploaded.url;item.publicId=uploaded.publicId;item.uploaded=true;
+  }
+  return banqPendingMedia.map((item,index)=>({url:item.url,publicId:item.publicId||'',order:index})).filter(item=>item.url);
+}
+async function verifyBanquetSave_(id,expectedMediaCount){
+  for(let attempt=0;attempt<6;attempt++){
+    const res=await jsonp(BANQ_API_URL,{action:'list'});
+    if(res&&res.ok){
+      banqMediaSupported=Boolean(res.mediaSupported);
+      const item=(res.items||[]).find(x=>String(x.id||'')===String(id));
+      const count=item&&Array.isArray(item.imageUrls)?item.imageUrls.length:0;
+      if(item&&count===expectedMediaCount) return item;
+    }
+    await sleepBanq_(700);
+  }
+  throw new Error('Банкет не подтвердился после сохранения. Фото остаются в форме, можно повторить отправку.');
+}
+function finishBanqForm_(form,saveBtn){
+  form.reset();resetBanqPendingMedia_();banqEditingBanquet=null;banqReplaceIndex=-1;
+  document.getElementById('banqDate').value=selectedBanqDate;
+  document.getElementById('banqStatus').value='Актуально';
+  document.getElementById('banqCancelEdit').hidden=true;
+  saveBtn.disabled=false;saveBtn.textContent='Добавить банкет';
+}
 document.getElementById('banqForm').onsubmit=async e=>{
   e.preventDefault();
-  if(!isBanqAdmin()){
-    alert('Добавлять банкеты может только админ.');
-    return;
-  }
-
-  const form=e.target;
-  const saveBtn=form.querySelector('.save-btn');
-  if(saveBtn){
-    saveBtn.disabled=true;
-    saveBtn.textContent='Сохраняю…';
-  }
-  const file=document.getElementById('banqPhoto').files[0];
-  let imageUrl='';
-  let cloudinaryPublicId='';
-
+  if(!isBanqAdmin()){alert('Добавлять банкеты может только админ.');return;}
+  const form=e.target,saveBtn=form.querySelector('.save-btn'),editing=banqEditingBanquet;
+  if(saveBtn){saveBtn.disabled=true;saveBtn.textContent='Сохраняю…';}
   try{
-    if(file){
-      setSyncStatus('', 'Загружаю фото в Cloudinary…');
-      const uploaded=await uploadPhotoToCloudinary(file);
-      imageUrl=uploaded.url;
-      cloudinaryPublicId=uploaded.publicId;
-      setSyncStatus('', 'Фото загружено, сохраняю банкет…');
+    if(isApiConfigured()&&banqPendingMedia.length>1&&!banqMediaSupported){
+      throw new Error('Для нескольких фото нужна подтверждённая колонка «Media JSON». Одно фото можно сохранить уже сейчас.');
+    }
+    const media=await uploadBanqPendingMedia_();
+    const item={
+      id:editing?editing.id:'b'+Date.now(),
+      date:document.getElementById('banqDate').value,
+      time:document.getElementById('banqTime').value,
+      name:document.getElementById('banqName').value.trim(),
+      comment:document.getElementById('banqComment').value.trim(),
+      status:document.getElementById('banqStatus').value,
+      media:media,
+      imageUrls:media.map(item=>item.url),
+      photo:media[0]?media[0].url:'',
+      cloudinaryPublicId:media[0]?media[0].publicId:''
+    };
+    if(!item.date||!item.time||!item.name) throw new Error('Заполни дату, время и название банкета.');
+    setSyncStatus('', 'Сохраняю банкет…');
+    if(isApiConfigured()){
+      await postBanqForm({action:'save',id:item.id,date:item.date,time:item.time,name:item.name,comment:item.comment,status:item.status,imageUrl:item.photo,cloudinaryPublicId:item.cloudinaryPublicId,mediaJson:JSON.stringify(media)});
+      const saved=await verifyBanquetSave_(item.id,media.length);
+      item.media=Array.isArray(saved.media)?saved.media:media;
+      item.imageUrls=Array.isArray(saved.imageUrls)?saved.imageUrls:item.imageUrls;
+      item.photo=String(saved.imageUrl||item.photo);
+      selectedBanqDate=item.date;banqMonthDate=parseIsoDate(item.date);banqMonthDate.setDate(1);
+      finishBanqForm_(form,saveBtn);hap('ok');
+      if(item.photo&&isStockApiConfigured()){
+        try{await runBanquetReserveScan_(item,{manual:Boolean(editing)});}catch(scanErr){setSyncStatus('warn','Банкет сохранён, но резерв не распознан: '+String(scanErr&&scanErr.message?scanErr.message:scanErr));}
+      }
+      await loadBanquets();
+    }else{
+      const existing=banquets.findIndex(x=>x.id===item.id);
+      if(existing>=0) banquets[existing]=item;else banquets.push(item);
+      saveLocalFallback();selectedBanqDate=item.date;banqMonthDate=parseIsoDate(item.date);banqMonthDate.setDate(1);finishBanqForm_(form,saveBtn);hap('ok');renderBanquets();setSyncStatus('warn','Сохранено локально. Другие пользователи это не увидят, пока не подключена общая база.');
     }
   }catch(err){
-    if(saveBtn){
-      saveBtn.disabled=false;
-      saveBtn.textContent='Добавить банкет';
-    }
-    const msg=String(err && err.message ? err.message : err);
-    setSyncStatus('err', msg);
-    alert(msg);
-    return;
-  }
-
-  const item={
-    id:'b'+Date.now(),
-    date:document.getElementById('banqDate').value,
-    time:document.getElementById('banqTime').value,
-    name:document.getElementById('banqName').value.trim(),
-    comment:document.getElementById('banqComment').value.trim(),
-    status:document.getElementById('banqStatus').value,
-    photo:imageUrl,
-    cloudinaryPublicId:cloudinaryPublicId
-  };
-  if(!item.date || !item.time || !item.name) return;
-
-  setSyncStatus('', 'Сохраняю банкет…');
-
-  if(isApiConfigured()){
-    try{
-      await postBanqForm({
-        action:'save',
-        id:item.id,
-        date:item.date,
-        time:item.time,
-        name:item.name,
-        comment:item.comment,
-        status:item.status,
-        imageUrl:item.photo,
-        cloudinaryPublicId:item.cloudinaryPublicId,
-        photoName:file ? file.name : ''
-      });
-    }catch(err){
-      if(saveBtn){
-        saveBtn.disabled=false;
-        saveBtn.textContent='Добавить банкет';
-      }
-      setSyncStatus('err','Не удалось отправить банкет. Попробуй фото поменьше или другой формат.');
-      alert('Не удалось отправить банкет. Попробуй фото поменьше или другой формат.');
-      return;
-    }
-    selectedBanqDate=item.date;
-    banqMonthDate=parseIsoDate(item.date);
-    banqMonthDate.setDate(1);
-    e.target.reset();
-    setPhotoUi(null);
-    document.getElementById('banqDate').value=selectedBanqDate;
-    document.getElementById('banqStatus').value='Актуально';
-    if(saveBtn){
-      saveBtn.disabled=false;
-      saveBtn.textContent='Добавить банкет';
-    }
-    hap('ok');
-    if(item.photo&&isStockApiConfigured()){
-      try{await runBanquetReserveScan_(item,{manual:false});}
-      catch(scanErr){setSyncStatus('warn','Банкет сохранён, но резерв не распознан: '+String(scanErr&&scanErr.message?scanErr.message:scanErr));}
-    }
-    await loadBanquets();
-  }else{
-    banquets.push(item);
-    saveLocalFallback();
-    selectedBanqDate=item.date;
-    banqMonthDate=parseIsoDate(item.date);
-    banqMonthDate.setDate(1);
-    e.target.reset();
-    setPhotoUi(null);
-    document.getElementById('banqDate').value=selectedBanqDate;
-    document.getElementById('banqStatus').value='Актуально';
-    if(saveBtn){
-      saveBtn.disabled=false;
-      saveBtn.textContent='Добавить банкет';
-    }
-    hap('ok');
-    renderBanquets();
-    setSyncStatus('warn','Сохранено локально. Другие пользователи это не увидят, пока не подключена общая база.');
+    if(saveBtn){saveBtn.disabled=false;saveBtn.textContent=editing?'Сохранить изменения':'Добавить банкет';}
+    const message=String(err&&err.message?err.message:err);setSyncStatus('err',message);alert(message);
   }
 };
 
