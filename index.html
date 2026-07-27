@@ -1629,10 +1629,15 @@ function renderBanqReserveHtml_(b){
     const label=r.orderSent?'заказано':'к заказу';
     return '<div class="banq-reserve-line"><b>'+escapeHtml(x.stockName||'')+'</b><span>'+label+': '+formatBanquetReserveQty_(qty)+' '+escapeHtml(x.unit||'')+'</span></div>';
   }).join('');
+  const unknownLines=(r.unknownItems||[]).map(x=>
+    '<div class="banq-reserve-line"><b>'+escapeHtml(x.rawName||'Неизвестная позиция')+'</b><span>требует сопоставления: '+formatBanquetReserveQty_(x.required)+' '+escapeHtml(x.unit||'')+'</span></div>'
+  ).join('');
   return '<div class="banq-reserve'+cls+'"><div class="banq-reserve-title">📦 Банкетный резерв</div>'+ 
     '<div class="banq-reserve-meta">Сопоставлено: '+Number(r.matchedCount||0)+' поз. · '+statusText+
+    (Number(r.unknownCount||0)>0?' · требуется сопоставление: '+Number(r.unknownCount||0):'')+
     (Number(r.ignoredCount||0)>0?' · пропущено: '+Number(r.ignoredCount||0):'')+'</div>'+ 
     (lines?'<details><summary>Показать позиции</summary><div class="banq-reserve-lines">'+lines+'</div></details>':'')+
+    (unknownLines?'<details><summary>Позиции для сопоставления</summary><div class="banq-reserve-lines">'+unknownLines+'</div></details>':'')+
     '</div>';
 }
 function sleepBanq_(ms){return new Promise(resolve=>setTimeout(resolve,ms));}

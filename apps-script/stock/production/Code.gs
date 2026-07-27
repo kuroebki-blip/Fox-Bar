@@ -3184,12 +3184,13 @@ function recognizeBanquetImageWithGemini_(imageUrl) {
 
   const prompt = [
     'Ты распознаёшь фото заказа банкета бара FO’X.',
-    'Нужно найти только готовые товарные позиции, которые напрямую существуют в каталоге стока ниже.',
+    'Найди все готовые товарные позиции в заказе, даже если их нет в каталоге стока ниже.',
     'Не учитывай коктейли и их порции: Aperol Spritz, Gin Tonic, Margarita, Martini, Negroni, Love Is и любые другие коктейли.',
     'Не раскладывай коктейли на ингредиенты. Не учитывай еду, услуги, мебель, посуду и комментарии.',
     'Для вина, пива, крепкого алкоголя и других готовых товаров извлеки количество, указанное в заказе.',
     'Если одна позиция встречается несколько раз на фото — сложи количество.',
-    'suggested_stock_name выбирай только как ТОЧНОЕ наименование из каталога. Если уверенности нет — оставь пустым.',
+    'suggested_stock_name выбирай только как ТОЧНОЕ наименование из каталога. Если товара в каталоге нет или уверенности нет — оставь пустым, но сам товар обязательно верни в items.',
+    'Не добавляй неизвестные товары в ignored: ignored предназначен только для коктейлей, еды, услуг, мебели, посуды и комментариев.',
     'quantity должно быть числом больше нуля. Не выдумывай количество.',
     'Верни только JSON без Markdown.',
     '',
@@ -3337,7 +3338,7 @@ function saveBanquetReserve_(banquetId, banquetDate, banquetName, imageUrl, item
       const required = number_(item.quantity);
       const ordered = matched ? Math.min(required, number_(previousOrdered[key])) : 0;
       const pending = matched ? Math.max(0, required - ordered) : 0;
-      const purchaseStatus = !matched ? 'Не сопоставлено' : (pending <= 0 && ordered > 0 ? 'Заказ отправлен' : (ordered > 0 ? 'Частично заказано' : 'Не заказано'));
+      const purchaseStatus = !matched ? 'Требует сопоставления' : (pending <= 0 && ordered > 0 ? 'Заказ отправлен' : (ordered > 0 ? 'Частично заказано' : 'Не заказано'));
       rowsToAppend.push([
         banquetId, banquetDate, banquetName, banquetStatus, purchaseStatus,
         item.rawName, item.stockSheet, item.stockRow, item.stockName,
@@ -3449,8 +3450,8 @@ function getBanquetReserveSummaries_() {
     if (!id || String(r[16]).toUpperCase() === 'YES') return;
     if (!map[id]) map[id] = {
       banquetId:id, recognized:true, status:String(r[3] || 'Актуально'),
-      matchedCount:0, ignoredCount:0, pendingPositions:0, orderedPositions:0,
-      orderSent:true, orderSentAt:'', items:[]
+      matchedCount:0, ignoredCount:0, unknownCount:0, pendingPositions:0, orderedPositions:0,
+      orderSent:true, orderSentAt:'', items:[], unknownItems:[]
     };
     const s = map[id];
     const matched = !!r[6] && !!r[8] && number_(r[9]) > 0;
@@ -3469,6 +3470,12 @@ function getBanquetReserveSummaries_() {
         pending:normalizeBanquetStatusForReserve_(r[3]) === 'Актуально' ? number_(r[11]) : 0,
         unit:String(r[12] || '')
       });
+    } else if (String(r[4] || '') === 'Требует сопоставления') {
+      s.unknownCount++;
+      s.unknownItems.push({
+        rawName:String(r[5] || ''), required:number_(r[9]), unit:String(r[12] || ''),
+        status:'Требует сопоставления'
+      });
     } else {
       s.ignoredCount++;
     }
@@ -3482,5 +3489,5 @@ function getBanquetReserveSummaries_() {
 
 function getOneBanquetReserveSummary_(banquetId) {
   const map = getBanquetReserveSummaries_();
-  return map[String(banquetId)] || { banquetId:String(banquetId), recognized:false, matchedCount:0, ignoredCount:0, pendingPositions:0, orderedPositions:0, orderSent:false, orderSentAt:'', items:[] };
+  return map[String(banquetId)] || { banquetId:String(banquetId), recognized:false, matchedCount:0, ignoredCount:0, unknownCount:0, pendingPositions:0, orderedPositions:0, orderSent:false, orderSentAt:'', items:[], unknownItems:[] };
 }
