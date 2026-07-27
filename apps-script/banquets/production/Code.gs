@@ -46,7 +46,8 @@ function doGet(e) {
 
   try {
     if (action === 'list') {
-      result = { ok: true, items: listBanquets_() };
+      const items = listBanquets_();
+      result = { ok: true, items: items, mediaSupported: getMediaColumn_(getSheet_()) > 0 };
     } else if (action === 'ping') {
       result = { ok: true, ts: new Date().toISOString() };
     } else {
