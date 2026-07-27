@@ -11,6 +11,8 @@
 - `index.html`
 - `banquets-Code.gs`
 - `stock-Code.gs`
+- `banquets-Code.gs.original-export` — unmodified Banquets Apps Script from the user-provided production-context archive
+- `stock-Code.gs.original-export` — unmodified Stock/Reserve Apps Script from the user-provided production-context archive
 - `DATA_SCHEMA.md`
 - `Banquets.md`
 - `README_FOR_CODEX.md`
@@ -20,7 +22,7 @@
 1. Do not run setup functions and do not clear any Google Sheet.
 2. Restore the corresponding file from this folder to its deployment target.
 3. For GitHub Pages, restore `index.html` from this commit/tag and publish the restored revision.
-4. For each Apps Script project, paste the matching `.gs` backup, then use **Deploy → Manage deployments → Edit → New version → Deploy**.
+4. For each Apps Script project, paste the matching `*.original-export` file to restore the supplied pre-v16 code, then use **Deploy → Manage deployments → Edit → New version → Deploy**.
 5. Verify `action=ping`, `action=list`, existing banquets and the stock reserve after rollback.
 
 The tag points at the pre-backup source commit. This folder is an additional, file-level recovery copy.
