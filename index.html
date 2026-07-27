@@ -1653,7 +1653,8 @@ async function runBanquetReserveScan_(banquet,options){
   options=options||{};
   if(!isBanqAdmin()) return null;
   if(!isStockApiConfigured()) throw new Error('Backend стока не подключён.');
-  if(!banquet||!banquet.photo) throw new Error('У банкета нет фото заказа.');
+  const imageUrls=getBanqImageUrls(banquet);
+  if(!banquet||!imageUrls.length) throw new Error('У банкета нет фото заказа.');
   if(options.manual&&banquet.reserve&&banquet.reserve.recognized&&!confirm('Перераспознать фото и пересчитать резерв этого банкета?')) return null;
   const jobId='BANQ-'+Date.now()+'-'+Math.random().toString(36).slice(2,8);
   setSyncStatus('',options.manual?'Перераспознаю позиции банкета…':'Банкет сохранён. Распознаю позиции для стока…');
@@ -1662,8 +1663,9 @@ async function runBanquetReserveScan_(banquet,options){
     banquetId:banquet.id,
     banquetDate:banquet.date,
     banquetName:banquet.name,
-    banquetStatus:banquet.status||'Актуально',
-    imageUrl:banquet.photo
+    // Backend сам читает актуальный статус из листа «Банкеты» перед записью.
+    imageUrl:imageUrls[0],
+    imageUrlsJson:JSON.stringify(imageUrls)
   }).catch(()=>{});
   const result=await pollBanquetReserveJob_(jobId);
   const summary=result.result&&result.result.summary?result.result.summary:null;
