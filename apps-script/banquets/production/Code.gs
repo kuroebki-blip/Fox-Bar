@@ -21,6 +21,7 @@ const FOXBANQ = {
     315978242,
     317564157
   ],
+  MEDIA_HEADER: 'Media JSON',
   HEADERS: [
     'ID',
     'Дата',
@@ -110,29 +111,16 @@ function setupBanquetsBackend() {
 function listBanquets_() {
   const sh = getSheet_();
   ensureHeaders_(sh);
+  const mediaColumn = getMediaColumn_(sh);
 
   const lastRow = sh.getLastRow();
   if (lastRow < 2) return [];
 
-  const rows = sh.getRange(2, 1, lastRow - 1, FOXBANQ.HEADERS.length).getValues();
+  const rows = sh.getRange(2, 1, lastRow - 1, Math.max(FOXBANQ.HEADERS.length, mediaColumn || 0)).getValues();
 
   return rows
     .filter(r => String(r[0] || '').trim() && String(r[11] || '').trim() !== 'YES')
-    .map(r => {
-      const imageUrl = String(r[7] || '').trim();
-      return {
-        id: String(r[0] || ''),
-        date: formatDateForClient_(r[1]),
-        time: formatTimeForClient_(r[2]),
-        name: String(r[3] || ''),
-        comment: String(r[4] || ''),
-        status: String(r[5] || 'Актуально'),
-        cloudinaryPublicId: String(r[6] || ''),
-        imageUrl: imageUrl,
-        photo: imageUrl,
-        imageUrls: imageUrl ? [imageUrl] : []
-      };
-    })
+    .map(r => banquetClientItem_(r, mediaColumn))
     .filter(x => x.date);
 }
 
@@ -155,7 +143,25 @@ function saveBanquet_(p) {
   if (!time) throw new Error('Не указано время');
   if (!name) throw new Error('Не указано название');
 
+  const mediaColumn = getMediaColumn_(sh);
   const rowNumber = findActiveBanquetRowById_(sh, id);
+  const existingRow = rowNumber
+    ? sh.getRange(rowNumber, 1, 1, Math.max(FOXBANQ.HEADERS.length, mediaColumn || 0)).getValues()[0]
+    : null;
+  const hasMediaPayload = Object.prototype.hasOwnProperty.call(p, 'mediaJson') || Object.prototype.hasOwnProperty.call(p, 'media');
+  const requestedMedia = hasMediaPayload
+    ? parseMediaJson_(p.mediaJson || p.media)
+    : (existingRow ? mediaFromRow_(existingRow, mediaColumn) : []);
+  const media = normalizeMedia_(
+    requestedMedia,
+    hasMediaPayload || !existingRow ? imageUrl : String(existingRow[7] || ''),
+    hasMediaPayload || !existingRow ? cloudinaryPublicId : String(existingRow[6] || '')
+  );
+  // До подтверждённого добавления Media JSON production-таблица хранит только
+  // первое фото в G/H. Массив не записывается в существующие поля.
+  const persistedMedia = mediaColumn ? media : normalizeMedia_([], imageUrl, cloudinaryPublicId);
+  const primaryMedia = persistedMedia[0] || { url:'', publicId:'' };
+
   if (rowNumber) {
     // Повторная отправка того же banquetId обновляет запись, а не создаёт дубль.
     // Дату создания и признак удаления сохраняем как исторические поля.
@@ -165,10 +171,11 @@ function saveBanquet_(p) {
       name,
       comment,
       status,
-      cloudinaryPublicId,
-      imageUrl
+      primaryMedia.publicId,
+      primaryMedia.url
     ]]);
     sh.getRange(rowNumber, 10, 1, 2).setValues([[userId, userName]]);
+    if (mediaColumn) sh.getRange(rowNumber, mediaColumn).setValue(mediaToJson_(persistedMedia));
     SpreadsheetApp.flush();
   } else {
     sh.appendRow([
@@ -178,27 +185,23 @@ function saveBanquet_(p) {
       name,
       comment,
       status,
-      cloudinaryPublicId,
-      imageUrl,
+      primaryMedia.publicId,
+      primaryMedia.url,
       new Date(),
       userId,
       userName,
       ''
     ]);
+    if (mediaColumn) sh.getRange(sh.getLastRow(), mediaColumn).setValue(mediaToJson_(persistedMedia));
   }
 
-  return {
-    id: id,
-    date: date,
-    time: time,
-    name: name,
-    comment: comment,
-    status: status,
-    cloudinaryPublicId: cloudinaryPublicId,
-    imageUrl: imageUrl,
-    photo: imageUrl,
-    imageUrls: imageUrl ? [imageUrl] : []
-  };
+  const savedRow = [
+    id, date, time, name, comment, status,
+    primaryMedia.publicId, primaryMedia.url, '', userId, userName, ''
+  ];
+  const returnedMediaColumn = mediaColumn || FOXBANQ.HEADERS.length + 1;
+  savedRow[returnedMediaColumn - 1] = mediaToJson_(persistedMedia);
+  return banquetClientItem_(savedRow, returnedMediaColumn);
 }
 
 function findActiveBanquetRowById_(sh, id) {
@@ -211,6 +214,78 @@ function findActiveBanquetRowById_(sh, id) {
     }
   }
   return 0;
+}
+
+function getMediaColumn_(sh) {
+  const width = sh.getLastColumn();
+  if (width < 1) return 0;
+  const headers = sh.getRange(1, 1, 1, width).getDisplayValues()[0];
+  for (let i = 0; i < headers.length; i++) {
+    if (String(headers[i] || '').trim() === FOXBANQ.MEDIA_HEADER) return i + 1;
+  }
+  return 0;
+}
+
+function parseMediaJson_(value) {
+  if (Array.isArray(value)) return value;
+  const raw = String(value || '').trim();
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function normalizeMedia_(items, fallbackUrl, fallbackPublicId) {
+  const seen = {};
+  const normalized = (Array.isArray(items) ? items : []).map(function(item, index) {
+    item = item && typeof item === 'object' ? item : {};
+    return {
+      url: String(item.url || '').trim(),
+      publicId: String(item.publicId || item.public_id || '').trim(),
+      order: Number.isFinite(Number(item.order)) ? Number(item.order) : index
+    };
+  }).filter(function(item) {
+    if (!item.url || seen[item.url]) return false;
+    seen[item.url] = true;
+    return true;
+  }).sort(function(a, b) { return a.order - b.order; });
+
+  if (!normalized.length && String(fallbackUrl || '').trim()) {
+    normalized.push({ url:String(fallbackUrl).trim(), publicId:String(fallbackPublicId || '').trim(), order:0 });
+  }
+  return normalized.map(function(item, index) {
+    return { url:item.url, publicId:item.publicId, order:index };
+  });
+}
+
+function mediaFromRow_(row, mediaColumn) {
+  const raw = mediaColumn ? parseMediaJson_(row[mediaColumn - 1]) : [];
+  return normalizeMedia_(raw, String(row[7] || ''), String(row[6] || ''));
+}
+
+function mediaToJson_(media) {
+  return JSON.stringify(normalizeMedia_(media, '', ''));
+}
+
+function banquetClientItem_(row, mediaColumn) {
+  const media = mediaFromRow_(row, mediaColumn);
+  const first = media[0] || { url:String(row[7] || '').trim(), publicId:String(row[6] || '').trim() };
+  return {
+    id: String(row[0] || ''),
+    date: formatDateForClient_(row[1]),
+    time: formatTimeForClient_(row[2]),
+    name: String(row[3] || ''),
+    comment: String(row[4] || ''),
+    status: String(row[5] || 'Актуально'),
+    cloudinaryPublicId: first.publicId,
+    imageUrl: first.url,
+    photo: first.url,
+    imageUrls: media.map(function(item) { return item.url; }),
+    media: media
+  };
 }
 
 function normalizeBanquetStatus_(status) {
