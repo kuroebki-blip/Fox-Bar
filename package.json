@@ -6,7 +6,8 @@
     "node": "^20.19.0 || ^22.13.0 || >=24"
   },
   "scripts": {
-    "lint:check": "eslint tatooine/app.js tatooine/config.js"
+    "lint:check": "eslint tatooine/app.js tatooine/config.js",
+    "test:banquets:v16": "node --test tests/banquets/v16_banquets_upgrade.test.js"
   },
   "devDependencies": {
     "eslint": "10.8.0",
