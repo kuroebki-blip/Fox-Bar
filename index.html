@@ -7,8 +7,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared/document-scanner/scanner.css">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<script src="shared/document-scanner/geometry.js"></script>
+<script src="shared/document-scanner/document-scanner.js"></script>
 <style>
 
   :root{
@@ -2343,6 +2346,7 @@ let receiptCameraSessionShots = 0;
 let receiptCameraDirty = false;
 let receiptCameraPurpose = 'receipt';
 let receiptCameraAllowNativePicker = false;
+const foxDocumentScanner = new DocumentScanner({ maxLongSide: 2400, allowOriginal: true });
 let receiptEditorPageIndex = -1;
 let receiptEditorSourceImage = null;
 let receiptEditorRect = null;
@@ -2875,19 +2879,10 @@ function invalidateReceiptRecognition_(){
   const card=document.getElementById('receiptResultCard');if(card)card.hidden=true;
 }
 async function imageFileToReceiptPage(file){
-  const raw=await readFileAsDataUrl(file);
-  return await new Promise((resolve,reject)=>{
-    const img=new Image();
-    img.onload=()=>{try{
-      const maxSide=3400;let w=img.naturalWidth||img.width;let h=img.naturalHeight||img.height;
-      const k=Math.min(1,maxSide/Math.max(w,h));w=Math.max(1,Math.round(w*k));h=Math.max(1,Math.round(h*k));
-      const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
-      const ctx=canvas.getContext('2d',{alpha:false});ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);
-      const dataUrl=canvas.toDataURL('image/jpeg',.94);
-      resolve({id:'p'+Date.now()+Math.random().toString(36).slice(2,7),name:file.name,width:w,height:h,orientation:w>h?'landscape':'portrait',cropped:false,cropNote:'Сохранён полный кадр.',originalDataUrl:dataUrl,dataUrl});
-    }catch(err){reject(err);}};
-    img.onerror=()=>reject(new Error('Не удалось открыть фото. Используй JPG/PNG или сделай скриншот.'));img.src=raw;
-  });
+  const scan=await foxDocumentScanner.process(file,{title:'Проверь документ',confirm:'Использовать скан'});
+  if(!scan.confirmed) throw new Error('Обработка документа отменена.');
+  const dataUrl=await readFileAsDataUrl(scan.blob);
+  return {id:'p'+Date.now()+Math.random().toString(36).slice(2,7),name:file.name,width:scan.width,height:scan.height,orientation:scan.width>scan.height?'landscape':'portrait',cropped:scan.documentDetected,cropNote:scan.usedOriginal?'Использован оригинал.':(scan.documentDetected?'Перспектива исправлена автоматически.':'Сохранён полный кадр.'),originalDataUrl:dataUrl,dataUrl};
 }
 
 function readFileAsDataUrl(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result||''));r.onerror=()=>reject(new Error('Не удалось прочитать файл'));r.readAsDataURL(file);});}

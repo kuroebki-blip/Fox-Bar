@@ -6,6 +6,7 @@
 
 ### Added
 
+- Candidate FO’X document scanner: общий OpenCV.js pipeline с поиском границ, perspective transform, фильтрами и preview перед существующим Gemini OCR; Tatooine пока не меняется.
 - Candidate `v16.0.0` Banquets Upgrade: idempotent save by banquet ID, backward-compatible `Media JSON` support, multi-photo frontend gallery and sequential OCR, preservation of unknown goods, and local regression tests.
 - Developer Kit: архитектура, состояние проекта, правила разработки, безопасность, чек-листы и документация компонентов.
 - Candidate Tatooine `v1.5.0`: встроенная задняя камера для Telegram WebView на Android с fallback на обычный выбор фотографии.
