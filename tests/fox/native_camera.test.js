@@ -5,30 +5,16 @@ const test = require('node:test');
 
 const source = fs.readFileSync(path.join(__dirname, '../../index.html'), 'utf8');
 
-test('FO’X uses native camera inputs outside Android Telegram', () => {
+test('FO’X uses direct native camera inputs', () => {
   for (const id of ['receiptCameraFallback', 'receiptReshootFallback', 'cashReportCameraFallback']) {
     assert.match(source, new RegExp(`<input id="${id}"[^>]*accept="image/\\*"[^>]*capture="environment"`));
   }
 
-  const start = source.indexOf('function openSystemReceiptCamera(');
-  const end = source.indexOf('function canvasToJpegDataUrl_', start);
-  const nativeCamera = source.slice(start, end);
-  assert.match(nativeCamera, /receiptReshootFallback'\)\.click\(\)/);
-  assert.match(nativeCamera, /receiptCameraFallback'\)\.click\(\)/);
-  assert.match(source, /receiptCameraOpen\.addEventListener\('click',\(\)=>openSystemReceiptCamera\(\)\)/);
-  assert.match(source, /data-reshoot.*?openSystemReceiptCamera\(i\)/s);
-  assert.match(source, /cashCameraOpen\.addEventListener\('click',openSystemCashReportCamera\)/);
-  assert.doesNotMatch(source, /receiptCameraOpen\.addEventListener\('click',\(\)=>openReceiptCamera/);
-  assert.doesNotMatch(source, /cashCameraOpen\.addEventListener\('click',\(\)=>openReceiptCamera/);
-});
-
-test('FO’X uses the Tatooine-compatible camera stream in Android Telegram', () => {
-  const start = source.indexOf('function usesAndroidTelegramCamera_(');
-  const end = source.indexOf('function canvasToJpegDataUrl_', start);
-  const cameraRouting = source.slice(start, end);
-
-  assert.match(cameraRouting, /window\.Telegram&&window\.Telegram\.WebApp/);
-  assert.match(cameraRouting, /\/Android\/i\.test\(String\(navigator\.userAgent\|\|''\)\)/);
-  assert.match(cameraRouting, /openReceiptCamera\(replaceIndex,'receipt'\)/);
-  assert.match(cameraRouting, /openReceiptCamera\(-1,'cash-report'\)/);
+  assert.match(source, /<label class="receipt-scan-btn" for="receiptCameraFallback">/);
+  assert.match(source, /<label class="cash-source-btn" for="cashReportCameraFallback">/);
+  assert.match(source, /<label for="receiptReshootFallback" data-reshoot/);
+  assert.match(source, /querySelector\('\[data-reshoot\]'\)\.addEventListener\('click',\(\)=>\{receiptReshootIndex=i;\}\)/);
+  assert.doesNotMatch(source, /usesAndroidTelegramCamera_/);
+  assert.doesNotMatch(source, /openReceiptCamera\(replaceIndex,'receipt'\)/);
+  assert.doesNotMatch(source, /openReceiptCamera\(-1,'cash-report'\)/);
 });

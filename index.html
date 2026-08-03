@@ -378,7 +378,7 @@ body.mode-hub #backBtn{display:none}
 .receipt-page-num{position:absolute;left:14px;top:14px;background:rgba(0,0,0,.72);color:#fff;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:700}
 .receipt-page-orientation{position:absolute;right:14px;top:14px;background:rgba(0,0,0,.72);color:#fff;border-radius:999px;padding:4px 8px;font-size:10px;font-weight:700}
 .receipt-page-actions{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:8px}
-.receipt-page-actions button{border:1px solid var(--line-strong);background:var(--bg);color:var(--muted);border-radius:9px;padding:8px 2px;font-size:13px;cursor:pointer}
+.receipt-page-actions button,.receipt-page-actions label{border:1px solid var(--line-strong);background:var(--bg);color:var(--muted);border-radius:9px;padding:8px 2px;font-size:13px;cursor:pointer;text-align:center}
 .receipt-page-actions button[data-rotate]{font-size:20px;line-height:1;color:var(--amber)}
 .receipt-page-actions button:disabled{opacity:.28}.receipt-page-actions .del{color:#F0B0A7}
 .receipt-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
@@ -758,13 +758,13 @@ body.mode-cash-report #backBtn{display:inline-flex}
       <input id="receiptGallery" class="receipt-scan-input" type="file" accept="image/*" multiple>
       <input id="receiptReshootFallback" class="receipt-scan-input" type="file" accept="image/*" capture="environment">
       <div class="receipt-source-actions">
-        <button class="receipt-scan-btn" id="receiptCameraOpen" type="button">
+        <label class="receipt-scan-btn" for="receiptCameraFallback">
           <span class="receipt-scan-ico">📷</span>
           <span class="receipt-scan-text">
             <b id="receiptCameraTitle">Сфотографировать страницу</b>
             <span>Откроется системная камера телефона. После каждого снимка можно добавить следующий.</span>
           </span>
-        </button>
+        </label>
         <label class="receipt-scan-btn alt" for="receiptGallery">
           <span class="receipt-scan-ico">🖼️</span>
           <span class="receipt-scan-text">
@@ -879,9 +879,9 @@ body.mode-cash-report #backBtn{display:inline-flex}
     <input id="cashReportCameraFallback" class="cash-file-input" type="file" accept="image/*" capture="environment">
     <input id="cashReportGallery" class="cash-file-input" type="file" accept="image/*" multiple>
     <div class="cash-source-actions">
-      <button class="cash-source-btn" id="cashReportCameraOpen" type="button">
+      <label class="cash-source-btn" for="cashReportCameraFallback">
         <span class="cash-source-ico">📷</span><span><b>Сфотографировать</b><small>Откроется системная камера телефона.</small></span>
-      </button>
+      </label>
       <label class="cash-source-btn alt" for="cashReportGallery">
         <span class="cash-source-ico">🖼️</span><span><b>Выбрать готовые фото</b><small>Можно выбрать несколько изображений сразу.</small></span>
       </label>
@@ -2636,30 +2636,6 @@ function updateReceiptCameraCount(){
   if(!el) return;
   el.textContent=receiptCameraReplaceIndex>=0?'Замена страницы':('Снято: '+receiptCameraSessionShots);
 }
-function usesAndroidTelegramCamera_(){
-  return Boolean(window.Telegram&&window.Telegram.WebApp&&/Android/i.test(String(navigator.userAgent||'')));
-}
-function openSystemReceiptCamera(replaceIndex=-1){
-  // Telegram for Android ignores capture="environment" for a hidden file input
-  // and offers only the gallery. Use the same WebRTC camera path as Tatooine.
-  if(usesAndroidTelegramCamera_()&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
-    openReceiptCamera(replaceIndex,'receipt');
-    return;
-  }
-  if(replaceIndex>=0){
-    receiptReshootIndex=replaceIndex;
-    document.getElementById('receiptReshootFallback').click();
-    return;
-  }
-  document.getElementById('receiptCameraFallback').click();
-}
-function openSystemCashReportCamera(){
-  if(usesAndroidTelegramCamera_()&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
-    openReceiptCamera(-1,'cash-report');
-    return;
-  }
-  document.getElementById('cashReportCameraFallback').click();
-}
 function canvasToJpegDataUrl_(canvas,quality=.94){
   return new Promise((resolve,reject)=>{
     if(!canvas.toBlob){try{resolve(canvas.toDataURL('image/jpeg',quality));}catch(err){reject(err);}return;}
@@ -2791,8 +2767,6 @@ async function captureReceiptCameraFrame(){
     },800);
   }
 }
-const receiptCameraOpen=document.getElementById('receiptCameraOpen');
-if(receiptCameraOpen) receiptCameraOpen.addEventListener('click',()=>openSystemReceiptCamera());
 document.getElementById('receiptCameraClose').addEventListener('click',closeReceiptCamera);
 document.getElementById('receiptCameraDone').addEventListener('click',closeReceiptCamera);
 document.getElementById('receiptCameraShot').addEventListener('click',captureReceiptCameraFrame);
@@ -2903,11 +2877,11 @@ function renderReceiptPages(){
     const isLandscape=p.width>p.height;
     const card=document.createElement('div');card.className='receipt-page';
     card.innerHTML='<span class="receipt-page-num">'+(i+1)+'</span><span class="receipt-page-orientation">'+(isLandscape?'Горизонтально':'Вертикально')+'</span><img src="'+p.dataUrl+'" alt="Страница '+(i+1)+'">'+
-      '<div class="receipt-page-actions"><button type="button" data-up title="Выше" '+(i===0?'disabled':'')+'>↑</button><button type="button" data-down title="Ниже" '+(i===receiptPages.length-1?'disabled':'')+'>↓</button><button type="button" data-crop title="Обрезать края">✂</button><button type="button" data-rotate aria-label="Повернуть по часовой стрелке" title="Повернуть по часовой стрелке">↻</button><button type="button" data-reshoot title="Переснять страницу">📷</button><button type="button" class="del" data-del title="Удалить">✕</button></div>';
+      '<div class="receipt-page-actions"><button type="button" data-up title="Выше" '+(i===0?'disabled':'')+'>↑</button><button type="button" data-down title="Ниже" '+(i===receiptPages.length-1?'disabled':'')+'>↓</button><button type="button" data-crop title="Обрезать края">✂</button><button type="button" data-rotate aria-label="Повернуть по часовой стрелке" title="Повернуть по часовой стрелке">↻</button><label for="receiptReshootFallback" data-reshoot title="Переснять страницу">📷</label><button type="button" class="del" data-del title="Удалить">✕</button></div>';
     card.querySelector('[data-up]').onclick=()=>moveReceiptPage(i,-1);card.querySelector('[data-down]').onclick=()=>moveReceiptPage(i,1);
     card.querySelector('[data-crop]').onclick=()=>openReceiptCropEditor(i);
     card.querySelector('[data-rotate]').onclick=()=>rotateReceiptPage(i);
-    card.querySelector('[data-reshoot]').onclick=()=>openSystemReceiptCamera(i);
+    card.querySelector('[data-reshoot]').addEventListener('click',()=>{receiptReshootIndex=i;});
     card.querySelector('[data-del]').onclick=()=>{receiptPages.splice(i,1);invalidateReceiptRecognition_();renderReceiptPages();};root.appendChild(card);
   });
   scan.disabled=!receiptPages.length;
@@ -3451,7 +3425,6 @@ async function sendCashReportToTelegram(){
   }
 }
 
-const cashCameraOpen=document.getElementById('cashReportCameraOpen');if(cashCameraOpen)cashCameraOpen.addEventListener('click',openSystemCashReportCamera);
 const cashCameraFallback=document.getElementById('cashReportCameraFallback');if(cashCameraFallback)cashCameraFallback.addEventListener('change',async()=>{const files=Array.from(cashCameraFallback.files||[]);cashCameraFallback.value='';await appendCashReportFiles(files);});
 const cashGallery=document.getElementById('cashReportGallery');if(cashGallery)cashGallery.addEventListener('change',async()=>{const files=Array.from(cashGallery.files||[]);cashGallery.value='';await appendCashReportFiles(files);});
 document.getElementById('cashReportReset').addEventListener('click',()=>{if(cashReportPages.length&&!confirm('Удалить фотографии кассового отчёта?'))return;resetCashReport();});
