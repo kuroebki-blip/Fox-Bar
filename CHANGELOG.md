@@ -19,6 +19,7 @@
 
 ### Fixed
 
+- Candidate FO’X: кнопки съёмки документов и кассового отчёта открывают системную камеру телефона. Это убирает управление фонариком видеопотока, которое на iPhone не является фотовспышкой и выключалось при снимке.
 - Candidate `v16.0.0`: repeated save POSTs with the same banquet ID no longer append a duplicate row.
 - Candidate `v16.0.0`: unknown banquet goods are retained with quantity and unit as `Требует сопоставления` instead of being discarded before reconciliation.
 - Android Telegram больше не зависит только от необязательной поддержки HTML `capture` при съёмке кассового отчёта.
