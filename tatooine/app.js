@@ -507,7 +507,7 @@
       } catch (error) {
         const message = String(error && error.message || error);
         if (message.includes('Сервер не ответил вовремя.')) {
-          setStatus('warn', 'Сервер занят, продолжаем ждать ответ…', .15);
+          // Временная задержка Apps Script не должна сбивать пользователя с текущего шага OCR.
         } else if (Date.now() - started > 30000) {
           throw error;
         }
