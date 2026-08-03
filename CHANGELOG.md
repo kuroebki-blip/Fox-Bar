@@ -15,6 +15,7 @@
 
 ### Changed
 
+- Candidate FO’X: кассовый OCR передаёт цельное изображение до 2200 px вместо 3200 px мозаики из четырёх фрагментов; Android-камера для кассового отчёта сохраняет более компактный кадр. Это уменьшает локальную обработку и размер отправки в Gemini.
 - Candidate `v16.0.0`: Stock/Reserve backend reads the banquet status directly from the Banquets sheet before saving a reserve; terminal statuses are retained after late OCR.
 - Candidate `v16.0.0`: reserve status updates report the actual number of changed rows and fail when no active reserve exists.
 
