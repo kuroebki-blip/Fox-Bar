@@ -2342,6 +2342,7 @@ let receiptCameraReplaceIndex = -1;
 let receiptCameraSessionShots = 0;
 let receiptCameraDirty = false;
 let receiptCameraPurpose = 'receipt';
+let receiptCameraAllowNativePicker = false;
 let receiptEditorPageIndex = -1;
 let receiptEditorSourceImage = null;
 let receiptEditorRect = null;
@@ -2619,17 +2620,35 @@ async function openReceiptCamera(replaceIndex=-1,purpose='receipt'){
     const msg=String(err&&err.message?err.message:err);
     if(purposeNow==='cash-report'){
       setCashReportStatus('warn',msg+' Открываю системную камеру как запасной вариант.',0);
-      document.getElementById('cashReportCameraFallback').click();
+      openNativeReceiptCameraPicker_('cashReportCameraFallback');
     }else{
       setReceiptStatus('warn',msg+' Открываю системную камеру как запасной вариант.',0);
       if(fallbackReplaceIndex>=0){
         receiptReshootIndex=fallbackReplaceIndex;
-        document.getElementById('receiptReshootFallback').click();
+        openNativeReceiptCameraPicker_('receiptReshootFallback');
       }else{
-        document.getElementById('receiptCameraFallback').click();
+        openNativeReceiptCameraPicker_('receiptCameraFallback');
       }
     }
   }
+}
+function usesAndroidTelegramCamera_(){
+  return Boolean(window.Telegram&&window.Telegram.WebApp&&/Android/i.test(String(navigator.userAgent||'')));
+}
+function openNativeReceiptCameraPicker_(inputId){
+  receiptCameraAllowNativePicker=true;
+  document.getElementById(inputId).click();
+}
+function routeAndroidTelegramCamera_(input,replaceIndex,purpose){
+  input.addEventListener('click',event=>{
+    if(receiptCameraAllowNativePicker){
+      receiptCameraAllowNativePicker=false;
+      return;
+    }
+    if(!usesAndroidTelegramCamera_()||!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) return;
+    event.preventDefault();
+    openReceiptCamera(replaceIndex(),purpose);
+  });
 }
 function updateReceiptCameraCount(){
   const el=document.getElementById('receiptCameraCount');
@@ -2804,6 +2823,7 @@ window.addEventListener('orientationchange',()=>{
 
 const receiptCameraFallback=document.getElementById('receiptCameraFallback');
 if(receiptCameraFallback){
+  routeAndroidTelegramCamera_(receiptCameraFallback,()=>-1,'receipt');
   receiptCameraFallback.addEventListener('change',async()=>{
     const files=Array.from(receiptCameraFallback.files||[]);
     try{await appendReceiptFiles(files,'Обрабатываю новый снимок…');}
@@ -2820,6 +2840,7 @@ if(receiptGallery){
 }
 const receiptReshootFallback=document.getElementById('receiptReshootFallback');
 if(receiptReshootFallback){
+  routeAndroidTelegramCamera_(receiptReshootFallback,()=>receiptReshootIndex,'receipt');
   receiptReshootFallback.addEventListener('change',async()=>{
     const file=receiptReshootFallback.files&&receiptReshootFallback.files[0];const index=receiptReshootIndex;
     receiptReshootFallback.value='';receiptReshootIndex=-1;
@@ -3425,7 +3446,7 @@ async function sendCashReportToTelegram(){
   }
 }
 
-const cashCameraFallback=document.getElementById('cashReportCameraFallback');if(cashCameraFallback)cashCameraFallback.addEventListener('change',async()=>{const files=Array.from(cashCameraFallback.files||[]);cashCameraFallback.value='';await appendCashReportFiles(files);});
+const cashCameraFallback=document.getElementById('cashReportCameraFallback');if(cashCameraFallback){routeAndroidTelegramCamera_(cashCameraFallback,()=>-1,'cash-report');cashCameraFallback.addEventListener('change',async()=>{const files=Array.from(cashCameraFallback.files||[]);cashCameraFallback.value='';await appendCashReportFiles(files);});}
 const cashGallery=document.getElementById('cashReportGallery');if(cashGallery)cashGallery.addEventListener('change',async()=>{const files=Array.from(cashGallery.files||[]);cashGallery.value='';await appendCashReportFiles(files);});
 document.getElementById('cashReportReset').addEventListener('click',()=>{if(cashReportPages.length&&!confirm('Удалить фотографии кассового отчёта?'))return;resetCashReport();});
 document.getElementById('cashReportRecognize').addEventListener('click',startCashReportRecognition);
