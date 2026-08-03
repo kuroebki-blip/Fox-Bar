@@ -20,6 +20,7 @@
 
 ### Fixed
 
+- Candidate FO’X: автообрезка документов теперь ищет контур по нескольким вариантам изображения (обычные и мягкие границы, контрастный порог); preview явно сообщает, была ли обрезка и коррекция перспективы применена.
 - Candidate FO’X: на Android в Telegram съёмка документов и кассового отчёта использует совместимый поток камеры, как в Tatooine; иначе WebView предлагает только галерею. На iPhone остаётся системная камера без управления фонариком видеопотока.
 - Candidate `v16.0.0`: repeated save POSTs with the same banquet ID no longer append a duplicate row.
 - Candidate `v16.0.0`: unknown banquet goods are retained with quantity and unit as `Требует сопоставления` instead of being discarded before reconciliation.
