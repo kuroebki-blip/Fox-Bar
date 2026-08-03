@@ -55,7 +55,7 @@
     return /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(API_URL);
   }
 
-  function jsonp(params, timeoutMs = 15000) {
+  function jsonp(params, timeoutMs = 35000) {
     return new Promise((resolve, reject) => {
       const callback = '__tatooineCashCb_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
       const query = new URLSearchParams(Object.assign({}, params, { callback, _: Date.now() }));
@@ -505,7 +505,12 @@
           if (notFound > 12 && response && response.error && !String(response.error).includes('не найден')) throw new Error(response.error);
         }
       } catch (error) {
-        if (Date.now() - started > 30000 && !String(error && error.message || error).includes('вовремя')) throw error;
+        const message = String(error && error.message || error);
+        if (message.includes('Сервер не ответил вовремя.')) {
+          setStatus('warn', 'Сервер занят, продолжаем ждать ответ…', .15);
+        } else if (Date.now() - started > 30000) {
+          throw error;
+        }
       }
       await sleep(2200);
     }
