@@ -2636,7 +2636,16 @@ function updateReceiptCameraCount(){
   if(!el) return;
   el.textContent=receiptCameraReplaceIndex>=0?'Замена страницы':('Снято: '+receiptCameraSessionShots);
 }
+function usesAndroidTelegramCamera_(){
+  return Boolean(window.Telegram&&window.Telegram.WebApp&&/Android/i.test(String(navigator.userAgent||'')));
+}
 function openSystemReceiptCamera(replaceIndex=-1){
+  // Telegram for Android ignores capture="environment" for a hidden file input
+  // and offers only the gallery. Use the same WebRTC camera path as Tatooine.
+  if(usesAndroidTelegramCamera_()&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
+    openReceiptCamera(replaceIndex,'receipt');
+    return;
+  }
   if(replaceIndex>=0){
     receiptReshootIndex=replaceIndex;
     document.getElementById('receiptReshootFallback').click();
@@ -2645,6 +2654,10 @@ function openSystemReceiptCamera(replaceIndex=-1){
   document.getElementById('receiptCameraFallback').click();
 }
 function openSystemCashReportCamera(){
+  if(usesAndroidTelegramCamera_()&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
+    openReceiptCamera(-1,'cash-report');
+    return;
+  }
   document.getElementById('cashReportCameraFallback').click();
 }
 function canvasToJpegDataUrl_(canvas,quality=.94){
