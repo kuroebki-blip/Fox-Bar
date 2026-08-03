@@ -184,6 +184,14 @@ body.mode-hub #backBtn{display:none}
 .hub-card .hc-ico{font-size:26px;margin-bottom:8px}
 .hub-card .hc-title{font-family:"Unbounded",sans-serif;font-size:16px;font-weight:600;margin-bottom:4px}
 .hub-card .hc-sub{font-size:13px;color:var(--muted);line-height:1.45}
+.tables-intro{font-size:14px;color:var(--muted);line-height:1.5;margin:0 0 14px}
+.tables-list{display:grid;gap:10px}
+.table-link{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:1px solid var(--line);background:var(--surface);
+  color:var(--text);border-radius:15px;padding:14px;cursor:pointer;font-family:inherit}
+.table-link:active{background:var(--surface-2)}
+.table-link-icon{display:grid;place-items:center;flex:0 0 42px;width:42px;height:42px;border-radius:12px;background:var(--amber-soft);font-size:22px}
+.table-link-copy{min-width:0;flex:1}.table-link-copy b{display:block;font-size:14px}.table-link-copy span{display:block;margin-top:3px;color:var(--muted);font-size:12px;line-height:1.35}
+.table-link-arrow{font-size:22px;color:var(--amber);line-height:1}
 .hub-note{margin-top:14px;background:var(--surface);border:1px solid var(--line);border-radius:14px;
   padding:13px 14px;color:var(--muted);font-size:13px;line-height:1.5}
 .banq-top{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:12px}
@@ -575,6 +583,11 @@ body.mode-cash-report #backBtn{display:inline-flex}
       <div class="hc-title">Кассовый отчёт</div>
       <div class="hc-sub">Распознавание отчёта iiko и терминальных слипов, сверка безнала и отправка отчёта в Telegram.</div>
     </button>
+    <button class="hub-card" data-open-section="tables">
+      <div class="hc-ico">📊</div>
+      <div class="hc-title">Таблицы</div>
+      <div class="hc-sub">Все рабочие Google Sheets в одном месте.</div>
+    </button>
   </div>
   <div class="hub-note">
     Это общий хаб: один Telegram-бот открывает один FO'X App, а внутри выбирается нужный раздел.
@@ -584,6 +597,24 @@ body.mode-cash-report #backBtn{display:inline-flex}
 <section class="app-screen" id="checklistsScreen">
   <nav class="tabs" id="tabs"></nav>
   <main id="main"></main>
+</section>
+
+<section class="app-screen" id="tablesScreen">
+  <p class="tables-intro">Выберите таблицу. Она откроется в новой вкладке или в приложении Google Sheets.</p>
+  <div class="tables-list">
+    <button class="table-link" type="button" data-table-url="https://docs.google.com/spreadsheets/d/1onjNh8-xAGPn7oomX60QgzIFYifzzc8y6iExZRdXE40/edit?gid=0#gid=0">
+      <span class="table-link-icon">📄</span><span class="table-link-copy"><b>Еженедельная проработка фрешей</b><span>Открыть Google Sheets</span></span><span class="table-link-arrow">›</span>
+    </button>
+    <button class="table-link" type="button" data-table-url="https://docs.google.com/spreadsheets/d/1Ii8vMKNxgg01_NJ-u6d-kgK1GO4S_IJYPkPHzWSxWeU/edit?gid=0#gid=0">
+      <span class="table-link-icon">📄</span><span class="table-link-copy"><b>Заказ заготовок</b><span>Открыть Google Sheets</span></span><span class="table-link-arrow">›</span>
+    </button>
+    <button class="table-link" type="button" data-table-url="https://docs.google.com/spreadsheets/d/1bx3hERXnVNF5GbiGkYFflbmoeQgqjmu964-Q50zhumQ/edit?gid=598893127#gid=598893127">
+      <span class="table-link-icon">📄</span><span class="table-link-copy"><b>FOX_СТОК v15</b><span>Открыть Google Sheets</span></span><span class="table-link-arrow">›</span>
+    </button>
+    <button class="table-link" type="button" data-table-url="https://docs.google.com/spreadsheets/d/1yK3yTIk8GNrnhMhjgdsH1CZ-QGhPCPMvken2MoG8Z3c/edit?gid=1806498141#gid=1806498141">
+      <span class="table-link-icon">📄</span><span class="table-link-copy"><b>НОВЫЙ БЛАНК ИП Андреев Заказ FOX</b><span>Открыть Google Sheets</span></span><span class="table-link-arrow">›</span>
+    </button>
+  </div>
 </section>
 
 <section class="app-screen" id="banquetsScreen">
@@ -1399,11 +1430,12 @@ document.getElementById('resetBtn').onclick=()=>{
 
 // ===== FO'X App sections =====
 function setAppSection(section){
-  document.body.classList.remove('mode-hub','mode-checklists','mode-banquets','mode-receipts','mode-cash-report');
+  document.body.classList.remove('mode-hub','mode-checklists','mode-tables','mode-banquets','mode-receipts','mode-cash-report');
   document.body.classList.add('mode-'+section);
 
   document.getElementById('hubScreen').classList.toggle('active', section==='hub');
   document.getElementById('checklistsScreen').classList.toggle('active', section==='checklists');
+  document.getElementById('tablesScreen').classList.toggle('active', section==='tables');
   document.getElementById('banquetsScreen').classList.toggle('active', section==='banquets');
   document.getElementById('receiptsScreen').classList.toggle('active', section==='receipts');
   document.getElementById('cashReportScreen').classList.toggle('active', section==='cash-report');
@@ -1411,6 +1443,7 @@ function setAppSection(section){
   const sub = document.getElementById('appSubtitle');
   if(section==='hub') sub.textContent = 'Единое мини-приложение';
   if(section==='checklists') sub.textContent = 'Подготовка бара к вечерней посадке';
+  if(section==='tables') sub.textContent = 'Рабочие Google Sheets';
   if(section==='banquets') sub.textContent = 'Календарь банкетов и фото заказов';
   if(section==='receipts') sub.textContent = 'Сканер документов и кассовых чеков';
   if(section==='cash-report') sub.textContent = 'Кассовый отчёт iiko и терминалов';
@@ -1422,6 +1455,14 @@ function setAppSection(section){
 }
 document.querySelectorAll('[data-open-section]').forEach(btn=>{
   btn.addEventListener('click',()=>{ hap('sel'); setAppSection(btn.dataset.openSection); });
+});
+document.querySelectorAll('[data-table-url]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const url=btn.dataset.tableUrl;
+    hap('light');
+    if(TG&&typeof TG.openLink==='function') TG.openLink(url);
+    else window.open(url,'_blank','noopener');
+  });
 });
 document.getElementById('backBtn').onclick=()=>{ hap('light'); setAppSection('hub'); };
 
