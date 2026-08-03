@@ -2346,7 +2346,7 @@ let receiptCameraSessionShots = 0;
 let receiptCameraDirty = false;
 let receiptCameraPurpose = 'receipt';
 let receiptCameraAllowNativePicker = false;
-const foxDocumentScanner = new DocumentScanner({ maxLongSide: 2400, allowOriginal: true });
+const foxDocumentScanner = new DocumentScanner({ maxLongSide: 1800, allowOriginal: true });
 let receiptEditorPageIndex = -1;
 let receiptEditorSourceImage = null;
 let receiptEditorRect = null;
@@ -3453,6 +3453,8 @@ switchTab(DATA[0].id);
 refresh();
 setAppSection('hub');
 loadBanquets();
+const warmDocumentScanner=()=>DocumentScanner.warmup().catch(()=>{});
+if('requestIdleCallback' in window)window.requestIdleCallback(warmDocumentScanner,{timeout:3500});else setTimeout(warmDocumentScanner,1800);
 
 </script>
 </body>
