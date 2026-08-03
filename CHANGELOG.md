@@ -12,6 +12,7 @@
 - Candidate Tatooine `v1.5.0`: встроенная задняя камера для Telegram WebView на Android с fallback на обычный выбор фотографии.
 - Candidate Tatooine `v1.5.1`: полноразмерный Android-снимок через `ImageCapture` с сохранением canvas fallback.
 - Candidate Tatooine `v1.5.2`: цельный OCR-снимок до 3200 px без монтажа 2×2.
+- Candidate Tatooine `v1.5.3`: ожидание status-ответа Apps Script увеличено до 35 секунд; временная задержка сервера отображается как повторная попытка, а не как финальная ошибка.
 
 ### Changed
 
@@ -28,6 +29,7 @@
 - Android Telegram больше не зависит только от необязательной поддержки HTML `capture` при съёмке кассового отчёта.
 - Снимок Android-камеры больше не ограничивается разрешением preview-видеопотока, если WebView поддерживает `ImageCapture`.
 - Tatooine больше не переставляет и не дублирует фрагменты документа перед отправкой в OCR.
+- Tatooine не показывает ложную ошибку «Сервер не ответил вовремя» при кратковременной задержке Apps Script/Gemini.
 
 ### Removed
 
