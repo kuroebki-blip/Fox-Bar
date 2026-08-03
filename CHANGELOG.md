@@ -19,7 +19,7 @@
 
 ### Fixed
 
-- Candidate FO’X: кнопки съёмки документов и кассового отчёта открывают системную камеру телефона. Для Telegram на Android используется совместимый поток камеры, как в Tatooine: WebView иначе предлагает только галерею. Это убирает управление фонариком видеопотока на iPhone, где он не является фотовспышкой и выключался при снимке.
+- Candidate FO’X: кнопки съёмки документов и кассового отчёта вызывают системную камеру прямой связью `label` с нативным `input capture`. Это убирает встроенный видеопоток и управление фонариком, которое на iPhone не является фотовспышкой и выключается при снимке.
 - Candidate `v16.0.0`: repeated save POSTs with the same banquet ID no longer append a duplicate row.
 - Candidate `v16.0.0`: unknown banquet goods are retained with quantity and unit as `Требует сопоставления` instead of being discarded before reconciliation.
 - Android Telegram больше не зависит только от необязательной поддержки HTML `capture` при съёмке кассового отчёта.
