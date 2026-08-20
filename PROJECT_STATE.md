@@ -1,6 +1,6 @@
 # FO’X — состояние проекта
 
-Актуально на 26 июля 2026 года.
+Актуально на 21 августа 2026 года.
 
 ## Архитектура
 
@@ -16,13 +16,13 @@
 
 | Компонент | Версия | Статус | Основание |
 | --- | --- | --- | --- |
-| FO’X frontend | `v15.14.0 TERMINAL DETAIL MONTAGE` | опубликован в `main` | `index.html`, merge commit `4cb04d2` |
+| FO’X frontend | `v15.14.1 STARTUP PERFORMANCE` | опубликован в `main` | `index.html`, commit `a580edc` |
 | Tatooine frontend | `v1.4.0 TERMINAL DETAIL MONTAGE` | опубликован в `main` | `tatooine/`, merge commit `4cb04d2` |
 | Scanner/cash Apps Script | `v9.6.0 TERMINAL DETAIL MONTAGE`, Apps Script version 24 | внешний deployment был проверен `ping` при релизе | release commit `c4f4a1d`; исходник отсутствует в `main` |
 | Banquets Apps Script | неизвестно | требует подтверждения пользователя и проверки deployment | исходника production нет в `main` |
 | Google Sheets | неизвестно | требует подтверждения пользователя | таблицы и Script Properties не хранятся в Git |
 
-Frontend-релиз `v15.14.0` преобразует каждую фотографию кассового отчёта в одну детальную монтажную страницу 2×2 без увеличения числа изображений в основном OCR-запросе.
+Frontend-релиз `v15.14.1` откладывает загрузку банкетов до первого входа в раздел, не прогревает OpenCV при startup и загружает jsPDF по требованию перед созданием PDF.
 
 ## Что есть только в ветках или candidate
 
@@ -33,7 +33,7 @@ Frontend-релиз `v15.14.0` преобразует каждую фотогр�
 ## Проверка
 
 - Автоматические тесты релизного комплекта `v15.14.0/v1.4.0/v9.6.0`: 38/38 по release commit `c4f4a1d`.
-- GitHub Pages для merge commit `4cb04d2` собран успешно.
+- Публичная GitHub Pages версия `v15.14.1` доступна после push commit `a580edc`; живой Telegram-тест остаётся отдельным пунктом.
 - Публичный backend при релизе вернул `v9.6.0`.
 - Живой пользовательский тест точности OCR и отправки в Telegram для текущего montage-релиза не подтверждён.
 - Живой тест банкетов и формул Google Sheets после текущего frontend-релиза не подтверждён.
