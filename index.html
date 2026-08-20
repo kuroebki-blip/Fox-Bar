@@ -3,13 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.14.0 — TERMINAL DETAIL MONTAGE</title>
+<title>FO'X App v15.14.1 — STARTUP PERFORMANCE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="shared/document-scanner/scanner.css">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 <script src="shared/document-scanner/geometry.js"></script>
 <script src="shared/document-scanner/document-scanner.js"></script>
 <style>
@@ -1451,7 +1450,10 @@ function setAppSection(section){
   if(section==='receipts') sub.textContent = 'Сканер документов и кассовых чеков';
   if(section==='cash-report') sub.textContent = 'Кассовый отчёт iiko и терминалов';
 
-  if(section==='banquets') renderBanquets();
+  if(section==='banquets'){
+    renderBanquets();
+    ensureBanquetsLoaded_();
+  }
   if(section==='receipts') openReceiptsSection();
   if(section==='cash-report') openCashReportSection();
   window.scrollTo({top:0,behavior:'smooth'});
@@ -1587,6 +1589,14 @@ function jsonp(url, params){
   });
 }
 
+let banquetsInitialLoadStarted_=false;
+let banquetsInitialLoadPromise_=null;
+function ensureBanquetsLoaded_(){
+  if(banquetsInitialLoadStarted_) return banquetsInitialLoadPromise_||Promise.resolve();
+  banquetsInitialLoadStarted_=true;
+  banquetsInitialLoadPromise_=loadBanquets();
+  return banquetsInitialLoadPromise_;
+}
 async function loadBanquets(){
   updateAdminVisibility();
   updateStorageWarning();
@@ -2992,10 +3002,26 @@ document.getElementById('receiptEditorReset').addEventListener('click',resetRece
 document.getElementById('receiptEditorSave').addEventListener('click',saveReceiptManualCrop);
 
 function moveReceiptPage(index,delta){const to=index+delta;if(to<0||to>=receiptPages.length)return;const tmp=receiptPages[index];receiptPages[index]=receiptPages[to];receiptPages[to]=tmp;invalidateReceiptRecognition_();renderReceiptPages();hap('sel');}
+const JSPDF_URL='https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js';
+let jsPdfLoadPromise_=null;
+function ensureJsPdfLoaded_(){
+  if(window.jspdf&&window.jspdf.jsPDF)return Promise.resolve(window.jspdf);
+  if(jsPdfLoadPromise_)return jsPdfLoadPromise_;
+  jsPdfLoadPromise_=new Promise((resolve,reject)=>{
+    const script=document.createElement('script');
+    script.async=true;
+    script.src=JSPDF_URL;
+    script.onload=()=>window.jspdf&&window.jspdf.jsPDF
+      ?resolve(window.jspdf)
+      :reject(new Error('Библиотека PDF загрузилась некорректно. Повтори попытку.'));
+    script.onerror=()=>reject(new Error('Не удалось загрузить библиотеку PDF. Проверь интернет и повтори попытку.'));
+    document.head.appendChild(script);
+  }).catch(error=>{jsPdfLoadPromise_=null;throw error;});
+  return jsPdfLoadPromise_;
+}
 async function buildReceiptPdf(pages=receiptPages){
   if(!pages.length) throw new Error('Нет страниц.');
-  if(!window.jspdf||!window.jspdf.jsPDF) throw new Error('Библиотека PDF не загрузилась. Проверь интернет и открой приложение заново.');
-  const {jsPDF}=window.jspdf;const firstLandscape=pages[0].width>pages[0].height;
+  const {jsPDF}=await ensureJsPdfLoaded_();const firstLandscape=pages[0].width>pages[0].height;
   const doc=new jsPDF({orientation:firstLandscape?'landscape':'portrait',unit:'pt',format:'a4',compress:true,putOnlyUsedFonts:true});
   pages.forEach((p,i)=>{
     const landscape=p.width>p.height;
@@ -3276,8 +3302,7 @@ function resetCashReport(){
 }
 async function buildCashReportPdf(){
   if(!cashReportPages.length)throw new Error('Нет фотографий.');
-  if(!window.jspdf||!window.jspdf.jsPDF)throw new Error('Библиотека PDF не загрузилась. Открой приложение заново.');
-  const {jsPDF}=window.jspdf;const firstLandscape=cashReportPages[0].width>cashReportPages[0].height;
+  const {jsPDF}=await ensureJsPdfLoaded_();const firstLandscape=cashReportPages[0].width>cashReportPages[0].height;
   const doc=new jsPDF({orientation:firstLandscape?'landscape':'portrait',unit:'pt',format:'a4',compress:true,putOnlyUsedFonts:true});
   cashReportPages.forEach((p,i)=>{const landscape=p.width>p.height;if(i>0)doc.addPage('a4',landscape?'landscape':'portrait');const pageW=doc.internal.pageSize.getWidth(),pageH=doc.internal.pageSize.getHeight(),margin=18;const scale=Math.min((pageW-margin*2)/p.width,(pageH-margin*2)/p.height);const w=p.width*scale,h=p.height*scale;doc.addImage(p.dataUrl,'JPEG',(pageW-w)/2,(pageH-h)/2,w,h,undefined,'FAST');});
   const blob=new Blob([doc.output('arraybuffer')],{type:'application/pdf'});await assertReceiptPdfBlob(blob);return blob;
@@ -3428,9 +3453,6 @@ document.getElementById('cashReportSend').addEventListener('click',sendCashRepor
 switchTab(DATA[0].id);
 refresh();
 setAppSection('hub');
-loadBanquets();
-const warmDocumentScanner=()=>DocumentScanner.warmup().catch(()=>{});
-if('requestIdleCallback' in window)window.requestIdleCallback(warmDocumentScanner,{timeout:3500});else setTimeout(warmDocumentScanner,1800);
 
 </script>
 </body>

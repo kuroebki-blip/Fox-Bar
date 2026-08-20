@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+### Changed
+
+- FO’X `v15.14.1`: банкетная база загружается при первом входе в раздел, OpenCV не прогревается при старте, а jsPDF загружается один раз по требованию перед созданием PDF. Это уменьшает initial startup cost без изменения формата PDF и пользовательских сценариев.
+
 ### Added
 
 - Candidate FO’X document scanner: общий OpenCV.js pipeline с поиском границ, perspective transform, фильтрами и preview перед существующим Gemini OCR; Tatooine пока не меняется.
