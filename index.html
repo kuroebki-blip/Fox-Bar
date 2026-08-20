@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.14.1 — STARTUP PERFORMANCE</title>
+<title>FO'X App v15.14.2 — SCANNER UI SIMPLIFICATION</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -2428,9 +2428,11 @@ function setReceiptStatus(type,text,progress){
   const el=document.getElementById('receiptStatus');
   if(!el) return;
   el.className='receipt-status '+(type||'');
-  el.innerHTML=escapeHtml(text||'')+'<div class="receipt-progress"><i id="receiptProgress"></i></div>';
+  const value=Math.max(0,Math.min(1,Number(progress)||0));
+  const showText=Boolean(type)||value===0||value===1;
+  el.innerHTML=(showText?escapeHtml(text||''):'')+'<div class="receipt-progress"><i id="receiptProgress"></i></div>';
   const inner=document.getElementById('receiptProgress');
-  if(inner) inner.style.width=Math.max(0,Math.min(100,Math.round((Number(progress)||0)*100)))+'%';
+  if(inner) inner.style.width=Math.round(value*100)+'%';
 }
 function updateReceiptModeUi(resetResult){
   const mode=getReceiptMode();
@@ -3250,8 +3252,10 @@ function openCashReportSection(){
 function setCashReportStatus(type,text,progress){
   const el=document.getElementById('cashReportStatus');if(!el)return;
   el.className='cash-status '+(type||'');
-  el.innerHTML=escapeHtml(text||'')+'<div class="cash-progress"><i id="cashReportProgress"></i></div>';
-  const p=document.getElementById('cashReportProgress');if(p)p.style.width=Math.max(0,Math.min(100,Math.round((Number(progress)||0)*100)))+'%';
+  const value=Math.max(0,Math.min(1,Number(progress)||0));
+  const showText=Boolean(type)||value===0||value===1;
+  el.innerHTML=(showText?escapeHtml(text||''):'')+'<div class="cash-progress"><i id="cashReportProgress"></i></div>';
+  const p=document.getElementById('cashReportProgress');if(p)p.style.width=Math.round(value*100)+'%';
 }
 async function appendCashReportFiles(files){
   files=Array.from(files||[]).filter(file=>String(file.type||'').startsWith('image/'));
