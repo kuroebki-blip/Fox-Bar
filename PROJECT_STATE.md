@@ -16,15 +16,15 @@
 
 | Компонент | Версия | Статус | Основание |
 | --- | --- | --- | --- |
-| FO’X frontend | `v15.14.3 UI COPY CLEANUP` | опубликован в `main` | `index.html`, commit `e35fe9c` |
-| Tatooine frontend | `v1.6.0 CASH OCR ALIGNMENT` | опубликован в `main` | `tatooine/`, commit `e504119` |
-| Scanner/cash Apps Script | `v9.6.0 TERMINAL DETAIL MONTAGE`, Apps Script version 24 | внешний deployment был проверен `ping` при релизе | release commit `c4f4a1d`; исходник отсутствует в `main` |
+| FO’X frontend | `v15.14.4` | опубликован в `main` | commit `c3c3b49` |
+| Tatooine frontend | `v1.7.0 RBAC FOUNDATION` | опубликован в `main` | commit `227fe73` |
+| Scanner/cash Apps Script | `v9.6.2 TATOOINE ORIGINAL IMAGE OCR`, Apps Script version 29 | deployment обновлён и проверен `ping` | commit `227fe73`; URL deployment сохранён |
 | Banquets Apps Script | неизвестно | требует подтверждения пользователя и проверки deployment | исходника production нет в `main` |
 | Google Sheets | неизвестно | требует подтверждения пользователя | таблицы и Script Properties не хранятся в Git |
 
 Frontend-релиз `v15.14.3` очищает хаб, таблицы и банкетный экран от декоративных повторяющихся пояснений, а кассовый отчёт — от технической подписи; рабочие инструкции, статусы и навигация сохранены. Предыдущий релиз `v15.14.2` убирает выбор «Документ / Ч/Б» из preview сканера и скрывает промежуточные описания при активном прогрессе; финальные сообщения и ошибки сохранены.
 
-Tatooine-релиз `v1.6.0` использует тот же компактный cash OCR-pipeline, что FO’X, и запускает preview scanner только после выбора фотографии; Apps Script и Telegram-маршрут не менялись.
+Tatooine-релиз `v1.7.0` добавляет RBAC-инфраструктуру: пользователь получает роль и permissions одним bootstrap-запросом, а управление ролями доступно только `superadmin`. Для первичной инициализации `superadmin` задан через Script Property без его хранения в репозитории.
 
 ## Что есть только в ветках или candidate
 
@@ -34,9 +34,9 @@ Tatooine-релиз `v1.6.0` использует тот же компактны
 
 ## Проверка
 
-- Автоматические тесты релизного комплекта `v15.14.0/v1.4.0/v9.6.0`: 38/38 по release commit `c4f4a1d`.
-- Публичные GitHub Pages версии FO’X `v15.14.3` и Tatooine `v1.6.0` доступны после push commits `e35fe9c` и `e504119`; живой Telegram-тест остаётся отдельным пунктом.
-- Публичный backend при релизе вернул `v9.6.0`.
+- Автоматические тесты RBAC-релиза: 36/36; lint и syntax-check прошли по commit `227fe73`.
+- Публичные GitHub Pages версии FO’X `v15.14.4` и Tatooine `v1.7.0` доступны после push commits `c3c3b49` и `227fe73`; живой Telegram-тест остаётся отдельным пунктом.
+- Публичный backend после обновления deployment version 29 ответил на `ping`.
 - Живой пользовательский тест точности OCR и отправки в Telegram для текущего montage-релиза не подтверждён.
 - Живой тест банкетов и формул Google Sheets после текущего frontend-релиза не подтверждён.
 
@@ -49,9 +49,7 @@ Tatooine-релиз `v1.6.0` использует тот же компактны
 
 ## Текущая задача
 
-Candidate: Tatooine `v1.5.2` сохраняет полноразмерную Android-камеру, но передаёт OCR один цельный снимок до 3200 px без перестановки квадрантов. Живой тест точности на Android ещё не выполнен.
-
-Candidate: FO’X document scanner локально ищет границы документа через OpenCV.js, исправляет перспективу и показывает фильтры до Gemini OCR. Функция не считается production-ready до живого теста в Android Telegram; при ошибке OpenCV пользователь может продолжить с оригиналом. Tatooine в эту итерацию не включён.
+Провести живой тест Tatooine в Telegram под bootstrap-superadmin: открыть экран «Роли сотрудников», убедиться, что он отображается, а затем назначить постоянную роль через интерфейс. После появления второй роли `superadmin` bootstrap property можно удалить.
 
 ## Следующие шаги
 
