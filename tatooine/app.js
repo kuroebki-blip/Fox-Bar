@@ -12,6 +12,7 @@
   let prepayments = [];
   let pollingToken = 0;
   let cameraStream = null;
+  let currentUser = null;
 
   const $ = id => document.getElementById(id);
   const sleep = ms => new Promise(resolve => {
@@ -53,6 +54,75 @@
 
   function apiConfigured() {
     return /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(API_URL);
+  }
+
+  function canPermissions(user, permission) {
+    return Boolean(user && Array.isArray(user.permissions) && user.permissions.includes(String(permission || '')));
+  }
+
+  function can(permission) {
+    return canPermissions(currentUser, permission);
+  }
+
+  function roleLabel(role) {
+    return ({ employee: 'Employee', manager: 'Manager', admin: 'Admin', superadmin: 'Superadmin' })[String(role || '')] || String(role || 'Employee');
+  }
+
+  function showRoleStatus(text) {
+    const el = $('roleStatus');
+    if (el) el.textContent = text || '';
+  }
+
+  function renderRoleDirectory(data) {
+    const card = $('roleManagement');
+    const list = $('roleList');
+    if (!card || !list) return;
+    if (!can('roles.view')) { card.hidden = true; return; }
+    card.hidden = false;
+    $('currentRole').textContent = roleLabel(currentUser.role);
+    const roles = Array.isArray(data && data.roles) ? data.roles : [];
+    const editable = can('roles.manage');
+    const items = Array.isArray(data && data.items) ? data.items : [];
+    list.innerHTML = items.map(user => {
+      const options = roles.map(role => '<option value="' + escapeHtml(role) + '"' + (role === user.role ? ' selected' : '') + '>' + escapeHtml(roleLabel(role)) + '</option>').join('');
+      return '<div class="role-user"><div><b>' + escapeHtml(user.name) + '</b><small>' + escapeHtml(roleLabel(user.role)) + '</small></div><select data-user-id="' + escapeHtml(user.id) + '"' + (editable ? '' : ' disabled') + '>' + options + '</select></div>';
+    }).join('') || '<div class="role-status">Сотрудники ещё не открывали приложение.</div>';
+    if (editable) list.querySelectorAll('select[data-user-id]').forEach(select => {
+      select.addEventListener('change', async () => {
+        select.disabled = true;
+        showRoleStatus('Сохраняю роль…');
+        try {
+          await post({ action: 'tatooineSetRole', targetUserId: select.dataset.userId, role: select.value });
+          await sleep(450);
+          await loadCurrentUser();
+          showRoleStatus('Роль обновлена.');
+        } catch (_) {
+          showRoleStatus('Не удалось обновить роль.');
+          select.disabled = false;
+        }
+      });
+    });
+  }
+
+  async function loadRoleDirectory() {
+    if (!can('roles.view')) return;
+    const data = await jsonp(Object.assign({ action: 'tatooineEmployees' }, authParams()));
+    if (!data || !data.ok) throw new Error(data && data.error ? data.error : 'Нет доступа.');
+    renderRoleDirectory(data);
+  }
+
+  async function loadCurrentUser() {
+    if (!apiConfigured() || !TG || !TG.initData) return;
+    try {
+      const data = await jsonp(Object.assign({ action: 'currentUser' }, authParams()));
+      if (!data || !data.ok || !data.user) throw new Error(data && data.error ? data.error : 'Нет доступа.');
+      currentUser = data.user;
+      if (can('roles.view')) await loadRoleDirectory();
+    } catch (_) {
+      currentUser = null;
+      const card = $('roleManagement');
+      if (card) card.hidden = true;
+    }
   }
 
   function jsonp(params, timeoutMs = 35000) {
@@ -746,6 +816,7 @@
   }
 
   function init() {
+    window.TatooineAccess = Object.freeze({ can, currentUser: () => currentUser });
     $('appVersion').textContent = String(CONFIG.version || 'v1.0.0');
     $('cashReportChangeFund').value = String(Number(CONFIG.defaultChangeFund) || 0);
     if (TG) {
@@ -768,8 +839,9 @@
     bindInputs();
     renderPages();
     checkBackend();
+    loadCurrentUser();
   }
 
-  window.TatooineCashTest = Object.freeze({ base64DecodedBytes, validateOcrImages, exactPaymentRowAmount, buildTatooineCashMessage, updateComparison, usesAndroidTelegramCamera });
+  window.TatooineCashTest = Object.freeze({ base64DecodedBytes, validateOcrImages, exactPaymentRowAmount, buildTatooineCashMessage, updateComparison, usesAndroidTelegramCamera, canPermissions });
   init();
 })();

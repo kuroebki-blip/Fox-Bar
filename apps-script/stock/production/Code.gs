@@ -46,7 +46,9 @@ const FOX_RECEIPTS = {
     jobs: 'Скан_Задания',
     checks: 'Чеки',
     banquetReserve: 'Банкеты_Резерв',
-    banquetJobs: 'Банкет_Задания'
+    banquetJobs: 'Банкет_Задания',
+    tatooineUsers: 'Tatooine_Пользователи',
+    tatooineRoleAudit: 'Tatooine_АудитРолей'
   },
 
   // Банкеты хранятся в отдельной production-таблице. Статус для резерва
@@ -115,8 +117,51 @@ const FOX_RECEIPT_HEADERS = {
   banquetJobs: [
     'Job ID','ID банкета','Статус','Шаг','Прогресс','Результат JSON',
     'Telegram User ID','Telegram User','Создано','Обновлено','Ошибка'
+  ],
+  tatooineUsers: [
+    'Telegram User ID','Имя','Роль','Создано','Обновлено'
+  ],
+  tatooineRoleAudit: [
+    'Actor User ID','Target User ID','Старая роль','Новая роль','Timestamp'
   ]
 };
+
+// ==== TATOOINE RBAC START ====
+const TATOOINE_RBAC = {
+  defaultRole: 'employee',
+  roles: {
+    employee: ['profile.view_self','profile.edit_self','rides.submit_self','rides.view_self'],
+    manager: ['profile.view_self','profile.edit_self','rides.submit_self','rides.view_self','employees.view','rides.view_all','rides.optimize','rides.override','rides.confirm','rides.enter_cost','rides.view_analytics','analytics.view'],
+    admin: ['profile.view_self','profile.edit_self','rides.submit_self','rides.view_self','employees.view','rides.view_all','rides.optimize','rides.override','rides.confirm','rides.enter_cost','rides.view_analytics','analytics.view','employees.edit','settings.view','settings.manage','roles.view'],
+    superadmin: ['profile.view_self','profile.edit_self','employees.view','employees.edit','rides.submit_self','rides.view_self','rides.view_all','rides.optimize','rides.override','rides.confirm','rides.enter_cost','rides.view_analytics','analytics.view','settings.view','settings.manage','roles.view','roles.manage']
+  }
+};
+
+function normalizeTatooineRole_(role) {
+  const value = String(role || '').trim().toLowerCase();
+  return TATOOINE_RBAC.roles[value] ? value : TATOOINE_RBAC.defaultRole;
+}
+
+function tatooinePermissionsForRole_(role) {
+  return (TATOOINE_RBAC.roles[normalizeTatooineRole_(role)] || []).slice();
+}
+
+function hasTatooinePermission_(user, permission) {
+  return Boolean(user && (user.permissions || []).indexOf(String(permission || '')) >= 0);
+}
+
+function requireTatooinePermission_(auth, permission) {
+  const user = getTatooineCurrentUser_(auth, false);
+  if (!hasTatooinePermission_(user, permission)) throw new Error('Нет доступа.');
+  return user;
+}
+
+function assertTatooineRoleChangeAllowed_(actorUserId, targetUserId, oldRole, newRole, superadminCount) {
+  if (normalizeTatooineRole_(oldRole) === 'superadmin' && normalizeTatooineRole_(newRole) !== 'superadmin' && Number(superadminCount) <= 1) {
+    throw new Error('Нельзя понизить роль последнего superadmin. Сначала назначьте второго superadmin.');
+  }
+}
+// ==== TATOOINE RBAC END ====
 
 function onOpen() {
   SpreadsheetApp.getUi()
@@ -128,6 +173,7 @@ function onOpen() {
     .addSeparator()
     .addItem('Касса: получить стиль из Telegram', 'foxCashCaptureTelegramStyle')
     .addItem('Касса: проверить стиль сообщением', 'foxCashTestTelegramStyle')
+    .addItem('Tatooine: настроить роли', 'setupTatooineRbac')
     .addSeparator()
     .addItem('Обновить список товаров', 'foxReceiptsRefreshCatalog')
     .addSeparator()
@@ -157,6 +203,8 @@ function setupFoxReceipts() {
   ensureServiceSheet_(ss, FOX_RECEIPTS.sheets.documents, 'FO’X — ДОКУМЕНТЫ И ЧЕКИ', FOX_RECEIPT_HEADERS.documents);
   ensureServiceSheet_(ss, FOX_RECEIPTS.sheets.checks, 'FO’X — ИСТОРИЯ ЧЕКОВ', FOX_RECEIPT_HEADERS.checks);
   const jobs = ensureServiceSheet_(ss, FOX_RECEIPTS.sheets.jobs, 'FO’X — СЛУЖЕБНЫЕ ЗАДАНИЯ СКАНЕРА', FOX_RECEIPT_HEADERS.jobs);
+  ensureServiceSheet_(ss, FOX_RECEIPTS.sheets.tatooineUsers, 'Tatooine — ПОЛЬЗОВАТЕЛИ', FOX_RECEIPT_HEADERS.tatooineUsers);
+  ensureServiceSheet_(ss, FOX_RECEIPTS.sheets.tatooineRoleAudit, 'Tatooine — АУДИТ РОЛЕЙ', FOX_RECEIPT_HEADERS.tatooineRoleAudit);
   try { jobs.hideSheet(); } catch (e) {}
 
   seedMappingsIfEmpty_(ss.getSheetByName(FOX_RECEIPTS.sheets.mappings));
@@ -519,6 +567,15 @@ function doGet(e) {
     const auth = authorizeRequest_(e && e.parameter ? e.parameter : {});
     assertTelegramActionAllowed_(action, auth);
 
+    if (action === 'currentUser') {
+      return jsonpOutput_(callback, { ok: true, user: getTatooineCurrentUser_(auth, false) });
+    }
+
+    if (action === 'tatooineEmployees') {
+      requireTatooinePermission_(auth, 'roles.view');
+      return jsonpOutput_(callback, { ok: true, items: listTatooineEmployees_(auth), roles: Object.keys(TATOOINE_RBAC.roles) });
+    }
+
     if (action === 'status') {
       const jobId = requiredString_(e.parameter.jobId, 'jobId');
       return jsonpOutput_(callback, getJobStatus_(jobId, auth));
@@ -614,6 +671,11 @@ function doPost(e) {
 
     if (action === 'cashReportSend') {
       sendCashReportToTelegram_(e.parameter, auth);
+      return textOutput_({ ok: true });
+    }
+
+    if (action === 'tatooineSetRole') {
+      setTatooineEmployeeRole_(e.parameter, auth);
       return textOutput_({ ok: true });
     }
 
@@ -2332,7 +2394,7 @@ function telegramRouteConfig_(value) {
 
 function assertTelegramActionAllowed_(action, auth) {
   if (!auth || auth.venue !== 'tatooine') return;
-  const allowed = ['status', 'cashReportScan', 'cashReportScanImages', 'cashReportSend'];
+  const allowed = ['status', 'cashReportScan', 'cashReportScanImages', 'cashReportSend', 'currentUser', 'tatooineEmployees', 'tatooineSetRole'];
   if (allowed.indexOf(String(action || '')) < 0) {
     throw new Error('Боту Tatooine доступен только кассовый отчёт.');
   }
@@ -2384,6 +2446,88 @@ function authorizeRequest_(p) {
   const userName = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || userId;
   const chatId = String(chat && chat.id || '');
   return { userId: userId, userName: userName, chatId: chatId, user: user, chat: chat, venue: route.venue };
+}
+
+function tatooineRbacSheet_(name, ensure) {
+  const ss = getSpreadsheet_();
+  let sh = ss.getSheetByName(name);
+  if (!sh && ensure) {
+    const headers = name === FOX_RECEIPTS.sheets.tatooineUsers ? FOX_RECEIPT_HEADERS.tatooineUsers : FOX_RECEIPT_HEADERS.tatooineRoleAudit;
+    sh = ensureServiceSheet_(ss, name, 'Tatooine — ' + (name === FOX_RECEIPTS.sheets.tatooineUsers ? 'ПОЛЬЗОВАТЕЛИ' : 'АУДИТ РОЛЕЙ'), headers);
+  }
+  return sh;
+}
+
+function tatooineBootstrapRole_(userId, hasSuperadmin) {
+  if (hasSuperadmin) return '';
+  const ids = parseTelegramIds_(PropertiesService.getScriptProperties().getProperty('TATOOINE_RBAC_BOOTSTRAP_SUPERADMIN_IDS'), []);
+  return ids.indexOf(String(userId || '')) >= 0 ? 'superadmin' : '';
+}
+
+function tatooineUserRows_(sh) {
+  if (!sh || sh.getLastRow() < 3) return [];
+  return sh.getRange(3, 1, sh.getLastRow() - 2, FOX_RECEIPT_HEADERS.tatooineUsers.length).getValues().map(function(row, index) {
+    return { row: index + 3, userId: String(row[0] || ''), name: String(row[1] || ''), role: normalizeTatooineRole_(row[2]), createdAt: row[3], updatedAt: row[4] };
+  }).filter(function(item) { return item.userId; });
+}
+
+function publicTatooineUser_(row, auth, role) {
+  const resolvedRole = normalizeTatooineRole_(role || (row && row.role));
+  return { id: String((row && row.userId) || auth.userId), name: String((row && row.name) || auth.userName), role: resolvedRole, permissions: tatooinePermissionsForRole_(resolvedRole) };
+}
+
+function getTatooineCurrentUser_(auth, register) {
+  if (!auth || auth.venue !== 'tatooine' || !auth.userId) throw new Error('Нет доступа.');
+  const sh = tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, Boolean(register));
+  const rows = tatooineUserRows_(sh);
+  const existing = rows.filter(function(item) { return item.userId === String(auth.userId); })[0] || null;
+  const hasSuperadmin = rows.some(function(item) { return item.role === 'superadmin'; });
+  const bootstrapRole = !existing ? tatooineBootstrapRole_(auth.userId, hasSuperadmin) : '';
+  const user = publicTatooineUser_(existing, auth, bootstrapRole || (existing && existing.role));
+  if ((register || sh) && sh && !existing) {
+    const now = new Date();
+    sh.getRange(sh.getLastRow() + 1, 1, 1, FOX_RECEIPT_HEADERS.tatooineUsers.length).setValues([[auth.userId, auth.userName, user.role, now, now]]);
+  }
+  return user;
+}
+
+function listTatooineEmployees_(auth) {
+  const sh = tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, true);
+  getTatooineCurrentUser_(auth, true);
+  return tatooineUserRows_(sh).map(function(item) { return publicTatooineUser_(item, auth); });
+}
+
+function setTatooineEmployeeRole_(p, auth) {
+  const actor = requireTatooinePermission_(auth, 'roles.manage');
+  const targetUserId = requiredString_(p.targetUserId, 'targetUserId');
+  const newRole = normalizeTatooineRole_(p.role);
+  if (String(p.role || '').trim() !== newRole) throw new Error('Неизвестная роль.');
+  const lock = LockService.getDocumentLock();
+  if (!lock.tryLock(30000)) throw new Error('Система ролей сейчас занята. Повторите попытку.');
+  try {
+    const sh = tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, true);
+    getTatooineCurrentUser_(auth, true);
+    const rows = tatooineUserRows_(sh);
+    const target = rows.filter(function(item) { return item.userId === targetUserId; })[0];
+    if (!target) throw new Error('Сотрудник не найден.');
+    const oldRole = normalizeTatooineRole_(target.role);
+    const superadminCount = rows.filter(function(item) { return item.role === 'superadmin'; }).length;
+    assertTatooineRoleChangeAllowed_(actor.id, targetUserId, oldRole, newRole, superadminCount);
+    if (oldRole === newRole) return { changed: false };
+    sh.getRange(target.row, 3, 1, 3).setValues([[newRole, target.createdAt || new Date(), new Date()]]);
+    const audit = tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineRoleAudit, true);
+    audit.getRange(audit.getLastRow() + 1, 1, 1, FOX_RECEIPT_HEADERS.tatooineRoleAudit.length).setValues([[actor.id, targetUserId, oldRole, newRole, new Date()]]);
+    return { changed: true };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function setupTatooineRbac() {
+  const ss = SpreadsheetApp.getActive();
+  if (!ss) throw new Error('Открой скрипт именно из Google Таблицы стока.');
+  ensureServiceSheet_(ss, FOX_RECEIPTS.sheets.tatooineUsers, 'Tatooine — ПОЛЬЗОВАТЕЛИ', FOX_RECEIPT_HEADERS.tatooineUsers);
+  ensureServiceSheet_(ss, FOX_RECEIPTS.sheets.tatooineRoleAudit, 'Tatooine — АУДИТ РОЛЕЙ', FOX_RECEIPT_HEADERS.tatooineRoleAudit);
 }
 
 function decodeTelegramFormPart_(value) {
