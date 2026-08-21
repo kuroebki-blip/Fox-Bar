@@ -10,7 +10,8 @@ Telegram
 │   ├── документы и чеки
 │   └── кассовый отчёт
 └── Tatooine Mini App (tatooine/, GitHub Pages)
-    └── кассовый отчёт
+    ├── кассовый отчёт
+    └── развоз сотрудников (домашний адрес и заявки на текущую дату)
 
 Банкеты:
 Mini App → Cloudinary → URL → Banquets Apps Script → Google Sheets
@@ -30,6 +31,7 @@ Mini App → Scanner/Cash Apps Script → Gemini OCR / Telegram / Google Sheets
 - Google Sheets хранит бизнес-данные, но не фотографии.
 - Cloudinary хранит банкетные фотографии; в таблицу передаётся URL.
 - FO’X и Tatooine разделяют cash backend, но используют раздельные Telegram-маршруты.
+- Tatooine-развоз использует проверенный Telegram ID и существующий RBAC. Домашние адреса и заявки хранятся в служебных листах Apps Script; список адресов не загружается на старте и защищён server-side permissions.
 
 ## Состояние исходников
 

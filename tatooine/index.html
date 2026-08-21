@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0e1116">
-  <title>Tatooine v1.7.1</title>
+  <title>Tatooine v1.8.0</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Unbounded:wght@600;700&display=swap" rel="stylesheet">
@@ -24,7 +24,7 @@
   <main class="shell">
     <section class="app-screen" id="tatooineHub" aria-labelledby="hubTitle">
       <section class="intro">
-        <span class="version" id="appVersion">v1.7.1</span>
+        <span class="version" id="appVersion">v1.8.0</span>
         <h1 id="hubTitle">Tatooine</h1>
       </section>
       <nav class="hub-actions" aria-label="Разделы Tatooine">
@@ -37,8 +37,23 @@
     <section class="app-screen" id="taxiScreen" hidden aria-labelledby="taxiTitle">
       <button class="back-button" type="button" data-open-screen="hub">← Назад</button>
       <section class="intro">
-        <h1 id="taxiTitle">Такси</h1>
-        <p>Раздел появится после подключения модуля развоза.</p>
+        <h1 id="taxiTitle">Развоз</h1>
+      </section>
+      <section class="card ride-card" id="myRideCard">
+        <h2>Развоз домой</h2>
+        <div class="ride-status" id="myRideStatus" aria-live="polite">Загружаю данные…</div>
+        <button class="button primary wide" id="rideConfirm" type="button" hidden>Еду домой</button>
+        <button class="danger wide" id="rideCancel" type="button" hidden>Отменить развоз</button>
+      </section>
+      <section class="card ride-card" id="rideManagerCard" hidden>
+        <h2>Развоз сегодня</h2>
+        <div class="ride-status" id="rideManagerStatus" aria-live="polite"></div>
+        <div class="ride-list" id="rideTodayList"></div>
+      </section>
+      <section class="card ride-card" id="rideAddressManagementCard" hidden>
+        <h2>Адреса развоза</h2>
+        <div class="ride-status" id="rideAddressStatus" aria-live="polite"></div>
+        <div class="ride-list" id="rideEmployeeAddressList"></div>
       </section>
     </section>
 
@@ -143,6 +158,18 @@
         <button class="button secondary" id="cashConfirmCancel" type="button">Отмена</button>
         <button class="button primary" id="cashConfirmOk" type="button">Всё равно отправить</button>
       </div>
+    </div>
+  </div>
+
+  <div class="confirm" id="rideAddressDialog" hidden>
+    <div class="confirm-card" role="dialog" aria-modal="true" aria-labelledby="rideAddressDialogTitle">
+      <h2 id="rideAddressDialogTitle">Адрес развоза</h2>
+      <label class="field"><span>Домашний адрес</span><input id="rideAddressInput" type="text" autocomplete="street-address" maxlength="240" placeholder="Москва, Ленинградское шоссе, 78"></label>
+      <div class="actions">
+        <button class="button secondary" id="rideAddressDialogCancel" type="button">Отмена</button>
+        <button class="button primary" id="rideAddressDialogSave" type="button">Сохранить</button>
+      </div>
+      <button class="button secondary wide" id="rideAddressDialogClear" type="button">Удалить адрес</button>
     </div>
   </div>
 

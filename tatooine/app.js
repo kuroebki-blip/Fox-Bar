@@ -13,6 +13,9 @@
   let pollingToken = 0;
   let cameraStream = null;
   let currentUser = null;
+  let myRide = null;
+  let rideAddressTargetUserId = '';
+  let todayRideEmployeeIds = new Set();
 
   const $ = id => document.getElementById(id);
   const sleep = ms => new Promise(resolve => {
@@ -87,6 +90,227 @@
     } catch (_) {
       showRoleStatus('Не удалось загрузить список сотрудников.');
     }
+  }
+
+  function errorMessage(error, fallback) {
+    return String(error && error.message ? error.message : fallback || 'Не удалось выполнить действие.');
+  }
+
+  function setRideStatus(id, text) {
+    const el = $(id);
+    if (el) el.textContent = text || '';
+  }
+
+  function renderMyRide() {
+    const status = $('myRideStatus');
+    const confirm = $('rideConfirm');
+    const cancel = $('rideCancel');
+    if (!status || !confirm || !cancel) return;
+    const address = myRide && myRide.address ? String(myRide.address.text || '') : '';
+    if (!address) {
+      status.textContent = 'Адрес развоза не указан. Обратитесь к менеджеру.';
+      confirm.hidden = true;
+      cancel.hidden = true;
+      return;
+    }
+    status.replaceChildren();
+    const title = document.createElement('b');
+    title.textContent = myRide && myRide.needsRide ? '✓ Вы едете домой' : 'Ваш адрес:';
+    const text = document.createElement('div');
+    text.textContent = address;
+    status.append(title, text);
+    confirm.hidden = Boolean(myRide && myRide.needsRide);
+    cancel.hidden = !myRide || !myRide.needsRide;
+  }
+
+  async function loadMyRide() {
+    setRideStatus('myRideStatus', 'Загружаю данные…');
+    try {
+      const data = await jsonp(Object.assign({ action: 'tatooineMyRide' }, authParams()));
+      if (!data || !data.ok || !data.ride) throw new Error(data && data.error ? data.error : 'Не удалось загрузить развоз.');
+      myRide = data.ride;
+      renderMyRide();
+    } catch (error) {
+      myRide = null;
+      setRideStatus('myRideStatus', errorMessage(error, 'Не удалось загрузить развоз.'));
+      $('rideConfirm').hidden = true;
+      $('rideCancel').hidden = true;
+    }
+  }
+
+  async function setMyRideNeeded(needsRide) {
+    const confirm = $('rideConfirm');
+    const cancel = $('rideCancel');
+    confirm.disabled = true;
+    cancel.disabled = true;
+    try {
+      await post({ action: 'tatooineSetMyRide', needsRide: needsRide ? 'true' : 'false' });
+      await sleep(300);
+      await loadMyRide();
+      if (!myRide || Boolean(myRide.needsRide) !== Boolean(needsRide)) throw new Error('Заявка не сохранилась. Повторите попытку.');
+      haptic('success');
+    } catch (error) {
+      setRideStatus('myRideStatus', errorMessage(error, 'Не удалось сохранить заявку.'));
+    } finally {
+      confirm.disabled = false;
+      cancel.disabled = false;
+    }
+  }
+
+  function ridePersonElement(item, buttonLabel, buttonClass, onClick) {
+    const row = document.createElement('div');
+    row.className = 'ride-person';
+    const details = document.createElement('div');
+    const name = document.createElement('b');
+    name.textContent = item.name || 'Сотрудник';
+    const address = document.createElement('small');
+    address.textContent = item.address && item.address.text ? item.address.text : 'Адрес не указан';
+    details.append(name, address);
+    row.appendChild(details);
+    if (buttonLabel) {
+      appendRidePersonAction(row, buttonLabel, buttonClass, onClick);
+    }
+    return row;
+  }
+
+  function appendRidePersonAction(row, label, className, onClick) {
+    let controls = row.querySelector('.ride-person-actions');
+    if (!controls) {
+      controls = document.createElement('div');
+      controls.className = 'ride-person-actions';
+      row.appendChild(controls);
+    }
+    if (label) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = className || '';
+      button.textContent = label;
+      button.addEventListener('click', onClick);
+      controls.appendChild(button);
+    }
+  }
+
+  function renderRideManager(items) {
+    const card = $('rideManagerCard');
+    const list = $('rideTodayList');
+    if (!card || !list) return;
+    card.hidden = !can('rides.view_all');
+    if (card.hidden) return;
+    const values = Array.isArray(items) ? items : [];
+    todayRideEmployeeIds = new Set(values.map(item => String(item.employeeId || '')));
+    setRideStatus('rideManagerStatus', 'Едут домой: ' + values.length);
+    list.replaceChildren();
+    values.forEach(item => list.appendChild(ridePersonElement(item, can('rides.override') ? 'Убрать из развоза' : '', 'ride-remove', () => setEmployeeRideNeeded(item.employeeId, false))));
+    if (!values.length) list.textContent = 'Сегодня активных заявок нет.';
+  }
+
+  async function loadRideManager() {
+    if (!can('rides.view_all')) return;
+    setRideStatus('rideManagerStatus', 'Загружаю список…');
+    try {
+      const data = await jsonp(Object.assign({ action: 'tatooineRideToday' }, authParams()));
+      if (!data || !data.ok) throw new Error(data && data.error ? data.error : 'Не удалось загрузить список.');
+      renderRideManager(data.items);
+      return Array.isArray(data.items) ? data.items : [];
+    } catch (error) {
+      setRideStatus('rideManagerStatus', errorMessage(error, 'Не удалось загрузить список.'));
+      return null;
+    }
+  }
+
+  async function setEmployeeRideNeeded(employeeId, needsRide) {
+    try {
+      await post({ action: 'tatooineSetEmployeeRide', targetUserId: employeeId, needsRide: needsRide ? 'true' : 'false' });
+      await sleep(300);
+      const items = await loadRideManager();
+      if (!items || Boolean(items.some(item => String(item.employeeId || '') === String(employeeId))) !== Boolean(needsRide)) {
+        throw new Error('Заявка не сохранилась. Повторите попытку.');
+      }
+      await loadRideAddresses();
+    } catch (error) {
+      setRideStatus('rideManagerStatus', errorMessage(error, 'Не удалось обновить развоз.'));
+    }
+  }
+
+  function renderRideAddresses(items) {
+    const card = $('rideAddressManagementCard');
+    const list = $('rideEmployeeAddressList');
+    if (!card || !list) return;
+    card.hidden = !can('rides.manage_addresses');
+    if (card.hidden) return;
+    const values = Array.isArray(items) ? items : [];
+    list.replaceChildren();
+    values.forEach(item => {
+      const label = item.address && item.address.text ? 'Изменить' : 'Добавить';
+      const row = ridePersonElement(item, label, 'ride-add', () => openRideAddressDialog(item));
+      if (item.address && item.address.text && !todayRideEmployeeIds.has(String(item.id || '')) && can('rides.override')) {
+        appendRidePersonAction(row, 'Добавить в развоз', 'ride-add', () => setEmployeeRideNeeded(item.id, true));
+      }
+      list.appendChild(row);
+    });
+    if (!values.length) list.textContent = 'Сотрудники ещё не открывали приложение.';
+  }
+
+  async function loadRideAddresses() {
+    if (!can('rides.manage_addresses')) return;
+    setRideStatus('rideAddressStatus', 'Загружаю сотрудников…');
+    try {
+      const data = await jsonp(Object.assign({ action: 'tatooineRideEmployees' }, authParams()));
+      if (!data || !data.ok) throw new Error(data && data.error ? data.error : 'Не удалось загрузить сотрудников.');
+      setRideStatus('rideAddressStatus', '');
+      renderRideAddresses(data.items);
+      return Array.isArray(data.items) ? data.items : [];
+    } catch (error) {
+      setRideStatus('rideAddressStatus', errorMessage(error, 'Не удалось загрузить сотрудников.'));
+      return null;
+    }
+  }
+
+  function openRideAddressDialog(item) {
+    rideAddressTargetUserId = String(item && item.id || '');
+    $('rideAddressInput').value = item && item.address ? String(item.address.text || '') : '';
+    $('rideAddressDialogClear').hidden = !($('rideAddressInput').value);
+    $('rideAddressDialog').hidden = false;
+    $('rideAddressInput').focus();
+  }
+
+  function closeRideAddressDialog() {
+    rideAddressTargetUserId = '';
+    $('rideAddressDialog').hidden = true;
+  }
+
+  async function saveRideAddress(clearAddress) {
+    if (!rideAddressTargetUserId) return;
+    const save = $('rideAddressDialogSave');
+    const clear = $('rideAddressDialogClear');
+    save.disabled = true;
+    clear.disabled = true;
+    try {
+      await post({ action: 'tatooineSetEmployeeRideAddress', targetUserId: rideAddressTargetUserId, addressText: $('rideAddressInput').value, clearAddress: clearAddress ? 'true' : 'false' });
+      await sleep(300);
+      const employees = await loadRideAddresses();
+      const updated = employees && employees.find(item => String(item.id || '') === rideAddressTargetUserId);
+      const expectedAddress = clearAddress ? '' : $('rideAddressInput').value.trim().replace(/\s+/g, ' ');
+      if (!updated || String(updated.address && updated.address.text || '') !== expectedAddress) {
+        throw new Error('Адрес не сохранился. Повторите попытку.');
+      }
+      await loadRideManager();
+      if (currentUser && String(currentUser.id) === rideAddressTargetUserId) await loadMyRide();
+      closeRideAddressDialog();
+    } catch (error) {
+      setRideStatus('rideAddressStatus', errorMessage(error, 'Не удалось сохранить адрес.'));
+    } finally {
+      save.disabled = false;
+      clear.disabled = false;
+    }
+  }
+
+  async function openTaxi() {
+    showScreen('taxi');
+    if (!currentUser) await loadCurrentUser();
+    await loadMyRide();
+    await loadRideManager();
+    await loadRideAddresses();
   }
 
   function roleLabel(role) {
@@ -868,8 +1092,14 @@
     $('cashReportAddPrepayment').addEventListener('click', addPrepayment);
     $('cashReportSend').addEventListener('click', sendReport);
     $('openCashReport').addEventListener('click', () => showScreen('cash'));
-    $('openTaxi').addEventListener('click', () => showScreen('taxi'));
+    $('openTaxi').addEventListener('click', openTaxi);
     $('openRoleManagement').addEventListener('click', openRoleManagement);
+    $('rideConfirm').addEventListener('click', () => setMyRideNeeded(true));
+    $('rideCancel').addEventListener('click', () => setMyRideNeeded(false));
+    $('rideAddressDialogCancel').addEventListener('click', closeRideAddressDialog);
+    $('rideAddressDialogSave').addEventListener('click', () => saveRideAddress(false));
+    $('rideAddressDialogClear').addEventListener('click', () => saveRideAddress(true));
+    $('rideAddressDialog').addEventListener('click', event => { if (event.target === $('rideAddressDialog')) closeRideAddressDialog(); });
     document.querySelectorAll('[data-open-screen]').forEach(button => button.addEventListener('click', () => showScreen(button.dataset.openScreen)));
     bindInputs();
     renderPages();
