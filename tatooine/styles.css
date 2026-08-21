@@ -29,6 +29,7 @@ button,label[for]{-webkit-tap-highlight-color:transparent}
 .intro h1{margin:9px 0 7px;font:700 clamp(24px,7vw,38px) Unbounded,sans-serif;line-height:1.1}
 .intro p{margin:0;color:var(--muted);font-size:13px;line-height:1.55}
 .version{display:inline-flex;padding:5px 8px;border:1px solid rgba(227,184,107,.34);border-radius:999px;background:var(--sand-soft);color:var(--sand);font-size:10px;font-weight:800;letter-spacing:.6px}
+.hub-actions{display:grid;gap:10px}.hub-action{display:flex;align-items:center;gap:12px;width:100%;min-height:68px;padding:14px;border:1px solid var(--line-strong);border-radius:14px;background:var(--surface-2);color:var(--text);text-align:left;cursor:pointer}.hub-action span{font-size:24px}.hub-action b{font-size:15px}.hub-action.primary{border-color:rgba(227,184,107,.42);background:var(--sand-soft)}.back-button{margin:2px 0 13px;padding:8px 0;border:0;background:transparent;color:var(--muted);font-weight:700;cursor:pointer}.back-button:focus-visible,.hub-action:focus-visible{outline:2px solid var(--sand);outline-offset:3px}
 .status{padding:12px 13px;margin-bottom:14px;border:1px solid var(--line);border-radius:13px;background:var(--surface);color:var(--muted);font-size:13px;line-height:1.45}
 .status.ok{color:#ccebd9;border-color:rgba(114,201,154,.38);background:rgba(114,201,154,.1)}
 .status.warn{color:#efddb6;border-color:rgba(224,182,95,.38);background:rgba(224,182,95,.1)}

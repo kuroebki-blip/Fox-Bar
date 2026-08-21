@@ -5,6 +5,7 @@ const test = require('node:test');
 
 const backend = fs.readFileSync(path.join(__dirname, '../../apps-script/stock/production/Code.gs'), 'utf8');
 const frontend = fs.readFileSync(path.join(__dirname, '../../tatooine/app.js'), 'utf8');
+const markup = fs.readFileSync(path.join(__dirname, '../../tatooine/index.html'), 'utf8');
 const rbacStart = backend.indexOf('// ==== TATOOINE RBAC START ====');
 const rbacEnd = backend.indexOf('// ==== TATOOINE RBAC END ====', rbacStart);
 const rbacSource = backend.slice(rbacStart, rbacEnd);
@@ -59,4 +60,17 @@ test('role changes refresh the current session before rendering role-dependent U
   const handler = frontend.slice(handlerStart, handlerEnd);
   assert.ok(handler.indexOf('await loadCurrentUser();') >= 0);
   assert.equal(handler.indexOf('await loadRoleDirectory();'), -1);
+  assert.ok(handler.includes("showScreen('hub')"));
+});
+
+test('the app hub exposes role management separately and loads it only on demand', () => {
+  assert.match(markup, /id="openCashReport"/);
+  assert.match(markup, /id="openTaxi"/);
+  assert.match(markup, /id="openRoleManagement"[^>]*hidden/);
+  assert.match(markup, /id="roleManagementScreen" hidden/);
+  const currentUserStart = frontend.indexOf('async function loadCurrentUser()');
+  const currentUserEnd = frontend.indexOf('function jsonp(', currentUserStart);
+  const currentUserLoader = frontend.slice(currentUserStart, currentUserEnd);
+  assert.equal(currentUserLoader.includes('await loadRoleDirectory()'), false);
+  assert.match(frontend, /openRoleManagement.*addEventListener\('click', openRoleManagement\)/);
 });

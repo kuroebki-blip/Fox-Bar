@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0e1116">
-  <title>Tatooine Cash Report v1.7.0</title>
+  <title>Tatooine v1.7.1</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Unbounded:wght@600;700&display=swap" rel="stylesheet">
@@ -22,16 +22,40 @@
   </header>
 
   <main class="shell">
-    <section class="intro">
-      <span class="version" id="appVersion">v1.5.2</span>
-      <h1>Кассовый отчёт</h1>
-      <p>Добавьте отчёт iiko 041, конверт и все сводные слипы терминалов. На одной фотографии может быть несколько документов.</p>
+    <section class="app-screen" id="tatooineHub" aria-labelledby="hubTitle">
+      <section class="intro">
+        <span class="version" id="appVersion">v1.7.1</span>
+        <h1 id="hubTitle">Tatooine</h1>
+      </section>
+      <nav class="hub-actions" aria-label="Разделы Tatooine">
+        <button class="hub-action primary" id="openCashReport" type="button"><span aria-hidden="true">💰</span><b>Кассовый отчёт</b></button>
+        <button class="hub-action" id="openTaxi" type="button"><span aria-hidden="true">🚕</span><b>Такси</b></button>
+        <button class="hub-action" id="openRoleManagement" type="button" hidden><span aria-hidden="true">🛡️</span><b>Управление ролями</b></button>
+      </nav>
     </section>
 
-    <section class="card role-card" id="roleManagement" hidden aria-labelledby="roleManagementTitle">
-      <div class="role-head"><h2 id="roleManagementTitle">Сотрудники и роли</h2><span id="currentRole"></span></div>
-      <div class="role-status" id="roleStatus" aria-live="polite"></div>
-      <div class="role-list" id="roleList"></div>
+    <section class="app-screen" id="taxiScreen" hidden aria-labelledby="taxiTitle">
+      <button class="back-button" type="button" data-open-screen="hub">← Назад</button>
+      <section class="intro">
+        <h1 id="taxiTitle">Такси</h1>
+        <p>Раздел появится после подключения модуля развоза.</p>
+      </section>
+    </section>
+
+    <section class="app-screen" id="roleManagementScreen" hidden aria-labelledby="roleManagementTitle">
+      <button class="back-button" type="button" data-open-screen="hub">← Назад</button>
+      <section class="card role-card" id="roleManagement" hidden>
+        <div class="role-head"><h2 id="roleManagementTitle">Сотрудники и роли</h2><span id="currentRole"></span></div>
+        <div class="role-status" id="roleStatus" aria-live="polite"></div>
+        <div class="role-list" id="roleList"></div>
+      </section>
+    </section>
+
+    <section class="app-screen" id="cashReportScreen" hidden aria-labelledby="cashReportTitle">
+    <button class="back-button" type="button" data-open-screen="hub">← Назад</button>
+    <section class="intro">
+      <h1 id="cashReportTitle">Кассовый отчёт</h1>
+      <p>Добавьте отчёт iiko 041, конверт и все сводные слипы терминалов. На одной фотографии может быть несколько документов.</p>
     </section>
 
     <div class="status" id="cashReportStatus" aria-live="polite">
@@ -94,6 +118,7 @@
       <label class="field message"><span>Сообщение в Telegram</span><textarea id="cashReportMessage"></textarea></label>
       <button class="button primary wide send" id="cashReportSend" type="button">📨 Отправить отчёт в чат</button>
       <div class="summary">После отправки текст можно исправить и отправить повторно.</div>
+    </section>
     </section>
   </main>
 

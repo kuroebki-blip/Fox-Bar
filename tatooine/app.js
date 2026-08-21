@@ -64,6 +64,31 @@
     return canPermissions(currentUser, permission);
   }
 
+  function showScreen(name) {
+    const screens = {
+      hub: $('tatooineHub'),
+      cash: $('cashReportScreen'),
+      taxi: $('taxiScreen'),
+      roles: $('roleManagementScreen')
+    };
+    Object.keys(screens).forEach(key => {
+      if (screens[key]) screens[key].hidden = key !== name;
+    });
+    window.scrollTo(0, 0);
+  }
+
+  async function openRoleManagement() {
+    if (!can('roles.manage')) return;
+    showScreen('roles');
+    showRoleStatus('Загружаю сотрудников…');
+    try {
+      await loadRoleDirectory();
+      showRoleStatus('');
+    } catch (_) {
+      showRoleStatus('Не удалось загрузить список сотрудников.');
+    }
+  }
+
   function roleLabel(role) {
     return ({ employee: 'Employee', manager: 'Manager', admin: 'Admin', superadmin: 'Superadmin' })[String(role || '')] || String(role || 'Employee');
   }
@@ -77,17 +102,16 @@
     const card = $('roleManagement');
     const list = $('roleList');
     if (!card || !list) return;
-    if (!can('roles.view')) { card.hidden = true; return; }
+    if (!can('roles.manage')) { card.hidden = true; return; }
     card.hidden = false;
     $('currentRole').textContent = roleLabel(currentUser.role);
     const roles = Array.isArray(data && data.roles) ? data.roles : [];
-    const editable = can('roles.manage');
     const items = Array.isArray(data && data.items) ? data.items : [];
     list.innerHTML = items.map(user => {
       const options = roles.map(role => '<option value="' + escapeHtml(role) + '"' + (role === user.role ? ' selected' : '') + '>' + escapeHtml(roleLabel(role)) + '</option>').join('');
-      return '<div class="role-user"><div><b>' + escapeHtml(user.name) + '</b><small>' + escapeHtml(roleLabel(user.role)) + '</small></div><select data-user-id="' + escapeHtml(user.id) + '"' + (editable ? '' : ' disabled') + '>' + options + '</select></div>';
+      return '<div class="role-user"><div><b>' + escapeHtml(user.name) + '</b><small>' + escapeHtml(roleLabel(user.role)) + '</small></div><select data-user-id="' + escapeHtml(user.id) + '">' + options + '</select></div>';
     }).join('') || '<div class="role-status">Сотрудники ещё не открывали приложение.</div>';
-    if (editable) list.querySelectorAll('select[data-user-id]').forEach(select => {
+    list.querySelectorAll('select[data-user-id]').forEach(select => {
       select.addEventListener('change', async () => {
         select.disabled = true;
         showRoleStatus('Сохраняю роль…');
@@ -95,6 +119,10 @@
           await post({ action: 'tatooineSetRole', targetUserId: select.dataset.userId, role: select.value });
           await sleep(450);
           await loadCurrentUser();
+          if (!can('roles.manage')) {
+            showScreen('hub');
+            return;
+          }
           showRoleStatus('Роль обновлена.');
         } catch (_) {
           showRoleStatus('Не удалось обновить роль.');
@@ -105,7 +133,7 @@
   }
 
   async function loadRoleDirectory() {
-    if (!can('roles.view')) return;
+    if (!can('roles.manage')) return;
     const data = await jsonp(Object.assign({ action: 'tatooineEmployees' }, authParams()));
     if (!data || !data.ok) throw new Error(data && data.error ? data.error : 'Нет доступа.');
     renderRoleDirectory(data);
@@ -117,11 +145,14 @@
       const data = await jsonp(Object.assign({ action: 'currentUser' }, authParams()));
       if (!data || !data.ok || !data.user) throw new Error(data && data.error ? data.error : 'Нет доступа.');
       currentUser = data.user;
-      if (can('roles.view')) await loadRoleDirectory();
+      const button = $('openRoleManagement');
+      if (button) button.hidden = !can('roles.manage');
     } catch (_) {
       currentUser = null;
       const card = $('roleManagement');
       if (card) card.hidden = true;
+      const button = $('openRoleManagement');
+      if (button) button.hidden = true;
     }
   }
 
@@ -836,6 +867,10 @@
     $('cashReportAddSlip').addEventListener('click', addSlip);
     $('cashReportAddPrepayment').addEventListener('click', addPrepayment);
     $('cashReportSend').addEventListener('click', sendReport);
+    $('openCashReport').addEventListener('click', () => showScreen('cash'));
+    $('openTaxi').addEventListener('click', () => showScreen('taxi'));
+    $('openRoleManagement').addEventListener('click', openRoleManagement);
+    document.querySelectorAll('[data-open-screen]').forEach(button => button.addEventListener('click', () => showScreen(button.dataset.openScreen)));
     bindInputs();
     renderPages();
     checkBackend();
