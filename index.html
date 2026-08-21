@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.14.3 — UI COPY CLEANUP</title>
+<title>FO'X App v15.14.4 — CASH PAYMENT FIELDS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -887,8 +887,7 @@ body.mode-cash-report #backBtn{display:inline-flex}
       <div class="cash-field"><label>Безнал 2 — Банковские карты 2</label><input id="cashReportBankCards2" type="number" inputmode="decimal" step="0.01"></div>
       <div class="cash-field"><label>Нал — Наличка, нефискальный тип</label><input id="cashReportCashNonFiscal" type="number" inputmode="decimal" step="0.01"></div>
       <div class="cash-field"><label>Нал Фискал — наличные, фискальный тип</label><input id="cashReportCashFiscal" type="number" inputmode="decimal" step="0.01"></div>
-      <div class="cash-field"><label>Нал2 — Наличные 2</label><input id="cashReportCash2" type="number" inputmode="decimal" step="0.01"></div>
-      <div class="cash-field"><label>Tapper</label><input id="cashReportTapper" type="number" inputmode="decimal" step="0.01"></div>
+      <div class="cash-field"><label>EatAndSplit</label><input id="cashReportItemsSplit" type="number" inputmode="decimal" step="0.01"></div>
       <div class="cash-field"><label>Расчётный счёт</label><input id="cashReportSettlement" type="number" inputmode="decimal" step="0.01"></div>
       <div class="cash-field"><label>Расчётный счёт 2</label><input id="cashReportSettlement2" type="number" inputmode="decimal" step="0.01"></div>
       <div class="cash-field full"><label>Онлайн-Касса 2</label><input id="cashReportOnlineCashbox2" type="number" inputmode="decimal" step="0.01"></div>
@@ -3319,13 +3318,15 @@ async function pollCashReportJob(jobId,finalStatuses,maxMs){
   }
   throw new Error('Сервер отвечает слишком долго. Повтори через минуту.');
 }
+function normalizedCashPaymentName_(value){return String(value||'').trim().toLowerCase().replace(/ё/g,'е').replace(/[‐‑‒–—-]+/g,' ').replace(/\s+/g,' ').replace(/^оплата\s+/,'').replace(/\s+(?:продажа|предоплата)$/,'').trim();}
+function cashPaymentRowAmount_(rows,names){const targets=(names||[]).map(normalizedCashPaymentName_);const found=(Array.isArray(rows)?rows:[]).find(row=>targets.includes(normalizedCashPaymentName_(row&&(row.name||row.row_name))));return found?Number(found.amount)||0:0;}
 function cashInputValue(id,value){const el=document.getElementById(id);if(!el)return;const n=Number(value)||0;el.value=n?String(n):'';}
 function renderCashReportResult(r){
   document.getElementById('cashReportResultCard').hidden=false;
   document.getElementById('cashReportDate').value=r.reportDate||'';
   cashInputValue('cashReportTotalRevenue',r.totalRevenue);cashInputValue('cashReportBankCards',r.bankCards);cashInputValue('cashReportBankCards2',r.bankCards2);
-  cashInputValue('cashReportCashNonFiscal',r.cashNonFiscal);cashInputValue('cashReportCashFiscal',r.cashFiscal);cashInputValue('cashReportCash2',r.cash2);
-  cashInputValue('cashReportTapper',r.tapper);cashInputValue('cashReportSettlement',r.settlementAccount);cashInputValue('cashReportSettlement2',r.settlementAccount2);cashInputValue('cashReportOnlineCashbox2',r.onlineCashbox2);
+  cashInputValue('cashReportCashNonFiscal',r.cashNonFiscal);cashInputValue('cashReportCashFiscal',r.cashFiscal);cashInputValue('cashReportItemsSplit',cashPaymentRowAmount_(r.paymentRows,['Items Split','EatAndSplit']));
+  cashInputValue('cashReportSettlement',r.settlementAccount);cashInputValue('cashReportSettlement2',r.settlementAccount2);cashInputValue('cashReportOnlineCashbox2',r.onlineCashbox2);
   document.getElementById('cashReportExpense').value='0';document.getElementById('cashReportExpenseComment').value='';cashInputValue('cashReportCollection',r.collectionAmount);cashInputValue('cashReportCollectionActual',r.collectionActual);document.getElementById('cashReportMorningCash').value='0';document.getElementById('cashReportChangeFund').value='70000';
   cashReportTerminalSlips=Array.isArray(r.terminalSlips)?r.terminalSlips.map((x,i)=>({label:String(x.label||('Терминал '+(i+1))),amount:Number(x.amount)||0})).filter(x=>x.amount>0):[];
   cashReportPrepayments=[];renderCashTerminalSlips();renderCashPrepayments();bindCashReportInputs();refreshCashReportMessage();
@@ -3359,14 +3360,14 @@ function refreshCashReportMessage(){
   const date=document.getElementById('cashReportDate').value.trim();const expense=cashNumber('cashReportExpense');const collection=cashNumber('cashReportCollection');const actualCollection=cashNumber('cashReportCollectionActual');
   const collectionLine='Инкассация:'+(collection?' '+formatCashPlain(collection):'')+(actualCollection?' ('+formatCashPlain(actualCollection)+')':'');
   const lines=["🔤🔤'🔤",'', '🦊 АЛЛЕЯ 🌳','👨‍💻 ОТЧЕТ КАССОВОЙ СМЕНЫ','ДАТА '+date,'','Общая выручка: '+formatCashMoney(cashNumber('cashReportTotalRevenue')),'',
-    cashLine('Безнал',cashNumber('cashReportBankCards')),cashLine('Безнал 2',cashNumber('cashReportBankCards2')),cashLine('Нал',cashNumber('cashReportCashNonFiscal')),cashLine('Нал Фискал',cashNumber('cashReportCashFiscal')),cashLine('Нал2',cashNumber('cashReportCash2')),cashLine('Tapper',cashNumber('cashReportTapper')),cashLine('Расчётный счёт',cashNumber('cashReportSettlement')),cashLine('Расчётный счёт 2',cashNumber('cashReportSettlement2')),cashLine('Онлайн-Касса 2',cashNumber('cashReportOnlineCashbox2')),'','Расход: '+formatCashPlain(expense)];
+    cashLine('Безнал',cashNumber('cashReportBankCards')),cashLine('Безнал 2',cashNumber('cashReportBankCards2')),cashLine('Нал',cashNumber('cashReportCashNonFiscal')),cashLine('Нал Фискал',cashNumber('cashReportCashFiscal')),cashLine('EatAndSplit',cashNumber('cashReportItemsSplit')),cashLine('Расчётный счёт',cashNumber('cashReportSettlement')),cashLine('Расчётный счёт 2',cashNumber('cashReportSettlement2')),cashLine('Онлайн-Касса 2',cashNumber('cashReportOnlineCashbox2')),'','Расход: '+formatCashPlain(expense)];
   const expenseComment=document.getElementById('cashReportExpenseComment').value.trim();if(expenseComment)lines.push('Комментарий к расходу: '+expenseComment);
   lines.push('',collectionLine,'На утро в кассе ['+formatCashPlain(cashNumber('cashReportMorningCash'))+']','Неизменный размен ['+formatCashPlain(cashNumber('cashReportChangeFund'))+']');
   cashReportPrepayments.filter(p=>p.date&&Number(p.amount)>0).forEach(p=>{lines.push('','🟢 Предоплата: '+shortCashDate(p.date),formatCashPlain(p.amount)+' '+cashPaymentPhrase(p.method));});
   document.getElementById('cashReportMessage').value=lines.join('\n');updateCashComparison();
 }
 function bindCashReportInputs(){
-  ['cashReportDate','cashReportTotalRevenue','cashReportBankCards','cashReportBankCards2','cashReportCashNonFiscal','cashReportCashFiscal','cashReportCash2','cashReportTapper','cashReportSettlement','cashReportSettlement2','cashReportOnlineCashbox2','cashReportExpense','cashReportExpenseComment','cashReportCollection','cashReportCollectionActual','cashReportMorningCash','cashReportChangeFund'].forEach(id=>{const el=document.getElementById(id);el.oninput=refreshCashReportMessage;el.onchange=refreshCashReportMessage;});
+  ['cashReportDate','cashReportTotalRevenue','cashReportBankCards','cashReportBankCards2','cashReportCashNonFiscal','cashReportCashFiscal','cashReportItemsSplit','cashReportSettlement','cashReportSettlement2','cashReportOnlineCashbox2','cashReportExpense','cashReportExpenseComment','cashReportCollection','cashReportCollectionActual','cashReportMorningCash','cashReportChangeFund'].forEach(id=>{const el=document.getElementById(id);el.oninput=refreshCashReportMessage;el.onchange=refreshCashReportMessage;});
 }
 function foxCashConfirm(message){
   return new Promise(resolve=>{
