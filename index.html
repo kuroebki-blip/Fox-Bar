@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.14.2 — SCANNER UI SIMPLIFICATION</title>
+<title>FO'X App v15.14.3 — UI COPY CLEANUP</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -31,7 +31,6 @@
   .head-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
   .wordmark{font-family:"Unbounded",sans-serif;font-weight:800;font-size:24px;letter-spacing:.5px;line-height:1}
   .wordmark .dot{color:var(--amber)}
-  .subtitle{font-size:12px;color:var(--muted);font-weight:500;margin-top:3px}
   .reset{border:1px solid var(--line-strong);background:transparent;color:var(--muted);
     font-family:inherit;font-size:12px;font-weight:600;padding:9px 12px;border-radius:10px;cursor:pointer}
   .reset:active{background:var(--surface-2)}
@@ -181,24 +180,19 @@ body.mode-hub #backBtn{display:none}
 #checklistsScreen{max-width:none;padding:0}
 .hub-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:6px}
 .hub-card{width:100%;text-align:left;border:1px solid var(--line);background:var(--surface);
-  color:var(--text);border-radius:18px;padding:18px 16px;cursor:pointer;font-family:inherit}
+  color:var(--text);border-radius:18px;padding:16px;cursor:pointer;font-family:inherit}
 .hub-card:active{background:var(--surface-2)}
 .hub-card .hc-ico{font-size:26px;margin-bottom:8px}
-.hub-card .hc-title{font-family:"Unbounded",sans-serif;font-size:16px;font-weight:600;margin-bottom:4px}
-.hub-card .hc-sub{font-size:13px;color:var(--muted);line-height:1.45}
-.tables-intro{font-size:14px;color:var(--muted);line-height:1.5;margin:0 0 14px}
+.hub-card .hc-title{font-family:"Unbounded",sans-serif;font-size:16px;font-weight:600}
 .tables-list{display:grid;gap:10px}
 .table-link{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:1px solid var(--line);background:var(--surface);
   color:var(--text);border-radius:15px;padding:14px;cursor:pointer;font-family:inherit}
 .table-link:active{background:var(--surface-2)}
 .table-link-icon{display:grid;place-items:center;flex:0 0 42px;width:42px;height:42px;border-radius:12px;background:var(--amber-soft);font-size:22px}
-.table-link-copy{min-width:0;flex:1}.table-link-copy b{display:block;font-size:14px}.table-link-copy span{display:block;margin-top:3px;color:var(--muted);font-size:12px;line-height:1.35}
+.table-link-copy{min-width:0;flex:1}.table-link-copy b{display:block;font-size:14px}
 .table-link-arrow{font-size:22px;color:var(--amber);line-height:1}
-.hub-note{margin-top:14px;background:var(--surface);border:1px solid var(--line);border-radius:14px;
-  padding:13px 14px;color:var(--muted);font-size:13px;line-height:1.5}
 .banq-top{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:12px}
 .banq-title{font-family:"Unbounded",sans-serif;font-size:18px;font-weight:600}
-.banq-sub{font-size:12px;color:var(--muted);margin-top:3px}
 .banq-nav{display:flex;gap:8px;align-items:center;margin:12px 0}
 .banq-month{flex:1;text-align:center;font-family:"Unbounded",sans-serif;font-size:14px;font-weight:600;color:var(--text)}
 .icon-btn{width:42px;height:38px;border-radius:11px;border:1px solid var(--line-strong);
@@ -528,7 +522,6 @@ body.mode-cash-report #backBtn{display:inline-flex}
 .cash-row-remove{width:42px;height:42px;border:1px solid rgba(240,139,125,.35);background:transparent;color:#F0B0A7;border-radius:10px;font-size:17px;cursor:pointer}
 .cash-prepayment{grid-template-columns:1fr 1fr 1.4fr auto;border:1px solid var(--line);background:var(--surface-2);border-radius:12px;padding:9px}
 .cash-prepayment input,.cash-prepayment select{width:100%;border:1px solid var(--line-strong);background:var(--bg);color:var(--text);border-radius:9px;padding:10px;font-family:inherit;font-size:12px}
-.cash-note{font-size:12px;color:var(--muted);line-height:1.45;margin-top:9px}
 .fox-confirm-overlay{position:fixed;inset:0;z-index:140;background:rgba(0,0,0,.68);display:none;
   align-items:center;justify-content:center;padding:20px}
 .fox-confirm-overlay.show{display:flex;animation:fade .16s ease}
@@ -552,7 +545,6 @@ body.mode-cash-report #backBtn{display:inline-flex}
     <div class="brand">
       <div>
         <div class="wordmark">FO<span class="dot">'</span>X</div>
-        <div class="subtitle" id="appSubtitle">Единое мини-приложение</div>
       </div>
     </div>
     <button class="reset" id="resetBtn">Сбросить</button>
@@ -568,31 +560,23 @@ body.mode-cash-report #backBtn{display:inline-flex}
     <button class="hub-card" data-open-section="checklists">
       <div class="hc-ico">🧾</div>
       <div class="hc-title">Чек-листы</div>
-      <div class="hc-sub">Подготовка бара к вечерней посадке, отчёт по отсутствующим позициям.</div>
     </button>
     <button class="hub-card" data-open-section="banquets">
       <div class="hc-ico">🍽</div>
       <div class="hc-title">Банкеты</div>
-      <div class="hc-sub">Календарь банкетов, фото заказов и список на выбранный день.</div>
     </button>
     <button class="hub-card" data-open-section="receipts">
       <div class="hc-ico">📦</div>
       <div class="hc-title">Документы и чеки</div>
-      <div class="hc-sub">Сканирование поставок и кассовых чеков, единый PDF, сток и отправка в Telegram.</div>
     </button>
     <button class="hub-card" data-open-section="cash-report">
       <div class="hc-ico">💰</div>
       <div class="hc-title">Кассовый отчёт</div>
-      <div class="hc-sub">Распознавание отчёта iiko и терминальных слипов, сверка безнала и отправка отчёта в Telegram.</div>
     </button>
     <button class="hub-card" data-open-section="tables">
       <div class="hc-ico">📊</div>
       <div class="hc-title">Таблицы</div>
-      <div class="hc-sub">Все рабочие Google Sheets в одном месте.</div>
     </button>
-  </div>
-  <div class="hub-note">
-    Это общий хаб: один Telegram-бот открывает один FO'X App, а внутри выбирается нужный раздел.
   </div>
 </section>
 
@@ -602,19 +586,18 @@ body.mode-cash-report #backBtn{display:inline-flex}
 </section>
 
 <section class="app-screen" id="tablesScreen">
-  <p class="tables-intro">Выберите таблицу. Она откроется в новой вкладке или в приложении Google Sheets.</p>
   <div class="tables-list">
     <button class="table-link" type="button" data-table-url="https://docs.google.com/spreadsheets/d/1onjNh8-xAGPn7oomX60QgzIFYifzzc8y6iExZRdXE40/edit?gid=0#gid=0">
-      <span class="table-link-icon">📄</span><span class="table-link-copy"><b>Еженедельная проработка фрешей</b><span>Открыть Google Sheets</span></span><span class="table-link-arrow">›</span>
+      <span class="table-link-icon">📄</span><span class="table-link-copy"><b>Еженедельная проработка фрешей</b></span><span class="table-link-arrow">›</span>
     </button>
     <button class="table-link" type="button" data-table-url="https://docs.google.com/spreadsheets/d/1Ii8vMKNxgg01_NJ-u6d-kgK1GO4S_IJYPkPHzWSxWeU/edit?gid=0#gid=0">
-      <span class="table-link-icon">📄</span><span class="table-link-copy"><b>Заказ заготовок</b><span>Открыть Google Sheets</span></span><span class="table-link-arrow">›</span>
+      <span class="table-link-icon">📄</span><span class="table-link-copy"><b>Заказ заготовок</b></span><span class="table-link-arrow">›</span>
     </button>
     <button class="table-link" type="button" data-table-url="https://docs.google.com/spreadsheets/d/1bx3hERXnVNF5GbiGkYFflbmoeQgqjmu964-Q50zhumQ/edit?gid=598893127#gid=598893127">
-      <span class="table-link-icon">📄</span><span class="table-link-copy"><b>FOX_СТОК v15</b><span>Открыть Google Sheets</span></span><span class="table-link-arrow">›</span>
+      <span class="table-link-icon">📄</span><span class="table-link-copy"><b>FOX_СТОК v15</b></span><span class="table-link-arrow">›</span>
     </button>
     <button class="table-link" type="button" data-table-url="https://docs.google.com/spreadsheets/d/1yK3yTIk8GNrnhMhjgdsH1CZ-QGhPCPMvken2MoG8Z3c/edit?gid=1806498141#gid=1806498141">
-      <span class="table-link-icon">📄</span><span class="table-link-copy"><b>НОВЫЙ БЛАНК ИП Андреев Заказ FOX</b><span>Открыть Google Sheets</span></span><span class="table-link-arrow">›</span>
+      <span class="table-link-icon">📄</span><span class="table-link-copy"><b>НОВЫЙ БЛАНК ИП Андреев Заказ FOX</b></span><span class="table-link-arrow">›</span>
     </button>
   </div>
 </section>
@@ -623,7 +606,6 @@ body.mode-cash-report #backBtn{display:inline-flex}
   <div class="banq-top">
     <div>
       <div class="banq-title">Банкеты</div>
-      <div class="banq-sub">Выбери дату в календаре, чтобы увидеть заказы</div>
     </div>
     <button class="banq-refresh" id="banqRefresh" type="button">Обновить</button>
   </div>
@@ -894,7 +876,6 @@ body.mode-cash-report #backBtn{display:inline-flex}
       <button class="cash-primary" id="cashReportRecognize" type="button" disabled>Распознать кассовый отчёт</button>
     </div>
     <div class="cash-summary" id="cashReportPageSummary">Фотографий пока нет.</div>
-    <div class="cash-note">Фотографии и PDF не записываются в Google Sheets и Google Drive. PDF передаётся из приложения прямо в Gemini и удаляется из памяти после обработки.</div>
   </div>
 
   <div class="cash-card" id="cashReportResultCard" hidden>
@@ -1441,14 +1422,6 @@ function setAppSection(section){
   document.getElementById('banquetsScreen').classList.toggle('active', section==='banquets');
   document.getElementById('receiptsScreen').classList.toggle('active', section==='receipts');
   document.getElementById('cashReportScreen').classList.toggle('active', section==='cash-report');
-
-  const sub = document.getElementById('appSubtitle');
-  if(section==='hub') sub.textContent = 'Единое мини-приложение';
-  if(section==='checklists') sub.textContent = 'Подготовка бара к вечерней посадке';
-  if(section==='tables') sub.textContent = 'Рабочие Google Sheets';
-  if(section==='banquets') sub.textContent = 'Календарь банкетов и фото заказов';
-  if(section==='receipts') sub.textContent = 'Сканер документов и кассовых чеков';
-  if(section==='cash-report') sub.textContent = 'Кассовый отчёт iiko и терминалов';
 
   if(section==='banquets'){
     renderBanquets();
