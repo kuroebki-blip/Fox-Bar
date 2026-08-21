@@ -114,29 +114,6 @@
     return { pages: list.length, totalBytes };
   }
 
-  function cashOcrMontageSpec(width, height, maxSide = 3200) {
-    const sourceWidth = Math.max(2, Math.round(Number(width) || 0));
-    const sourceHeight = Math.max(2, Math.round(Number(height) || 0));
-    const scale = Math.min(1, Math.max(2, Number(maxSide) || 3200) / Math.max(sourceWidth, sourceHeight));
-    const outputWidth = Math.max(2, Math.round(sourceWidth * scale));
-    const outputHeight = Math.max(2, Math.round(sourceHeight * scale));
-    const cropWidth = Math.max(1, Math.round(sourceWidth * .58));
-    const cropHeight = Math.max(1, Math.round(sourceHeight * .58));
-    const leftWidth = Math.floor(outputWidth / 2);
-    const topHeight = Math.floor(outputHeight / 2);
-    const xs = [0, sourceWidth - cropWidth];
-    const ys = [0, sourceHeight - cropHeight];
-    const tiles = [];
-    ys.forEach((sourceY, row) => xs.forEach((sourceX, column) => tiles.push({
-      sourceX, sourceY, sourceWidth: cropWidth, sourceHeight: cropHeight,
-      targetX: column ? leftWidth : 0,
-      targetY: row ? topHeight : 0,
-      targetWidth: column ? outputWidth - leftWidth : leftWidth,
-      targetHeight: row ? outputHeight - topHeight : topHeight
-    })));
-    return { outputWidth, outputHeight, tiles };
-  }
-
   function normalizedPaymentName(value) {
     return String(value || '')
       .trim()
@@ -247,12 +224,12 @@
     });
   }
 
-  async function preparePage(file) {
+  async function prepareOriginalPage(file) {
     const raw = await readFileAsDataUrl(file);
     const image = await loadImage(raw, 'Не удалось открыть фото. Используйте JPG/PNG или сделайте скриншот.');
     const rawWidth = image.naturalWidth || image.width;
     const rawHeight = image.naturalHeight || image.height;
-    const scale = Math.min(1, 3400 / Math.max(rawWidth, rawHeight));
+    const scale = Math.min(1, 2200 / Math.max(rawWidth, rawHeight));
     const width = Math.max(1, Math.round(rawWidth * scale));
     const height = Math.max(1, Math.round(rawHeight * scale));
     const canvas = document.createElement('canvas');
@@ -264,7 +241,26 @@
     context.fillStyle = '#fff';
     context.fillRect(0, 0, width, height);
     context.drawImage(image, 0, 0, width, height);
-    return { id: 'page_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), dataUrl: await canvasToJpeg(canvas, .94), width, height };
+    return { dataUrl: await canvasToJpeg(canvas, .84), width, height };
+  }
+
+  async function preparePage(file) {
+    const Scanner = window.DocumentScanner;
+    if (typeof Scanner !== 'function') {
+      const original = await prepareOriginalPage(file);
+      return Object.assign({ id: 'page_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7) }, original);
+    }
+    const scanner = new Scanner({ maxLongSide: 1800, allowOriginal: true });
+    const scan = await scanner.process(file,{title:'Проверь документ',confirm:'Использовать скан'});
+    if (!scan.confirmed) return null;
+    return {
+      id: 'page_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+      dataUrl: await readFileAsDataUrl(scan.blob),
+      width: scan.width,
+      height: scan.height,
+      usedOriginal: scan.usedOriginal,
+      documentDetected: scan.documentDetected
+    };
   }
 
   async function rotateDataUrl(dataUrl) {
@@ -287,7 +283,7 @@
     const image = await loadImage(page.dataUrl, 'Не удалось подготовить фотографию для OCR.');
     const rawWidth = image.naturalWidth || image.width;
     const rawHeight = image.naturalHeight || image.height;
-    const scale = Math.min(1, 3200 / Math.max(rawWidth, rawHeight));
+    const scale = Math.min(1, 2200 / Math.max(rawWidth, rawHeight));
     const width = Math.max(1, Math.round(rawWidth * scale));
     const height = Math.max(1, Math.round(rawHeight * scale));
     const canvas = document.createElement('canvas');
@@ -299,7 +295,7 @@
     context.fillStyle = '#fff';
     context.fillRect(0, 0, canvas.width, canvas.height);
     context.drawImage(image, 0, 0, width, height);
-    const dataUrl = await canvasToJpeg(canvas, .94);
+    const dataUrl = await canvasToJpeg(canvas, .84);
     return { mimeType: 'image/jpeg', data: dataUrl.slice(dataUrl.indexOf(',') + 1), width: canvas.width, height: canvas.height };
   }
 
@@ -329,7 +325,10 @@
     invalidateRecognition();
     setStatus('', 'Подготавливаю фотографии…', .04);
     try {
-      for (const file of files) pages.push(await preparePage(file));
+      for (const file of files) {
+        const page = await preparePage(file);
+        if (page) pages.push(page);
+      }
       renderPages();
       setStatus('', 'Фотографии готовы. Проверьте порядок и нажмите «Распознать отчёт».');
     } catch (error) {
@@ -771,6 +770,6 @@
     checkBackend();
   }
 
-  window.TatooineCashTest = Object.freeze({ base64DecodedBytes, validateOcrImages, cashOcrMontageSpec, exactPaymentRowAmount, buildTatooineCashMessage, updateComparison, usesAndroidTelegramCamera });
+  window.TatooineCashTest = Object.freeze({ base64DecodedBytes, validateOcrImages, exactPaymentRowAmount, buildTatooineCashMessage, updateComparison, usesAndroidTelegramCamera });
   init();
 })();

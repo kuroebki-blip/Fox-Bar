@@ -23,7 +23,7 @@ Mini App → Scanner/Cash Apps Script → Gemini OCR / Telegram / Google Sheets
 
 ### Общий document scanner
 
-`shared/document-scanner/` содержит frontend-only обработку документа: ленивую загрузку OpenCV.js, поиск границ, perspective transform, фильтры и preview с fallback на оригинал. В текущей candidate-итерации модуль подключён только к документам и кассовому отчёту FO’X; он не обрабатывает фото банкетов и не меняет Apps Script/OCR-контракты. Tatooine будет подключён отдельной задачей после живого теста FO’X в Android Telegram.
+`shared/document-scanner/` содержит frontend-only обработку документа: ленивую загрузку OpenCV.js, поиск границ, perspective transform и preview с fallback на оригинал. Модуль подключён к документам и кассовому отчёту FO’X, а также к кассовому отчёту Tatooine; OpenCV загружается только после выбора фотографии. Он не обрабатывает фото банкетов и не меняет Apps Script/OCR-контракты.
 
 - Frontend хранит интерфейс, подготовку изображений и публичные endpoint-конфиги.
 - Apps Script выполняет авторизацию Mini App, обращается к Gemini и Telegram и работает с таблицами.
