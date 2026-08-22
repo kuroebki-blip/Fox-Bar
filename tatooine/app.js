@@ -305,11 +305,11 @@
   async function loadRideOptimization() { if (!can('rides.optimize')) return; const data=await jsonp(Object.assign({action:'tatooineRideOptimization'},authParams())); if(!data||!data.ok)throw new Error(data&&data.error||'Не удалось загрузить машины.'); rideOptimization=data.optimization; if (rideOptimization && rideOptimization.state === 'ready') { try { await loadRideRouteDetails(); } catch (_) {} } renderRideOptimization(); }
   async function optimizeRide() { const button=$('rideOptimize'); button.disabled=true; setRideStatus('rideRouteStatus','Формируем машины…'); try { await post({action:'tatooineOptimizeRide'}); await sleep(500); await loadRideOptimization(); haptic('success'); } catch(error) { setRideStatus('rideRouteStatus',errorMessage(error,'Не удалось сформировать машины.')); } finally { button.disabled=false; } }
 
-  function buildYandexMapsNativeRouteUrl(origin, dropoffs) {
+  function buildYandexMapsExternalRouteUrl(origin, dropoffs) {
     const points = [origin].concat(dropoffs || []);
     if (points.length < 2 || points.some(point => !point || !Number.isFinite(Number(point.latitude)) || !Number.isFinite(Number(point.longitude)))) throw new Error('Не удалось подготовить точки маршрута.');
     const routeText = points.map(point => Number(point.latitude) + ',' + Number(point.longitude)).join('~');
-    return 'yandexmaps://maps.yandex.com/?rtext=' + encodeURIComponent(routeText) + '&rtt=auto';
+    return 'https://yandex.ru/maps/?mode=routes&rtext=' + encodeURIComponent(routeText) + '&rtt=auto';
   }
 
   async function loadRideRouteDetails() {
@@ -351,13 +351,8 @@
     button.disabled = true;
     try {
       const route = loadRideCarRouteData(car);
-      const link = document.createElement('a');
-      link.href = buildYandexMapsNativeRouteUrl(route.origin, route.dropoffs);
-      link.target = '_blank';
-      link.rel = 'noopener';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      if (!TG || typeof TG.openLink !== 'function') throw new Error('Откройте маршрут через Telegram на iPhone.');
+      TG.openLink(buildYandexMapsExternalRouteUrl(route.origin, route.dropoffs));
       setRideStatus('rideRouteStatus', 'Открываю Яндекс Карты…');
     } catch (error) { setRideStatus('rideRouteStatus', errorMessage(error, 'Не удалось открыть маршрут.')); button.disabled = false; }
     finally { button.disabled = false; }
