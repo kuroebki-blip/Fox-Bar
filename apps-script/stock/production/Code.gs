@@ -16,7 +16,7 @@
  */
 
 const FOX_RECEIPTS = {
-  version: 'v9.7.1 TATOOINE RIDE DATE FIX',
+  version: 'v9.7.2 TATOOINE RIDE REQUEST DEDUPE',
 
   stockSheets: [
     'Вино',
@@ -257,11 +257,34 @@ function normalizeTatooineRideDate_(value) {
   return match ? match[1] : text;
 }
 
-function activeTatooineRideRequests_(rows, rideDate) {
+function tatooineRideRequestTimestamp_(request) {
+  const value = request && (request.updatedAt || request.createdAt);
+  if (value instanceof Date && !isNaN(value.getTime())) return value.getTime();
+  const parsed = Date.parse(String(value || ''));
+  return isNaN(parsed) ? 0 : parsed;
+}
+
+function isNewerTatooineRideRequest_(candidate, current) {
+  if (!current) return true;
+  const candidateTime = tatooineRideRequestTimestamp_(candidate);
+  const currentTime = tatooineRideRequestTimestamp_(current);
+  if (candidateTime !== currentTime) return candidateTime > currentTime;
+  return Number(candidate && candidate.row || 0) > Number(current && current.row || 0);
+}
+
+function latestTatooineRideRequestsForDate_(rows, rideDate) {
   const day = normalizeTatooineRideDate_(rideDate);
-  return (rows || []).filter(function(item) {
-    return normalizeTatooineRideDate_(item.rideDate) === day && item.needsRide === true;
+  const latest = {};
+  (rows || []).forEach(function(item) {
+    if (normalizeTatooineRideDate_(item.rideDate) !== day || !item.employeeId) return;
+    const current = latest[item.employeeId];
+    if (isNewerTatooineRideRequest_(item, current)) latest[item.employeeId] = item;
   });
+  return Object.keys(latest).map(function(employeeId) { return latest[employeeId]; });
+}
+
+function activeTatooineRideRequests_(rows, rideDate) {
+  return latestTatooineRideRequestsForDate_(rows, rideDate).filter(function(item) { return item.needsRide === true; });
 }
 
 function upsertTatooineRideRequest_(rows, employeeId, rideDate, needsRide, actorUserId, now) {
@@ -270,7 +293,10 @@ function upsertTatooineRideRequest_(rows, employeeId, rideDate, needsRide, actor
   if (!id || !day) throw new Error('Не удалось определить сотрудника или дату развоза.');
   const stamp = now || new Date();
   const copy = (rows || []).map(function(item) { return Object.assign({}, item); });
-  const index = copy.findIndex(function(item) { return String(item.employeeId || '') === id && normalizeTatooineRideDate_(item.rideDate) === day; });
+  const index = copy.reduce(function(best, item, itemIndex) {
+    if (String(item.employeeId || '') !== id || normalizeTatooineRideDate_(item.rideDate) !== day) return best;
+    return best < 0 || isNewerTatooineRideRequest_(item, copy[best]) ? itemIndex : best;
+  }, -1);
   const existing = index >= 0 ? copy[index] : null;
   const active = needsRide === true;
   const request = Object.assign({}, existing || {
@@ -2818,6 +2844,20 @@ function tatooineRideRequestValues_(request) {
 
 function tatooineRideRequestSheet_() {
   return tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineRideRequests, true);
+}
+
+function deduplicateTatooineRideRequestsForDate_(rideDate) {
+  const day = normalizeTatooineRideDate_(rideDate || tatooineRideDate_());
+  const sh = tatooineRideRequestSheet_();
+  const rows = tatooineRideRequestRows_(sh);
+  const latest = latestTatooineRideRequestsForDate_(rows, day);
+  const keepRows = {};
+  latest.forEach(function(item) { keepRows[item.row] = true; });
+  const duplicateRows = rows.filter(function(item) {
+    return normalizeTatooineRideDate_(item.rideDate) === day && !keepRows[item.row];
+  }).map(function(item) { return item.row; }).sort(function(a, b) { return b - a; });
+  duplicateRows.forEach(function(row) { sh.deleteRow(row); });
+  return { rideDate: day, kept: latest.length, removed: duplicateRows.length };
 }
 
 function findTatooineRideEmployee_(userId) {
