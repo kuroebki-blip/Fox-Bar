@@ -2860,6 +2860,11 @@ function deduplicateTatooineRideRequestsForDate_(rideDate) {
   return { rideDate: day, kept: latest.length, removed: duplicateRows.length };
 }
 
+// One-time maintenance entry point for the Apps Script editor; it is not a Web App action.
+function tatooineDeduplicateRideRequests() {
+  return deduplicateTatooineRideRequestsForDate_(tatooineRideDate_());
+}
+
 function findTatooineRideEmployee_(userId) {
   const sh = tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, true);
   const target = String(userId || '');
