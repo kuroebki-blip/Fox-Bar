@@ -31,7 +31,7 @@ Mini App → Scanner/Cash Apps Script → Gemini OCR / Telegram / Google Sheets
 - Google Sheets хранит бизнес-данные, но не фотографии.
 - Cloudinary хранит банкетные фотографии; в таблицу передаётся URL.
 - FO’X и Tatooine разделяют cash backend, но используют раздельные Telegram-маршруты.
-- Tatooine-развоз использует проверенный Telegram ID и существующий RBAC. Домашние адреса и заявки хранятся в служебных листах Apps Script; список адресов не загружается на старте и защищён server-side permissions. Для менеджерского ввода адреса Apps Script по требованию обращается к Geoapify Address Autocomplete, а ключ хранится только в Script Properties.
+- Tatooine-развоз использует проверенный Telegram ID и существующий RBAC. Домашние адреса и заявки хранятся в служебных листах Apps Script; список адресов не загружается на старте и защищён server-side permissions. Для менеджерского ввода адреса Apps Script по требованию обращается к Geoapify Address Autocomplete, а ключ хранится только в Script Properties. Точка старта хранится одной Location-записью в `Tatooine_Локации`, изменяется через `rides.manage_origin` и ведёт минимальный audit; будущая RideSession должна сохранять её snapshot, а не повторно читать исторический адрес.
 
 ## Состояние исходников
 

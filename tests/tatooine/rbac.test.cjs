@@ -22,11 +22,13 @@ test('manager has operational permissions but cannot manage settings', () => {
   assert.ok(permissions.includes('rides.optimize'));
   assert.ok(permissions.includes('rides.confirm'));
   assert.equal(permissions.includes('settings.manage'), false);
+  assert.equal(permissions.includes('rides.manage_origin'), false);
 });
 
 test('admin can manage settings but cannot assign roles', () => {
   const permissions = rbac.tatooinePermissionsForRole_('admin');
   assert.ok(permissions.includes('settings.manage'));
+  assert.ok(permissions.includes('rides.manage_origin'));
   assert.ok(permissions.includes('roles.view'));
   assert.equal(permissions.includes('roles.manage'), false);
 });
@@ -37,6 +39,13 @@ test('superadmin has every configured permission', () => {
   } : {}).flat());
   const superadmin = new Set(rbac.tatooinePermissionsForRole_('superadmin'));
   all.forEach(permission => assert.ok(superadmin.has(permission)));
+});
+
+test('only admin and superadmin can manage the ride origin', () => {
+  assert.equal(rbac.tatooinePermissionsForRole_('employee').includes('rides.manage_origin'), false);
+  assert.equal(rbac.tatooinePermissionsForRole_('manager').includes('rides.manage_origin'), false);
+  assert.equal(rbac.tatooinePermissionsForRole_('admin').includes('rides.manage_origin'), true);
+  assert.equal(rbac.tatooinePermissionsForRole_('superadmin').includes('rides.manage_origin'), true);
 });
 
 test('backend requirePermission rejects a request without permission', () => {

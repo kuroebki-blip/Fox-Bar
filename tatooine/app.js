@@ -18,6 +18,10 @@
   let rideAddressSelectedSuggestion = null;
   let rideAddressSuggestionTimer = null;
   let rideAddressSuggestionRequest = 0;
+  let rideOrigin = null;
+  let rideOriginSelectedSuggestion = null;
+  let rideOriginSuggestionTimer = null;
+  let rideOriginSuggestionRequest = 0;
   let todayRideEmployeeIds = new Set();
 
   const $ = id => document.getElementById(id);
@@ -75,7 +79,8 @@
       hub: $('tatooineHub'),
       cash: $('cashReportScreen'),
       taxi: $('taxiScreen'),
-      roles: $('roleManagementScreen')
+      roles: $('roleManagementScreen'),
+      settings: $('rideOriginSettingsScreen')
     };
     Object.keys(screens).forEach(key => {
       if (screens[key]) screens[key].hidden = key !== name;
@@ -93,6 +98,51 @@
     } catch (_) {
       showRoleStatus('Не удалось загрузить список сотрудников.');
     }
+  }
+
+  function renderRideOrigin() {
+    const card = $('rideOriginSettingsCard');
+    const status = $('rideOriginStatus');
+    const edit = $('rideOriginEdit');
+    if (!card || !status || !edit) return;
+    card.hidden = !can('rides.manage_origin');
+    if (card.hidden) return;
+    const address = rideOrigin ? String(rideOrigin.addressText || '') : '';
+    status.replaceChildren();
+    if (!address) {
+      status.textContent = 'Адрес не указан';
+      edit.textContent = 'Указать адрес';
+      return;
+    }
+    const name = document.createElement('b');
+    name.textContent = String(rideOrigin.name || 'Tatooine');
+    const text = document.createElement('div');
+    text.textContent = address;
+    status.append(name, text);
+    edit.textContent = 'Изменить адрес';
+  }
+
+  async function loadRideOrigin() {
+    if (!can('rides.manage_origin')) return null;
+    setRideStatus('rideOriginStatus', 'Загружаю адрес…');
+    try {
+      const data = await jsonp(Object.assign({ action: 'tatooineRideOrigin' }, authParams()));
+      if (!data || !data.ok || !data.location) throw new Error(data && data.error ? data.error : 'Не удалось загрузить адрес.');
+      rideOrigin = data.location;
+      renderRideOrigin();
+      return rideOrigin;
+    } catch (error) {
+      rideOrigin = null;
+      setRideStatus('rideOriginStatus', errorMessage(error, 'Не удалось загрузить адрес.'));
+      return null;
+    }
+  }
+
+  async function openRideOriginSettings() {
+    if (!can('rides.manage_origin')) return;
+    showScreen('settings');
+    renderRideOrigin();
+    await loadRideOrigin();
   }
 
   function errorMessage(error, fallback) {
@@ -360,6 +410,89 @@
     }
   }
 
+  function clearRideOriginSuggestions() {
+    const list = $('rideOriginSuggestions');
+    if (list) list.replaceChildren();
+  }
+
+  function renderRideOriginSuggestions(items) {
+    const list = $('rideOriginSuggestions');
+    if (!list) return;
+    list.replaceChildren();
+    (Array.isArray(items) ? items : []).forEach(item => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'ride-address-suggestion';
+      button.textContent = String(item.text || '');
+      button.addEventListener('click', () => {
+        $('rideOriginInput').value = String(item.text || '');
+        rideOriginSelectedSuggestion = item;
+        clearRideOriginSuggestions();
+      });
+      list.appendChild(button);
+    });
+  }
+
+  function openRideOriginDialog() {
+    if (!can('rides.manage_origin')) return;
+    const address = rideOrigin ? String(rideOrigin.addressText || '') : '';
+    $('rideOriginInput').value = address;
+    rideOriginSelectedSuggestion = rideOrigin && address && rideOrigin.latitude !== '' && rideOrigin.longitude !== '' ? {
+      text: address, latitude: Number(rideOrigin.latitude), longitude: Number(rideOrigin.longitude)
+    } : null;
+    clearRideOriginSuggestions();
+    $('rideOriginDialog').hidden = false;
+    $('rideOriginInput').focus();
+  }
+
+  function closeRideOriginDialog() {
+    if (rideOriginSuggestionTimer) clearTimeout(rideOriginSuggestionTimer);
+    rideOriginSuggestionTimer = null;
+    rideOriginSuggestionRequest += 1;
+    rideOriginSelectedSuggestion = null;
+    clearRideOriginSuggestions();
+    $('rideOriginDialog').hidden = true;
+  }
+
+  function queueRideOriginSuggestions() {
+    rideOriginSelectedSuggestion = null;
+    if (rideOriginSuggestionTimer) clearTimeout(rideOriginSuggestionTimer);
+    clearRideOriginSuggestions();
+    const query = $('rideOriginInput').value.trim();
+    if (query.length < 3 || !can('rides.manage_origin')) return;
+    const requestId = ++rideOriginSuggestionRequest;
+    rideOriginSuggestionTimer = setTimeout(async () => {
+      try {
+        const data = await jsonp(Object.assign({ action: 'tatooineRideOriginSuggestions', query: query }, authParams()));
+        if (requestId !== rideOriginSuggestionRequest || !data || !data.ok) return;
+        renderRideOriginSuggestions(data.items);
+      } catch (_) {
+        if (requestId === rideOriginSuggestionRequest) clearRideOriginSuggestions();
+      }
+    }, 300);
+  }
+
+  async function saveRideOrigin() {
+    if (!can('rides.manage_origin')) return;
+    const save = $('rideOriginDialogSave');
+    save.disabled = true;
+    try {
+      const input = $('rideOriginInput').value;
+      const selected = rideOriginSelectedSuggestion && rideOriginSelectedSuggestion.text === input ? rideOriginSelectedSuggestion : null;
+      await post({ action: 'tatooineSetRideOrigin', addressText: input, latitude: selected ? selected.latitude : '', longitude: selected ? selected.longitude : '' });
+      await sleep(300);
+      const updated = await loadRideOrigin();
+      const expectedAddress = input.trim().replace(/\s+/g, ' ');
+      if (!updated || String(updated.addressText || '') !== expectedAddress) throw new Error('Адрес не сохранился. Повторите попытку.');
+      closeRideOriginDialog();
+      haptic('success');
+    } catch (error) {
+      setRideStatus('rideOriginStatus', errorMessage(error, 'Не удалось сохранить адрес.'));
+    } finally {
+      save.disabled = false;
+    }
+  }
+
   async function openTaxi() {
     showScreen('taxi');
     if (!currentUser) await loadCurrentUser();
@@ -424,14 +557,18 @@
       const data = await jsonp(Object.assign({ action: 'currentUser' }, authParams()));
       if (!data || !data.ok || !data.user) throw new Error(data && data.error ? data.error : 'Нет доступа.');
       currentUser = data.user;
-      const button = $('openRoleManagement');
-      if (button) button.hidden = !can('roles.manage');
+      const roleButton = $('openRoleManagement');
+      if (roleButton) roleButton.hidden = !can('roles.manage');
+      const settingsButton = $('openRideOriginSettings');
+      if (settingsButton) settingsButton.hidden = !can('rides.manage_origin');
     } catch (_) {
       currentUser = null;
       const card = $('roleManagement');
       if (card) card.hidden = true;
-      const button = $('openRoleManagement');
-      if (button) button.hidden = true;
+      const roleButton = $('openRoleManagement');
+      if (roleButton) roleButton.hidden = true;
+      const settingsButton = $('openRideOriginSettings');
+      if (settingsButton) settingsButton.hidden = true;
     }
   }
 
@@ -1149,6 +1286,7 @@
     $('openCashReport').addEventListener('click', () => showScreen('cash'));
     $('openTaxi').addEventListener('click', openTaxi);
     $('openRoleManagement').addEventListener('click', openRoleManagement);
+    $('openRideOriginSettings').addEventListener('click', openRideOriginSettings);
     $('rideConfirm').addEventListener('click', () => setMyRideNeeded(true));
     $('rideCancel').addEventListener('click', () => setMyRideNeeded(false));
     $('rideAddressDialogCancel').addEventListener('click', closeRideAddressDialog);
@@ -1156,6 +1294,11 @@
     $('rideAddressDialogClear').addEventListener('click', () => saveRideAddress(true));
     $('rideAddressInput').addEventListener('input', queueRideAddressSuggestions);
     $('rideAddressDialog').addEventListener('click', event => { if (event.target === $('rideAddressDialog')) closeRideAddressDialog(); });
+    $('rideOriginEdit').addEventListener('click', openRideOriginDialog);
+    $('rideOriginDialogCancel').addEventListener('click', closeRideOriginDialog);
+    $('rideOriginDialogSave').addEventListener('click', saveRideOrigin);
+    $('rideOriginInput').addEventListener('input', queueRideOriginSuggestions);
+    $('rideOriginDialog').addEventListener('click', event => { if (event.target === $('rideOriginDialog')) closeRideOriginDialog(); });
     document.querySelectorAll('[data-open-screen]').forEach(button => button.addEventListener('click', () => showScreen(button.dataset.openScreen)));
     bindInputs();
     renderPages();

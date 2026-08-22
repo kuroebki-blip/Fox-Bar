@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0e1116">
-  <title>Tatooine v1.8.1</title>
+  <title>Tatooine v1.8.2</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Unbounded:wght@600;700&display=swap" rel="stylesheet">
@@ -24,13 +24,14 @@
   <main class="shell">
     <section class="app-screen" id="tatooineHub" aria-labelledby="hubTitle">
       <section class="intro">
-        <span class="version" id="appVersion">v1.8.1</span>
+        <span class="version" id="appVersion">v1.8.2</span>
         <h1 id="hubTitle">Tatooine</h1>
       </section>
       <nav class="hub-actions" aria-label="Разделы Tatooine">
         <button class="hub-action primary" id="openCashReport" type="button"><span aria-hidden="true">💰</span><b>Кассовый отчёт</b></button>
         <button class="hub-action" id="openTaxi" type="button"><span aria-hidden="true">🚕</span><b>Такси</b></button>
         <button class="hub-action" id="openRoleManagement" type="button" hidden><span aria-hidden="true">🛡️</span><b>Управление ролями</b></button>
+        <button class="hub-action" id="openRideOriginSettings" type="button" hidden><span aria-hidden="true">⚙️</span><b>Настройки</b></button>
       </nav>
     </section>
 
@@ -63,6 +64,18 @@
         <div class="role-head"><h2 id="roleManagementTitle">Сотрудники и роли</h2><span id="currentRole"></span></div>
         <div class="role-status" id="roleStatus" aria-live="polite"></div>
         <div class="role-list" id="roleList"></div>
+      </section>
+    </section>
+
+    <section class="app-screen" id="rideOriginSettingsScreen" hidden aria-labelledby="rideOriginSettingsTitle">
+      <button class="back-button" type="button" data-open-screen="hub">← Назад</button>
+      <section class="intro">
+        <h1 id="rideOriginSettingsTitle">Настройки</h1>
+      </section>
+      <section class="card ride-card" id="rideOriginSettingsCard" hidden>
+        <h2>Точка начала развоза</h2>
+        <div class="ride-status" id="rideOriginStatus" aria-live="polite"></div>
+        <button class="button secondary wide" id="rideOriginEdit" type="button">Изменить адрес</button>
       </section>
     </section>
 
@@ -173,6 +186,20 @@
         <button class="button primary" id="rideAddressDialogSave" type="button">Сохранить</button>
       </div>
       <button class="button secondary wide" id="rideAddressDialogClear" type="button">Удалить адрес</button>
+    </div>
+  </div>
+
+  <div class="confirm" id="rideOriginDialog" hidden>
+    <div class="confirm-card" role="dialog" aria-modal="true" aria-labelledby="rideOriginDialogTitle">
+      <h2 id="rideOriginDialogTitle">Адрес ресторана</h2>
+      <div class="ride-address-autocomplete">
+        <label class="field"><span>Адрес ресторана</span><input id="rideOriginInput" type="text" autocomplete="street-address" maxlength="240" placeholder="Москва, Ленинградское шоссе, 78" aria-controls="rideOriginSuggestions" aria-autocomplete="list"></label>
+        <div class="ride-address-suggestions" id="rideOriginSuggestions" role="listbox" aria-label="Варианты адреса"></div>
+      </div>
+      <div class="actions">
+        <button class="button secondary" id="rideOriginDialogCancel" type="button">Отмена</button>
+        <button class="button primary" id="rideOriginDialogSave" type="button">Сохранить</button>
+      </div>
     </div>
   </div>
 

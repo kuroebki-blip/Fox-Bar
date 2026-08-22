@@ -49,7 +49,9 @@ const FOX_RECEIPTS = {
     banquetJobs: 'Банкет_Задания',
     tatooineUsers: 'Tatooine_Пользователи',
     tatooineRoleAudit: 'Tatooine_АудитРолей',
-    tatooineRideRequests: 'Tatooine_ЗаявкиРазвоза'
+    tatooineRideRequests: 'Tatooine_ЗаявкиРазвоза',
+    tatooineLocations: 'Tatooine_Локации',
+    tatooineLocationAudit: 'Tatooine_АудитЛокаций'
   },
 
   // Банкеты хранятся в отдельной production-таблице. Статус для резерва
@@ -127,6 +129,12 @@ const FOX_RECEIPT_HEADERS = {
   ],
   tatooineRideRequests: [
     'ID','Employee ID','Дата развоза','Развоз нужен','Создано','Обновлено','Подтверждено','Отменено','Создано пользователем','Обновил пользователь'
+  ],
+  tatooineLocations: [
+    'ID','Название','Адрес','Широта','Долгота','Обновлено','Обновил пользователь'
+  ],
+  tatooineLocationAudit: [
+    'Location ID','Старый адрес','Новый адрес','Обновил пользователь','Обновлено'
   ]
 };
 
@@ -136,8 +144,8 @@ const TATOOINE_RBAC = {
   roles: {
     employee: ['profile.view_self','profile.edit_self','rides.submit_self','rides.view_self'],
     manager: ['profile.view_self','profile.edit_self','rides.submit_self','rides.view_self','employees.view','rides.view_all','rides.optimize','rides.override','rides.manage_addresses','rides.confirm','rides.enter_cost','rides.view_analytics','analytics.view'],
-    admin: ['profile.view_self','profile.edit_self','rides.submit_self','rides.view_self','employees.view','rides.view_all','rides.optimize','rides.override','rides.manage_addresses','rides.confirm','rides.enter_cost','rides.view_analytics','analytics.view','employees.edit','settings.view','settings.manage','roles.view'],
-    superadmin: ['profile.view_self','profile.edit_self','employees.view','employees.edit','rides.submit_self','rides.view_self','rides.view_all','rides.optimize','rides.override','rides.manage_addresses','rides.confirm','rides.enter_cost','rides.view_analytics','analytics.view','settings.view','settings.manage','roles.view','roles.manage']
+    admin: ['profile.view_self','profile.edit_self','rides.submit_self','rides.view_self','employees.view','rides.view_all','rides.optimize','rides.override','rides.manage_addresses','rides.manage_origin','rides.confirm','rides.enter_cost','rides.view_analytics','analytics.view','employees.edit','settings.view','settings.manage','roles.view'],
+    superadmin: ['profile.view_self','profile.edit_self','employees.view','employees.edit','rides.submit_self','rides.view_self','rides.view_all','rides.optimize','rides.override','rides.manage_addresses','rides.manage_origin','rides.confirm','rides.enter_cost','rides.view_analytics','analytics.view','settings.view','settings.manage','roles.view','roles.manage']
   }
 };
 
@@ -179,6 +187,14 @@ function validateTatooineRideAddress_(input) {
     throw new Error('Координаты адреса некорректны.');
   }
   return { text: text, latitude: latitude, longitude: longitude };
+}
+
+const TATOOINE_PRIMARY_RIDE_LOCATION_ID = 'tatooine_primary';
+
+function validateTatooineRideOrigin_(input) {
+  const value = input || {};
+  const address = validateTatooineRideAddress_({ text: value.addressText, latitude: value.latitude, longitude: value.longitude });
+  return { id: TATOOINE_PRIMARY_RIDE_LOCATION_ID, name: String(value.name || 'Tatooine').trim() || 'Tatooine', addressText: address.text, latitude: address.latitude, longitude: address.longitude };
 }
 
 function normalizeGeoapifyRideAddressSuggestions_(payload) {
@@ -689,6 +705,16 @@ function doGet(e) {
       return jsonpOutput_(callback, { ok: true, items: getTatooineRideAddressSuggestions_(e.parameter.query) });
     }
 
+    if (action === 'tatooineRideOriginSuggestions') {
+      requireTatooinePermission_(auth, 'rides.manage_origin');
+      return jsonpOutput_(callback, { ok: true, items: getTatooineRideAddressSuggestions_(e.parameter.query) });
+    }
+
+    if (action === 'tatooineRideOrigin') {
+      requireTatooinePermission_(auth, 'rides.manage_origin');
+      return jsonpOutput_(callback, { ok: true, location: getTatooineRideOrigin_(auth) });
+    }
+
     if (action === 'status') {
       const jobId = requiredString_(e.parameter.jobId, 'jobId');
       return jsonpOutput_(callback, getJobStatus_(jobId, auth));
@@ -804,6 +830,11 @@ function doPost(e) {
 
     if (action === 'tatooineSetEmployeeRideAddress') {
       setTatooineEmployeeRideAddress_(e.parameter, auth);
+      return textOutput_({ ok: true });
+    }
+
+    if (action === 'tatooineSetRideOrigin') {
+      setTatooineRideOrigin_(e.parameter, auth);
       return textOutput_({ ok: true });
     }
 
@@ -2522,7 +2553,7 @@ function telegramRouteConfig_(value) {
 
 function assertTelegramActionAllowed_(action, auth) {
   if (!auth || auth.venue !== 'tatooine') return;
-  const allowed = ['status', 'cashReportScan', 'cashReportScanImages', 'cashReportSend', 'currentUser', 'tatooineEmployees', 'tatooineSetRole', 'tatooineMyRide', 'tatooineRideToday', 'tatooineRideEmployees', 'tatooineRideAddressSuggestions', 'tatooineSetMyRide', 'tatooineSetEmployeeRide', 'tatooineSetEmployeeRideAddress'];
+  const allowed = ['status', 'cashReportScan', 'cashReportScanImages', 'cashReportSend', 'currentUser', 'tatooineEmployees', 'tatooineSetRole', 'tatooineMyRide', 'tatooineRideToday', 'tatooineRideEmployees', 'tatooineRideAddressSuggestions', 'tatooineRideOriginSuggestions', 'tatooineRideOrigin', 'tatooineSetMyRide', 'tatooineSetEmployeeRide', 'tatooineSetEmployeeRideAddress', 'tatooineSetRideOrigin'];
   if (allowed.indexOf(String(action || '')) < 0) {
     throw new Error('Недоступное действие Tatooine.');
   }
@@ -2583,6 +2614,8 @@ function tatooineRbacSheet_(name, ensure) {
   definitions[FOX_RECEIPTS.sheets.tatooineUsers] = { title: 'Tatooine — ПОЛЬЗОВАТЕЛИ', headers: FOX_RECEIPT_HEADERS.tatooineUsers };
   definitions[FOX_RECEIPTS.sheets.tatooineRoleAudit] = { title: 'Tatooine — АУДИТ РОЛЕЙ', headers: FOX_RECEIPT_HEADERS.tatooineRoleAudit };
   definitions[FOX_RECEIPTS.sheets.tatooineRideRequests] = { title: 'Tatooine — ЗАЯВКИ РАЗВОЗА', headers: FOX_RECEIPT_HEADERS.tatooineRideRequests };
+  definitions[FOX_RECEIPTS.sheets.tatooineLocations] = { title: 'Tatooine — ЛОКАЦИИ', headers: FOX_RECEIPT_HEADERS.tatooineLocations };
+  definitions[FOX_RECEIPTS.sheets.tatooineLocationAudit] = { title: 'Tatooine — АУДИТ ЛОКАЦИЙ', headers: FOX_RECEIPT_HEADERS.tatooineLocationAudit };
   const definition = definitions[name];
   if (!definition) throw new Error('Неизвестный служебный лист Tatooine.');
   if (ensure && (!sh || sh.getMaxColumns() < definition.headers.length)) {
@@ -2757,6 +2790,47 @@ function listTatooineRideEmployees_(auth) {
   });
 }
 
+function tatooineRideLocationRows_(sh) {
+  if (!sh || sh.getLastRow() < 3) return [];
+  return sh.getRange(3, 1, sh.getLastRow() - 2, FOX_RECEIPT_HEADERS.tatooineLocations.length).getValues().map(function(row, index) {
+    return { row: index + 3, id: String(row[0] || ''), name: String(row[1] || ''), addressText: String(row[2] || '').trim(), latitude: row[3] === '' || row[3] == null ? '' : Number(row[3]), longitude: row[4] === '' || row[4] == null ? '' : Number(row[4]), updatedAt: row[5], updatedBy: String(row[6] || '') };
+  }).filter(function(item) { return item.id; });
+}
+
+function tatooineRideLocationSheet_() {
+  return tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineLocations, true);
+}
+
+function getTatooinePrimaryRideLocation_() {
+  const location = tatooineRideLocationRows_(tatooineRideLocationSheet_()).filter(function(item) { return item.id === TATOOINE_PRIMARY_RIDE_LOCATION_ID; })[0] || null;
+  return location || { id: TATOOINE_PRIMARY_RIDE_LOCATION_ID, name: 'Tatooine', addressText: '', latitude: '', longitude: '', updatedAt: '', updatedBy: '' };
+}
+
+function getTatooineRideOrigin_(auth) {
+  requireTatooinePermission_(auth, 'rides.manage_origin');
+  return getTatooinePrimaryRideLocation_();
+}
+
+function setTatooineRideOrigin_(p, auth) {
+  const user = requireTatooinePermission_(auth, 'rides.manage_origin');
+  const location = validateTatooineRideOrigin_({ addressText: p.addressText, latitude: p.latitude, longitude: p.longitude, name: p.name });
+  const lock = LockService.getDocumentLock();
+  if (!lock.tryLock(30000)) throw new Error('Точка начала развоза сейчас обновляется. Повторите попытку.');
+  try {
+    const sh = tatooineRideLocationSheet_();
+    const current = getTatooinePrimaryRideLocation_();
+    const updatedAt = new Date();
+    const values = [[location.id, location.name, location.addressText, location.latitude, location.longitude, updatedAt, user.id]];
+    if (current.row) sh.getRange(current.row, 1, 1, FOX_RECEIPT_HEADERS.tatooineLocations.length).setValues(values);
+    else sh.getRange(sh.getLastRow() + 1, 1, 1, FOX_RECEIPT_HEADERS.tatooineLocations.length).setValues(values);
+    const audit = tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineLocationAudit, true);
+    audit.getRange(audit.getLastRow() + 1, 1, 1, FOX_RECEIPT_HEADERS.tatooineLocationAudit.length).setValues([[location.id, current.addressText || '', location.addressText, user.id, updatedAt]]);
+    return Object.assign({}, location, { updatedAt: updatedAt, updatedBy: user.id });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function setTatooineEmployeeRideAddress_(p, auth) {
   const user = getTatooineCurrentUser_(auth, true);
   assertTatooineRideAddressAccess_(user);
@@ -2810,6 +2884,8 @@ function setupTatooineRbac() {
   ensureServiceSheet_(ss, FOX_RECEIPTS.sheets.tatooineUsers, 'Tatooine — ПОЛЬЗОВАТЕЛИ', FOX_RECEIPT_HEADERS.tatooineUsers);
   ensureServiceSheet_(ss, FOX_RECEIPTS.sheets.tatooineRoleAudit, 'Tatooine — АУДИТ РОЛЕЙ', FOX_RECEIPT_HEADERS.tatooineRoleAudit);
   ensureServiceSheet_(ss, FOX_RECEIPTS.sheets.tatooineRideRequests, 'Tatooine — ЗАЯВКИ РАЗВОЗА', FOX_RECEIPT_HEADERS.tatooineRideRequests);
+  ensureServiceSheet_(ss, FOX_RECEIPTS.sheets.tatooineLocations, 'Tatooine — ЛОКАЦИИ', FOX_RECEIPT_HEADERS.tatooineLocations);
+  ensureServiceSheet_(ss, FOX_RECEIPTS.sheets.tatooineLocationAudit, 'Tatooine — АУДИТ ЛОКАЦИЙ', FOX_RECEIPT_HEADERS.tatooineLocationAudit);
 }
 
 function decodeTelegramFormPart_(value) {
