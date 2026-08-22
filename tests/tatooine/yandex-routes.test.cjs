@@ -23,11 +23,13 @@ test('native Yandex Maps route URL preserves the supplied 1, 2, or 3 dropoff poi
   }
 });
 
-test('Yandex route controls use optimizer dropoffOrder, Telegram external navigation and rides.optimize', () => {
+test('Yandex route controls use optimizer dropoffOrder, a native link and rides.optimize', () => {
   assert.match(frontend, /car\.dropoffOrder/);
   assert.match(frontend, /Открыть в Яндекс Картах/);
   assert.match(frontend, /Скопировать маршрут/);
   assert.match(frontend, /can\('rides\.optimize'\)/);
-  assert.match(frontend, /TG\.openLink\(buildYandexMapsNativeRouteUrl/);
+  assert.match(frontend, /link\.href = buildYandexMapsNativeRouteUrl/);
+  assert.match(frontend, /link\.target = '_blank'/);
+  assert.doesNotMatch(frontend, /TG\.openLink\(buildYandexMapsNativeRouteUrl/);
   assert.doesNotMatch(frontend, /window\.location\.assign\(buildYandexMaps/);
 });
