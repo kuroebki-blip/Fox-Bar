@@ -17,6 +17,7 @@ const source = backend.slice(rbacStart, rbacEnd) + backend.slice(ridesStart, rid
 const rides = new Function(`${source}; return {
   tatooinePermissionsForRole_,
   validateTatooineRideAddress_,
+  normalizeGeoapifyRideAddressSuggestions_,
   upsertTatooineRideRequest_,
   activeTatooineRideRequests_,
   assertTatooineRideAddressAccess_,
@@ -53,6 +54,16 @@ test('ride address requires non-empty text and never fabricates coordinates', ()
   });
 });
 
+test('Geoapify suggestions keep only complete validated addresses with coordinates', () => {
+  assert.deepEqual(rides.normalizeGeoapifyRideAddressSuggestions_({ results: [
+    { formatted: 'Москва, Тверская улица, 1', lat: 55.757, lon: 37.613 },
+    { formatted: 'Некорректный вариант', lat: 'x', lon: 37.613 },
+    { formatted: '', lat: 55.7, lon: 37.6 }
+  ] }), [{
+    text: 'Москва, Тверская улица, 1', latitude: 55.757, longitude: 37.613
+  }]);
+});
+
 test('employee cannot edit an address or another employee request', () => {
   assert.throws(() => rides.assertTatooineRideAddressAccess_(employee), /Нет доступа/);
   assert.throws(() => rides.assertTatooineRideRequestAccess_(employee, 'emp-2'), /Нет доступа/);
@@ -87,6 +98,15 @@ test('home addresses of other employees are protected by server-side permissions
   assert.match(backend, /requireTatooinePermission_\(auth, 'rides\.view_all'\)/);
   assert.match(frontend, /action: 'tatooineMyRide'/);
   assert.equal(frontend.includes('action: \'tatooineRideEmployees\''), true);
+  assert.match(backend, /action === 'tatooineRideAddressSuggestions'/);
+  assert.match(backend, /assertTatooineRideAddressAccess_\(getTatooineCurrentUser_\(auth, false\)\)/);
+});
+
+test('address autocomplete sends no requests until the manager opens the address dialog and selects coordinates', () => {
+  assert.match(frontend, /rideAddressSuggestions/);
+  assert.match(frontend, /action: 'tatooineRideAddressSuggestions'/);
+  assert.match(frontend, /homeLatitude: selected \? selected\.latitude/);
+  assert.match(frontend, /homeLongitude: selected \? selected\.longitude/);
 });
 
 test('ride data is loaded lazily when the user opens the ride section', () => {

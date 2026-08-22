@@ -15,6 +15,9 @@
   let currentUser = null;
   let myRide = null;
   let rideAddressTargetUserId = '';
+  let rideAddressSelectedSuggestion = null;
+  let rideAddressSuggestionTimer = null;
+  let rideAddressSuggestionRequest = 0;
   let todayRideEmployeeIds = new Set();
 
   const $ = id => document.getElementById(id);
@@ -268,15 +271,66 @@
 
   function openRideAddressDialog(item) {
     rideAddressTargetUserId = String(item && item.id || '');
-    $('rideAddressInput').value = item && item.address ? String(item.address.text || '') : '';
+    const address = item && item.address ? item.address : null;
+    $('rideAddressInput').value = address ? String(address.text || '') : '';
+    rideAddressSelectedSuggestion = address && address.text && address.latitude !== '' && address.longitude !== '' ? {
+      text: String(address.text), latitude: Number(address.latitude), longitude: Number(address.longitude)
+    } : null;
+    clearRideAddressSuggestions();
     $('rideAddressDialogClear').hidden = !($('rideAddressInput').value);
     $('rideAddressDialog').hidden = false;
     $('rideAddressInput').focus();
   }
 
   function closeRideAddressDialog() {
+    if (rideAddressSuggestionTimer) clearTimeout(rideAddressSuggestionTimer);
+    rideAddressSuggestionTimer = null;
+    rideAddressSuggestionRequest += 1;
     rideAddressTargetUserId = '';
+    rideAddressSelectedSuggestion = null;
+    clearRideAddressSuggestions();
     $('rideAddressDialog').hidden = true;
+  }
+
+  function clearRideAddressSuggestions() {
+    const list = $('rideAddressSuggestions');
+    if (list) list.replaceChildren();
+  }
+
+  function renderRideAddressSuggestions(items) {
+    const list = $('rideAddressSuggestions');
+    if (!list) return;
+    list.replaceChildren();
+    (Array.isArray(items) ? items : []).forEach(item => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'ride-address-suggestion';
+      button.textContent = String(item.text || '');
+      button.addEventListener('click', () => {
+        $('rideAddressInput').value = String(item.text || '');
+        rideAddressSelectedSuggestion = item;
+        clearRideAddressSuggestions();
+      });
+      list.appendChild(button);
+    });
+  }
+
+  function queueRideAddressSuggestions() {
+    rideAddressSelectedSuggestion = null;
+    if (rideAddressSuggestionTimer) clearTimeout(rideAddressSuggestionTimer);
+    clearRideAddressSuggestions();
+    const query = $('rideAddressInput').value.trim();
+    if (query.length < 3 || !rideAddressTargetUserId) return;
+    const requestId = ++rideAddressSuggestionRequest;
+    rideAddressSuggestionTimer = setTimeout(async () => {
+      try {
+        const data = await jsonp(Object.assign({ action: 'tatooineRideAddressSuggestions', query: query }, authParams()));
+        if (requestId !== rideAddressSuggestionRequest || !data || !data.ok) return;
+        renderRideAddressSuggestions(data.items);
+      } catch (_) {
+        if (requestId === rideAddressSuggestionRequest) clearRideAddressSuggestions();
+      }
+    }, 300);
   }
 
   async function saveRideAddress(clearAddress) {
@@ -286,7 +340,8 @@
     save.disabled = true;
     clear.disabled = true;
     try {
-      await post({ action: 'tatooineSetEmployeeRideAddress', targetUserId: rideAddressTargetUserId, addressText: $('rideAddressInput').value, clearAddress: clearAddress ? 'true' : 'false' });
+      const selected = rideAddressSelectedSuggestion && rideAddressSelectedSuggestion.text === $('rideAddressInput').value ? rideAddressSelectedSuggestion : null;
+      await post({ action: 'tatooineSetEmployeeRideAddress', targetUserId: rideAddressTargetUserId, addressText: $('rideAddressInput').value, homeLatitude: selected ? selected.latitude : '', homeLongitude: selected ? selected.longitude : '', clearAddress: clearAddress ? 'true' : 'false' });
       await sleep(300);
       const employees = await loadRideAddresses();
       const updated = employees && employees.find(item => String(item.id || '') === rideAddressTargetUserId);
@@ -1099,6 +1154,7 @@
     $('rideAddressDialogCancel').addEventListener('click', closeRideAddressDialog);
     $('rideAddressDialogSave').addEventListener('click', () => saveRideAddress(false));
     $('rideAddressDialogClear').addEventListener('click', () => saveRideAddress(true));
+    $('rideAddressInput').addEventListener('input', queueRideAddressSuggestions);
     $('rideAddressDialog').addEventListener('click', event => { if (event.target === $('rideAddressDialog')) closeRideAddressDialog(); });
     document.querySelectorAll('[data-open-screen]').forEach(button => button.addEventListener('click', () => showScreen(button.dataset.openScreen)));
     bindInputs();

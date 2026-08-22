@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0e1116">
-  <title>Tatooine v1.8.0</title>
+  <title>Tatooine v1.8.1</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Unbounded:wght@600;700&display=swap" rel="stylesheet">
@@ -24,7 +24,7 @@
   <main class="shell">
     <section class="app-screen" id="tatooineHub" aria-labelledby="hubTitle">
       <section class="intro">
-        <span class="version" id="appVersion">v1.8.0</span>
+        <span class="version" id="appVersion">v1.8.1</span>
         <h1 id="hubTitle">Tatooine</h1>
       </section>
       <nav class="hub-actions" aria-label="Разделы Tatooine">
@@ -164,7 +164,10 @@
   <div class="confirm" id="rideAddressDialog" hidden>
     <div class="confirm-card" role="dialog" aria-modal="true" aria-labelledby="rideAddressDialogTitle">
       <h2 id="rideAddressDialogTitle">Адрес развоза</h2>
-      <label class="field"><span>Домашний адрес</span><input id="rideAddressInput" type="text" autocomplete="street-address" maxlength="240" placeholder="Москва, Ленинградское шоссе, 78"></label>
+      <div class="ride-address-autocomplete">
+        <label class="field"><span>Домашний адрес</span><input id="rideAddressInput" type="text" autocomplete="street-address" maxlength="240" placeholder="Москва, Ленинградское шоссе, 78" aria-controls="rideAddressSuggestions" aria-autocomplete="list"></label>
+        <div class="ride-address-suggestions" id="rideAddressSuggestions" role="listbox" aria-label="Варианты адреса"></div>
+      </div>
       <div class="actions">
         <button class="button secondary" id="rideAddressDialogCancel" type="button">Отмена</button>
         <button class="button primary" id="rideAddressDialogSave" type="button">Сохранить</button>

@@ -181,6 +181,38 @@ function validateTatooineRideAddress_(input) {
   return { text: text, latitude: latitude, longitude: longitude };
 }
 
+function normalizeGeoapifyRideAddressSuggestions_(payload) {
+  const seen = {};
+  return ((payload && payload.results) || []).map(function(item) {
+    try {
+      const address = validateTatooineRideAddress_({ text: item && item.formatted, latitude: item && item.lat, longitude: item && item.lon });
+      if (address.latitude === '' || address.longitude === '') return null;
+      const key = address.text + '|' + address.latitude + '|' + address.longitude;
+      if (seen[key]) return null;
+      seen[key] = true;
+      return address;
+    } catch (_) {
+      return null;
+    }
+  }).filter(Boolean).slice(0, 5);
+}
+
+function getTatooineRideAddressSuggestions_(query) {
+  const text = String(query || '').trim().replace(/\s+/g, ' ');
+  if (text.length < 3) return [];
+  if (text.length > 240) throw new Error('Адрес развоза слишком длинный.');
+  const apiKey = String(PropertiesService.getScriptProperties().getProperty('GEOAPIFY_API_KEY') || '').trim();
+  if (!apiKey) throw new Error('Подбор адресов временно недоступен.');
+  const url = 'https://api.geoapify.com/v1/geocode/autocomplete?text=' + encodeURIComponent(text) + '&filter=countrycode:ru&lang=ru&limit=5&format=json&apiKey=' + encodeURIComponent(apiKey);
+  const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+  if (response.getResponseCode() !== 200) throw new Error('Подбор адресов временно недоступен.');
+  try {
+    return normalizeGeoapifyRideAddressSuggestions_(JSON.parse(response.getContentText()));
+  } catch (_) {
+    throw new Error('Подбор адресов временно недоступен.');
+  }
+}
+
 function activeTatooineRideRequests_(rows, rideDate) {
   return (rows || []).filter(function(item) {
     return String(item.rideDate || '') === String(rideDate || '') && item.needsRide === true;
@@ -650,6 +682,11 @@ function doGet(e) {
     if (action === 'tatooineRideEmployees') {
       assertTatooineRideAddressAccess_(getTatooineCurrentUser_(auth, false));
       return jsonpOutput_(callback, { ok: true, items: listTatooineRideEmployees_(auth) });
+    }
+
+    if (action === 'tatooineRideAddressSuggestions') {
+      assertTatooineRideAddressAccess_(getTatooineCurrentUser_(auth, false));
+      return jsonpOutput_(callback, { ok: true, items: getTatooineRideAddressSuggestions_(e.parameter.query) });
     }
 
     if (action === 'status') {
@@ -2485,7 +2522,7 @@ function telegramRouteConfig_(value) {
 
 function assertTelegramActionAllowed_(action, auth) {
   if (!auth || auth.venue !== 'tatooine') return;
-  const allowed = ['status', 'cashReportScan', 'cashReportScanImages', 'cashReportSend', 'currentUser', 'tatooineEmployees', 'tatooineSetRole', 'tatooineMyRide', 'tatooineRideToday', 'tatooineRideEmployees', 'tatooineSetMyRide', 'tatooineSetEmployeeRide', 'tatooineSetEmployeeRideAddress'];
+  const allowed = ['status', 'cashReportScan', 'cashReportScanImages', 'cashReportSend', 'currentUser', 'tatooineEmployees', 'tatooineSetRole', 'tatooineMyRide', 'tatooineRideToday', 'tatooineRideEmployees', 'tatooineRideAddressSuggestions', 'tatooineSetMyRide', 'tatooineSetEmployeeRide', 'tatooineSetEmployeeRideAddress'];
   if (allowed.indexOf(String(action || '')) < 0) {
     throw new Error('Недоступное действие Tatooine.');
   }

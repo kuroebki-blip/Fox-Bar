@@ -76,6 +76,7 @@ button,label[for]{-webkit-tap-highlight-color:transparent}
 .field span{color:var(--muted-2);font-size:10px;font-weight:800;letter-spacing:.55px;text-transform:uppercase}
 .field input,.field textarea,.field select,.slip input,.prepayment input,.prepayment select{width:100%;padding:11px;border:1px solid var(--line-strong);border-radius:10px;outline:0;background:var(--bg);color:var(--text)}
 .field input:focus,.field textarea:focus,.field select:focus,.slip input:focus,.prepayment input:focus,.prepayment select:focus{border-color:var(--sand);box-shadow:0 0 0 2px var(--sand-soft)}
+.ride-address-autocomplete{position:relative}.ride-address-suggestions{display:grid;gap:5px;margin-top:7px}.ride-address-suggestion{width:100%;padding:10px 11px;border:1px solid var(--line-strong);border-radius:10px;background:var(--surface-2);color:var(--text);font-size:12px;line-height:1.4;text-align:left;cursor:pointer}.ride-address-suggestion:focus-visible{outline:2px solid var(--sand);outline-offset:2px}
 .field textarea{min-height:290px;resize:vertical;line-height:1.5}
 .message{margin-top:20px}
 .slip{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;margin-top:8px}
