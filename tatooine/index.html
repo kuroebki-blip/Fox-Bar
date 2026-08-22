@@ -50,6 +50,13 @@
         <h2>Развоз сегодня</h2>
         <div class="ride-status" id="rideManagerStatus" aria-live="polite"></div>
         <div class="ride-list" id="rideTodayList"></div>
+        <div id="rideRouteControls" hidden>
+          <button class="button secondary wide" id="rideRouteCalculate" type="button">Рассчитать маршруты</button>
+          <div class="ride-status" id="rideRouteStatus" aria-live="polite"></div>
+          <button class="button secondary wide" id="rideRouteDetails" type="button" hidden>Детали маршрутов</button>
+          <button class="button primary wide" id="rideOptimize" type="button" hidden>Сформировать машины</button>
+          <div class="ride-list" id="rideOptimizationList"></div>
+        </div>
       </section>
       <section class="card ride-card" id="rideAddressManagementCard" hidden>
         <h2>Адреса развоза</h2>
@@ -200,6 +207,14 @@
         <button class="button secondary" id="rideOriginDialogCancel" type="button">Отмена</button>
         <button class="button primary" id="rideOriginDialogSave" type="button">Сохранить</button>
       </div>
+    </div>
+  </div>
+
+  <div class="confirm" id="rideRouteDetailsDialog" hidden>
+    <div class="confirm-card" role="dialog" aria-modal="true" aria-labelledby="rideRouteDetailsTitle">
+      <h2 id="rideRouteDetailsTitle">Детали маршрутов</h2>
+      <div class="ride-list" id="rideRouteDetailsList"></div>
+      <button class="button secondary wide" id="rideRouteDetailsClose" type="button">Закрыть</button>
     </div>
   </div>
 

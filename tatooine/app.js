@@ -23,6 +23,8 @@
   let rideOriginSuggestionTimer = null;
   let rideOriginSuggestionRequest = 0;
   let todayRideEmployeeIds = new Set();
+  let rideRouteCalculation = null;
+  let rideOptimization = null;
 
   const $ = id => document.getElementById(id);
   const sleep = ms => new Promise(resolve => {
@@ -271,6 +273,79 @@
     }
   }
 
+  function renderRideRouteCalculation() {
+    const controls = $('rideRouteControls');
+    const button = $('rideRouteCalculate');
+    const details = $('rideRouteDetails');
+    if (!controls || !button || !details) return;
+    controls.hidden = !can('rides.optimize');
+    if (controls.hidden) return;
+    button.textContent = rideRouteCalculation && rideRouteCalculation.status === 'READY' ? 'Пересчитать маршруты' : 'Рассчитать маршруты';
+    details.hidden = !(rideRouteCalculation && rideRouteCalculation.status === 'READY');
+    if (!rideRouteCalculation) { setRideStatus('rideRouteStatus', ''); renderRideOptimization(); return; }
+    if (rideRouteCalculation.status === 'PROCESSING') { setRideStatus('rideRouteStatus', 'Рассчитываем маршруты…'); return; }
+    if (rideRouteCalculation.status === 'READY') {
+      setRideStatus('rideRouteStatus', rideRouteCalculation.isCurrent === false ? 'Состав развоза изменился. Пересчитайте маршруты.' : 'Маршрутные данные готовы\nТочка старта: ' + (rideRouteCalculation.originName || 'Tatooine') + '\nУчастников: ' + rideRouteCalculation.employeeCount + '\nРассчитано направлений: ' + rideRouteCalculation.edgeCount);
+      renderRideOptimization(); return;
+    }
+    if (rideRouteCalculation.status === 'INPUT_ERROR') { setRideStatus('rideRouteStatus', 'Не удалось подготовить адреса. Проверьте адреса сотрудников и точку старта.'); return; }
+    setRideStatus('rideRouteStatus', rideRouteCalculation.error || 'Не удалось рассчитать маршруты.'); renderRideOptimization();
+  }
+
+  function renderRideOptimization() {
+    const button = $('rideOptimize'); const list = $('rideOptimizationList'); if (!button || !list) return;
+    button.hidden = !(rideRouteCalculation && rideRouteCalculation.status === 'READY' && rideRouteCalculation.isCurrent !== false && can('rides.optimize'));
+    list.replaceChildren();
+    if (!rideOptimization || rideOptimization.state !== 'ready') return;
+    const result = rideOptimization.result; const summary = document.createElement('div'); summary.className = 'ride-status'; summary.textContent = result.participantCount + ' сотрудников · ' + result.carCount + ' машин · Средняя загрузка: ' + result.summary.averagePassengersPerCar.toFixed(1).replace('.', ',') + '\nПредотвращено отдельных поездок: ' + result.summary.avoidedIndividualCars; list.appendChild(summary);
+    (result.cars || []).forEach(car => { const row=document.createElement('div'); row.className='ride-person'; const text=document.createElement('div'); const title=document.createElement('b'); title.textContent='Машина '+car.carId.replace('ride_car_','')+' · '+car.passengerCount+' сотрудника'; const detail=document.createElement('small'); detail.textContent=car.passengers.map(p=>p.dropoffPosition+'. '+p.employeeName+' — '+(p.extraDurationSeconds ? '+'+Math.round(p.extraDurationSeconds/60)+' мин' : 'без крюка')).join('\n')+'\n'+Math.round(car.routeDurationSeconds/60)+' мин · '+(car.routeDistanceMeters/1000).toFixed(1).replace('.',',')+' км\nМаксимальный крюк: '+(car.maxExtraDurationSeconds ? '+'+Math.round(car.maxExtraDurationSeconds/60)+' мин' : 'без крюка'); text.append(title,detail); row.appendChild(text); list.appendChild(row); });
+    (result.unresolvedParticipants || []).forEach(p=>{const row=document.createElement('div');row.className='ride-person';row.textContent='Не удалось автоматически распределить: '+p.employeeName+' — '+p.reason;list.appendChild(row);});
+  }
+  async function loadRideOptimization() { if (!can('rides.optimize')) return; const data=await jsonp(Object.assign({action:'tatooineRideOptimization'},authParams())); if(!data||!data.ok)throw new Error(data&&data.error||'Не удалось загрузить машины.'); rideOptimization=data.optimization; renderRideOptimization(); }
+  async function optimizeRide() { const button=$('rideOptimize'); button.disabled=true; setRideStatus('rideRouteStatus','Формируем машины…'); try { await post({action:'tatooineOptimizeRide'}); await sleep(500); await loadRideOptimization(); haptic('success'); } catch(error) { setRideStatus('rideRouteStatus',errorMessage(error,'Не удалось сформировать машины.')); } finally { button.disabled=false; } }
+
+  async function loadRideRouteCalculation(calculationId) {
+    if (!can('rides.optimize')) return null;
+    const data = await jsonp(Object.assign({ action: 'tatooineRideRouteCalculation', calculationId: calculationId || '' }, authParams()));
+    if (!data || !data.ok) throw new Error(data && data.error ? data.error : 'Не удалось загрузить расчёт.');
+    rideRouteCalculation = data.calculation || null;
+    renderRideRouteCalculation();
+    return rideRouteCalculation;
+  }
+
+  async function calculateRideRoutes() {
+    if (!can('rides.optimize')) return;
+    const button = $('rideRouteCalculate');
+    const calculationId = 'ride_route_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+    button.disabled = true;
+    setRideStatus('rideRouteStatus', 'Подготавливаем адреса…');
+    try {
+      await post({ action: 'tatooineCalculateRideRoutes', calculationId });
+      for (let attempt = 0; attempt < 30; attempt += 1) {
+        await sleep(700);
+        const calculation = await loadRideRouteCalculation(calculationId);
+        if (calculation && calculation.status !== 'PROCESSING') break;
+      }
+      if (!rideRouteCalculation || rideRouteCalculation.status === 'PROCESSING') throw new Error('Расчёт ещё выполняется. Обновите раздел через минуту.');
+      if (rideRouteCalculation.status !== 'READY') return;
+      haptic('success');
+    } catch (error) {
+      setRideStatus('rideRouteStatus', errorMessage(error, 'Не удалось рассчитать маршруты.'));
+    } finally { button.disabled = false; }
+  }
+
+  async function openRideRouteDetails() {
+    if (!can('rides.optimize') || !rideRouteCalculation || rideRouteCalculation.status !== 'READY') return;
+    const list = $('rideRouteDetailsList'); list.textContent = 'Загружаю данные…'; $('rideRouteDetailsDialog').hidden = false;
+    try {
+      const data = await jsonp(Object.assign({ action: 'tatooineRideRouteDetails', calculationId: rideRouteCalculation.id }, authParams()));
+      if (!data || !data.ok || !data.details) throw new Error(data && data.error ? data.error : 'Не удалось загрузить детали.');
+      const names = { origin: data.details.calculation.originName || 'Точка старта' }; (data.details.participants || []).forEach(item => { names[item.pointId] = item.name; });
+      list.replaceChildren();
+      (data.details.edges || []).forEach(edge => { const row = document.createElement('div'); row.className = 'ride-person'; const text = document.createElement('div'); const title = document.createElement('b'); title.textContent = (names[edge.fromId] || edge.fromId) + ' → ' + (names[edge.toId] || edge.toId); const value = document.createElement('small'); value.textContent = edge.status === 'ok' ? (Math.round(edge.durationSeconds / 60) + ' мин · ' + (edge.distanceMeters / 1000).toFixed(1).replace('.', ',') + ' км') : 'Маршрут недоступен'; text.append(title, value); row.appendChild(text); list.appendChild(row); });
+    } catch (error) { list.textContent = errorMessage(error, 'Не удалось загрузить детали.'); }
+  }
+
   async function setEmployeeRideNeeded(employeeId, needsRide) {
     try {
       await post({ action: 'tatooineSetEmployeeRide', targetUserId: employeeId, needsRide: needsRide ? 'true' : 'false' });
@@ -496,7 +571,10 @@
   async function openTaxi() {
     showScreen('taxi');
     if (!currentUser) await loadCurrentUser();
+    const routeCalculationLoad = can('rides.optimize') ? loadRideRouteCalculation() : Promise.resolve();
     await Promise.all([loadMyRide(), loadRideManager(), loadRideAddresses()]);
+    await routeCalculationLoad;
+    await loadRideOptimization().catch(() => {});
   }
 
   function roleLabel(role) {
@@ -1287,6 +1365,11 @@
     $('openRideOriginSettings').addEventListener('click', openRideOriginSettings);
     $('rideConfirm').addEventListener('click', () => setMyRideNeeded(true));
     $('rideCancel').addEventListener('click', () => setMyRideNeeded(false));
+    $('rideRouteCalculate').addEventListener('click', calculateRideRoutes);
+    $('rideRouteDetails').addEventListener('click', openRideRouteDetails);
+    $('rideOptimize').addEventListener('click', optimizeRide);
+    $('rideRouteDetailsClose').addEventListener('click', () => { $('rideRouteDetailsDialog').hidden = true; });
+    $('rideRouteDetailsDialog').addEventListener('click', event => { if (event.target === $('rideRouteDetailsDialog')) $('rideRouteDetailsDialog').hidden = true; });
     $('rideAddressDialogCancel').addEventListener('click', closeRideAddressDialog);
     $('rideAddressDialogSave').addEventListener('click', () => saveRideAddress(false));
     $('rideAddressDialogClear').addEventListener('click', () => saveRideAddress(true));
