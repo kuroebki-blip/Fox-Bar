@@ -17,7 +17,7 @@
 | Компонент | Версия | Статус | Основание |
 | --- | --- | --- | --- |
 | FO’X frontend | `v15.14.4` | опубликован в `main` | commit `c3c3b49` |
-| Tatooine frontend | `v1.8.2 RIDE ORIGIN` | опубликован в `main`; GitHub Pages обновляется из `main` | commit `f5b76b7` |
+| Tatooine frontend | `v1.8.3 TAXI PARALLEL LOAD` | опубликован в `main`; GitHub Pages обновляется из `main` | релиз параллельной загрузки раздела «Такси» |
 | Scanner/cash Apps Script | `v9.6.3 TATOOINE RIDE ORIGIN`, Apps Script version 33 | deployment обновлён и проверен `ping` | commit релиза будет добавлен после публикации; URL deployment сохранён |
 | Banquets Apps Script | неизвестно | требует подтверждения пользователя и проверки deployment | исходника production нет в `main` |
 | Google Sheets | неизвестно | требует подтверждения пользователя | таблицы и Script Properties не хранятся в Git |
@@ -30,6 +30,8 @@ Tatooine `v1.8.1` добавляет менеджерский выбор адр�
 
 Tatooine `v1.8.2` добавляет настраиваемую точку начала развоза: primary Location хранит адрес и координаты, доступ к настройке ограничен `rides.manage_origin` для admin/superadmin, а изменения записываются в отдельный audit-лист. Живой Telegram-тест настройки адреса остаётся отдельным пунктом.
 
+Tatooine `v1.8.3` устраняет Apps Script waterfall в разделе «Такси»: после получения текущего пользователя независимые данные развоза загружаются параллельно. Initial startup по-прежнему не запрашивает эти данные.
+
 ## Что есть только в ветках или candidate
 
 - Полный candidate исходник scanner/cash Apps Script находится в ветке `codex/cash-slip-detail-montage`, но не в `main`.
@@ -39,7 +41,7 @@ Tatooine `v1.8.2` добавляет настраиваемую точку на�
 ## Проверка
 
 - Автоматические тесты RBAC-релиза: 36/36; lint и syntax-check прошли по commit `227fe73`.
-- Публичные GitHub Pages версии FO’X `v15.14.4` и Tatooine `v1.8.2` доступны после push commits `c3c3b49` и `f5b76b7`; живой Telegram-тест остаётся отдельным пунктом.
+- Публичные GitHub Pages версии FO’X `v15.14.4` и Tatooine `v1.8.3` публикуются из `main`; живой Telegram-тест остаётся отдельным пунктом.
 - Публичный backend после обновления deployment version 33 ответил на `ping`.
 - Живой пользовательский тест точности OCR и отправки в Telegram для текущего montage-релиза не подтверждён.
 - Живой тест банкетов и формул Google Sheets после текущего frontend-релиза не подтверждён.

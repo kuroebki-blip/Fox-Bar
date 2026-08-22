@@ -119,6 +119,14 @@ test('ride data is loaded lazily when the user opens the ride section', () => {
   assert.match(taxiHandler, /loadRideManager\(\)/);
 });
 
+test('opening taxi loads independent ride data in parallel instead of an Apps Script waterfall', () => {
+  const taxiStart = frontend.indexOf('async function openTaxi()');
+  const taxiEnd = frontend.indexOf('function roleLabel(', taxiStart);
+  const taxiHandler = frontend.slice(taxiStart, taxiEnd);
+  assert.match(taxiHandler, /await Promise\.all\(\[loadMyRide\(\), loadRideManager\(\), loadRideAddresses\(\)\]\)/);
+  assert.equal(taxiHandler.includes('await loadMyRide();\n    await loadRideManager();'), false);
+});
+
 test('an active ride cannot be created without an address and address deletion cancels today request', () => {
   const selfStart = backend.indexOf('function setTatooineMyRide_');
   const selfEnd = backend.indexOf('function setTatooineEmployeeRide_', selfStart);

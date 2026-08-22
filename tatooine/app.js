@@ -496,9 +496,7 @@
   async function openTaxi() {
     showScreen('taxi');
     if (!currentUser) await loadCurrentUser();
-    await loadMyRide();
-    await loadRideManager();
-    await loadRideAddresses();
+    await Promise.all([loadMyRide(), loadRideManager(), loadRideAddresses()]);
   }
 
   function roleLabel(role) {
