@@ -16,7 +16,7 @@
  */
 
 const FOX_RECEIPTS = {
-  version: 'v9.7.0 TATOOINE ROUTE MATRIX',
+  version: 'v9.7.1 TATOOINE RIDE DATE FIX',
 
   stockSheets: [
     'Вино',
@@ -245,19 +245,32 @@ function getTatooineRideAddressSuggestions_(query) {
   }
 }
 
+function normalizeTatooineRideDate_(value) {
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    if (typeof Utilities !== 'undefined' && typeof Session !== 'undefined') {
+      return Utilities.formatDate(value, Session.getScriptTimeZone() || 'Europe/Moscow', 'yyyy-MM-dd');
+    }
+    return value.getFullYear() + '-' + ('0' + (value.getMonth() + 1)).slice(-2) + '-' + ('0' + value.getDate()).slice(-2);
+  }
+  const text = String(value || '').trim();
+  const match = text.match(/^(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : text;
+}
+
 function activeTatooineRideRequests_(rows, rideDate) {
+  const day = normalizeTatooineRideDate_(rideDate);
   return (rows || []).filter(function(item) {
-    return String(item.rideDate || '') === String(rideDate || '') && item.needsRide === true;
+    return normalizeTatooineRideDate_(item.rideDate) === day && item.needsRide === true;
   });
 }
 
 function upsertTatooineRideRequest_(rows, employeeId, rideDate, needsRide, actorUserId, now) {
   const id = String(employeeId || '');
-  const day = String(rideDate || '');
+  const day = normalizeTatooineRideDate_(rideDate);
   if (!id || !day) throw new Error('Не удалось определить сотрудника или дату развоза.');
   const stamp = now || new Date();
   const copy = (rows || []).map(function(item) { return Object.assign({}, item); });
-  const index = copy.findIndex(function(item) { return String(item.employeeId || '') === id && String(item.rideDate || '') === day; });
+  const index = copy.findIndex(function(item) { return String(item.employeeId || '') === id && normalizeTatooineRideDate_(item.rideDate) === day; });
   const existing = index >= 0 ? copy[index] : null;
   const active = needsRide === true;
   const request = Object.assign({}, existing || {
@@ -2787,7 +2800,7 @@ function tatooineRideRequestRows_(sh) {
       row: index + 3,
       id: String(row[0] || ''),
       employeeId: String(row[1] || ''),
-      rideDate: String(row[2] || ''),
+      rideDate: normalizeTatooineRideDate_(row[2]),
       needsRide: truthy_(row[3]),
       createdAt: row[4],
       updatedAt: row[5],
