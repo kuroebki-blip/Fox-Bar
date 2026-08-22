@@ -16,7 +16,7 @@
  */
 
 const FOX_RECEIPTS = {
-  version: 'v9.6.2 TATOOINE ORIGINAL IMAGE OCR',
+  version: 'v9.6.3 TATOOINE RIDE ORIGIN',
 
   stockSheets: [
     'Вино',

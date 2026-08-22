@@ -17,8 +17,8 @@
 | Компонент | Версия | Статус | Основание |
 | --- | --- | --- | --- |
 | FO’X frontend | `v15.14.4` | опубликован в `main` | commit `c3c3b49` |
-| Tatooine frontend | `v1.8.1 ADDRESS AUTOCOMPLETE` | опубликован в `main`; GitHub Pages обновляется из `main` | commit `367fdd6` |
-| Scanner/cash Apps Script | `v9.6.2 TATOOINE ORIGINAL IMAGE OCR`, Apps Script version 31 | deployment обновлён и проверен `ping` | commit `367fdd6`; URL deployment сохранён |
+| Tatooine frontend | `v1.8.2 RIDE ORIGIN` | опубликован в `main`; GitHub Pages обновляется из `main` | commit `f5b76b7` |
+| Scanner/cash Apps Script | `v9.6.3 TATOOINE RIDE ORIGIN`, Apps Script version 33 | deployment обновлён и проверен `ping` | commit релиза будет добавлен после публикации; URL deployment сохранён |
 | Banquets Apps Script | неизвестно | требует подтверждения пользователя и проверки deployment | исходника production нет в `main` |
 | Google Sheets | неизвестно | требует подтверждения пользователя | таблицы и Script Properties не хранятся в Git |
 
@@ -27,6 +27,8 @@ Frontend-релиз `v15.14.3` очищает хаб, таблицы и банк
 Tatooine-релиз `v1.8.0` добавляет этап 1 развоза: домашний адрес сотрудника, явная заявка «Еду домой» на текущую дату, отмена, менеджерский список активных заявок и server-side защита адресов. Маршрутизация, координаты и интеграции такси не реализованы. RBAC-инфраструктура остаётся прежней: пользователь получает роль и permissions одним bootstrap-запросом, а первый `superadmin` задан через Script Property без его хранения в репозитории.
 
 Tatooine `v1.8.1` добавляет менеджерский выбор адреса через Geoapify: подсказки запрашиваются только при вводе адреса, защищены `rides.manage_addresses`, а выбранный вариант сохраняет координаты. Для живой работы требуется Script Property `GEOAPIFY_API_KEY`; ключ не хранится в Git.
+
+Tatooine `v1.8.2` добавляет настраиваемую точку начала развоза: primary Location хранит адрес и координаты, доступ к настройке ограничен `rides.manage_origin` для admin/superadmin, а изменения записываются в отдельный audit-лист. Живой Telegram-тест настройки адреса остаётся отдельным пунктом.
 
 ## Что есть только в ветках или candidate
 
@@ -37,8 +39,8 @@ Tatooine `v1.8.1` добавляет менеджерский выбор адр�
 ## Проверка
 
 - Автоматические тесты RBAC-релиза: 36/36; lint и syntax-check прошли по commit `227fe73`.
-- Публичные GitHub Pages версии FO’X `v15.14.4` и Tatooine `v1.8.1` доступны после push commits `c3c3b49` и `367fdd6`; живой Telegram-тест остаётся отдельным пунктом.
-- Публичный backend после обновления deployment version 31 ответил на `ping`.
+- Публичные GitHub Pages версии FO’X `v15.14.4` и Tatooine `v1.8.2` доступны после push commits `c3c3b49` и `f5b76b7`; живой Telegram-тест остаётся отдельным пунктом.
+- Публичный backend после обновления deployment version 33 ответил на `ping`.
 - Живой пользовательский тест точности OCR и отправки в Telegram для текущего montage-релиза не подтверждён.
 - Живой тест банкетов и формул Google Sheets после текущего frontend-релиза не подтверждён.
 
@@ -51,11 +53,11 @@ Tatooine `v1.8.1` добавляет менеджерский выбор адр�
 
 ## Текущая задача
 
-Добавить `GEOAPIFY_API_KEY` в Script Properties, затем провести живой тест Tatooine в Telegram: менеджер открывает «Такси», вводит адрес с опечаткой, выбирает подсказку и проверяет сохранённые координаты.
+Добавить `GEOAPIFY_API_KEY` в Script Properties, затем провести живой тест Tatooine в Telegram: admin/superadmin открывает «Настройки», вводит точку старта с опечаткой, выбирает подсказку и проверяет сохранённые координаты.
 
 ## Следующие шаги
 
-1. Добавить `GEOAPIFY_API_KEY` в Script Properties и провести живой тест подсказок адреса в Tatooine.
+1. Добавить `GEOAPIFY_API_KEY` в Script Properties и провести живой тест подсказок домашнего адреса и точки старта в Tatooine.
 2. Проверить точность цельного OCR-снимка `v1.5.2` внутри Telegram на Android на том же проблемном чеке.
 3. Провести живой OCR/Telegram-тест FO’X и Tatooine на одинаковом наборе фото.
 4. Отдельно диагностировать банкетные проблемы по фактическому production backend без запуска setup-функций.
