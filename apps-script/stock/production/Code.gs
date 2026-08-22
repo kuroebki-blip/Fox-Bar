@@ -16,7 +16,7 @@
  */
 
 const FOX_RECEIPTS = {
-  version: 'v9.6.3 TATOOINE RIDE ORIGIN',
+  version: 'v9.7.0 TATOOINE ROUTE MATRIX',
 
   stockSheets: [
     'Вино',
@@ -51,7 +51,11 @@ const FOX_RECEIPTS = {
     tatooineRoleAudit: 'Tatooine_АудитРолей',
     tatooineRideRequests: 'Tatooine_ЗаявкиРазвоза',
     tatooineLocations: 'Tatooine_Локации',
-    tatooineLocationAudit: 'Tatooine_АудитЛокаций'
+    tatooineLocationAudit: 'Tatooine_АудитЛокаций',
+    tatooineRouteCalculations: 'Tatooine_РасчетыМаршрутов',
+    tatooineRouteParticipants: 'Tatooine_УчастникиМаршрутов',
+    tatooineRouteEdges: 'Tatooine_МатрицаМаршрутов',
+    tatooineRideOptimizations: 'Tatooine_ОптимизацииРазвоза'
   },
 
   // Банкеты хранятся в отдельной production-таблице. Статус для резерва
@@ -135,6 +139,18 @@ const FOX_RECEIPT_HEADERS = {
   ],
   tatooineLocationAudit: [
     'Location ID','Старый адрес','Новый адрес','Обновил пользователь','Обновлено'
+  ],
+  tatooineRouteCalculations: [
+    'ID','Дата развоза','Статус','Провайдер','Режим','Тип','Traffic','Участников','Точек','Направлений','Fingerprint','Origin name','Origin address','Origin latitude','Origin longitude','Запрошено','Завершено','Длительность мс','Ошибка тип','Ошибка'
+  ],
+  tatooineRouteParticipants: [
+    'Calculation ID','Point ID','Employee ID','Имя','Адрес snapshot','Широта snapshot','Долгота snapshot'
+  ],
+  tatooineRouteEdges: [
+    'Calculation ID','From point ID','To point ID','Distance meters','Duration seconds','Статус'
+  ],
+  tatooineRideOptimizations: [
+    'ID','Route calculation ID','Дата развоза','Optimizer version','Optimization mode','Создано','Участников','Машин','Config JSON','Summary JSON','Result JSON'
   ]
 };
 
@@ -270,6 +286,60 @@ function assertTatooineRideRequestAccess_(user, targetUserId) {
   if (String(user && user.id || '') === target && hasTatooinePermission_(user, 'rides.submit_self')) return;
   if (!hasTatooinePermission_(user, 'rides.override')) throw new Error('Нет доступа.');
 }
+
+// RoutingProvider contract: returns a normalized matrix, never raw provider data.
+function isTatooineRouteCoordinatePairValid_(latitude, longitude) {
+  const lat = Number(latitude);
+  const lon = Number(longitude);
+  return isFinite(lat) && isFinite(lon) && !(lat === 0 && lon === 0) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+}
+
+function buildTatooineRoutePoints_(origin, employees) {
+  if (!origin || !isTatooineRouteCoordinatePairValid_(origin.latitude, origin.longitude)) throw new Error('Точка начала развоза не готова к расчёту.');
+  const points = [{ id: 'origin', type: 'origin', name: String(origin.name || 'Tatooine'), addressText: String(origin.addressText || ''), latitude: Number(origin.latitude), longitude: Number(origin.longitude) }];
+  (employees || []).forEach(function(employee) {
+    const address = employee && employee.address || {};
+    if (!employee || !employee.employeeId || !isTatooineRouteCoordinatePairValid_(address.latitude, address.longitude)) throw new Error('Адрес сотрудника не готов к расчёту.');
+    points.push({ id: 'employee_' + String(employee.employeeId), type: 'employee', employeeId: String(employee.employeeId), name: String(employee.name || 'Сотрудник'), addressText: String(address.text || ''), latitude: Number(address.latitude), longitude: Number(address.longitude) });
+  });
+  return points;
+}
+
+function normalizeGeoapifyRouteMatrix_(payload, points) {
+  const rows = payload && payload.sources_to_targets;
+  if (!Array.isArray(rows) || rows.length !== points.length) throw new Error('Некорректный ответ матрицы маршрутов.');
+  const edges = [];
+  rows.forEach(function(row, fromIndex) {
+    if (!Array.isArray(row) || row.length !== points.length) throw new Error('Некорректный ответ матрицы маршрутов.');
+    row.forEach(function(cell, toIndex) {
+      if (fromIndex === toIndex) return;
+      const base = { fromId: points[fromIndex].id, toId: points[toIndex].id };
+      const distance = Number(cell && cell.distance);
+      const duration = Number(cell && cell.time);
+      if (!cell || !isFinite(distance) || !isFinite(duration) || distance < 0 || duration < 0) edges.push(Object.assign(base, { distanceMeters: null, durationSeconds: null, status: 'unreachable' }));
+      else edges.push(Object.assign(base, { distanceMeters: distance, durationSeconds: duration, status: 'ok' }));
+    });
+  });
+  return { provider: 'geoapify', mode: 'drive', type: 'balanced', traffic: 'approximated', generatedAt: new Date().toISOString(), points: points.map(function(point) { return Object.assign({}, point); }), edges: edges };
+}
+
+function tatooineRouteInputFingerprint_(origin, employees) {
+  const points = buildTatooineRoutePoints_(origin, employees).map(function(point) { return [point.id, point.addressText, point.latitude, point.longitude].join('|'); });
+  return points.join('||');
+}
+
+const TATOOINE_RIDE_OPTIMIZER_CONFIG = { maxPassengersPerCar: 3, maxExtraMinutes: 20, maxExtraRatio: 0.40, exactParticipantLimit: 18 };
+function optimizeTatooineRideMatrix_(input) {
+  const started = Date.now(); const config = Object.assign({}, TATOOINE_RIDE_OPTIMIZER_CONFIG, input && input.config || {}); const participants = (input && input.participants || []).slice().sort(function(a,b){return String(a.employeeId).localeCompare(String(b.employeeId));}); const edges={}; (input && input.matrix && input.matrix.edges || []).forEach(function(e){edges[e.fromId+'>'+e.toId]=e;});
+  const direct={}; const unresolved=[]; const valid=[]; participants.forEach(function(p){const e=edges['origin>'+p.pointId]; if(!e||e.status!=='ok'||!Number.isFinite(e.durationSeconds)||e.durationSeconds<=0) unresolved.push(Object.assign({},p,{reason:'Прямой маршрут недоступен.'})); else {direct[p.pointId]=e; valid.push(p);}});
+  const permutations=function(items){if(items.length<2)return [items]; const out=[]; items.forEach(function(x,i){permutations(items.slice(0,i).concat(items.slice(i+1))).forEach(function(t){out.push([x].concat(t));});}); return out;};
+  const evaluate=function(order){let from='origin', dur=0, dist=0, passengers=[]; for(let i=0;i<order.length;i++){const e=edges[from+'>'+order[i].pointId]; if(!e||e.status!=='ok'||!Number.isFinite(e.durationSeconds))return null; dur+=e.durationSeconds; dist+=e.distanceMeters; const d=direct[order[i].pointId]; const extra=dur-d.durationSeconds, ratio=extra/d.durationSeconds; if(extra>config.maxExtraMinutes*60||ratio>config.maxExtraRatio)return null; passengers.push(Object.assign({},order[i],{dropoffPosition:i+1,directDurationSeconds:d.durationSeconds,directDistanceMeters:d.distanceMeters,sharedDurationSeconds:dur,extraDurationSeconds:extra,extraRatio:ratio})); from=order[i].pointId;} return {passengers:passengers,routeDurationSeconds:dur,routeDistanceMeters:dist,totalPassengerExtraDurationSeconds:passengers.reduce(function(s,p){return s+p.extraDurationSeconds;},0),maxExtraDurationSeconds:Math.max.apply(null,passengers.map(function(p){return p.extraDurationSeconds;})),maxExtraRatio:Math.max.apply(null,passengers.map(function(p){return p.extraRatio;}))};};
+  const groups=[]; for(let size=1;size<=config.maxPassengersPerCar;size++){const choose=function(start,items){if(items.length===size){let best=null; permutations(items).forEach(function(order){const candidate=evaluate(order); if(candidate&&(!best||compareCandidate_(candidate,best)<0))best=candidate;}); if(best)groups.push(best); return;} for(let i=start;i<valid.length;i++)choose(i+1,items.concat(valid[i]));}; choose(0,[]);}
+  const better=function(a,b){if(!b)return true; const aa=[a.cars.length,a.vehicle,a.extra,a.maxExtra,a.distance,a.key],bb=[b.cars.length,b.vehicle,b.extra,b.maxExtra,b.distance,b.key]; for(let i=0;i<aa.length;i++){if(aa[i]!==bb[i])return aa[i]<bb[i];}return false;}; const maskFor=function(g){return g.passengers.reduce(function(m,p){return m|(1<<valid.findIndex(function(x){return x.pointId===p.pointId;}));},0);}; const candidates=groups.map(function(g){return {g:g,mask:maskFor(g)};}); let solution;
+  if(valid.length<=config.exactParticipantLimit){const full=(1<<valid.length)-1,memo={}; const solve=function(mask){if(mask===full)return {cars:[],vehicle:0,extra:0,maxExtra:0,distance:0,key:''}; if(memo[mask])return memo[mask]; let best=null; candidates.forEach(function(c){if((c.mask&mask)!==0)return; const rest=solve(mask|c.mask); const x={cars:[c.g].concat(rest.cars),vehicle:c.g.routeDurationSeconds+rest.vehicle,extra:c.g.totalPassengerExtraDurationSeconds+rest.extra,maxExtra:Math.max(c.g.maxExtraDurationSeconds,rest.maxExtra),distance:c.g.routeDistanceMeters+rest.distance,key:c.g.passengers.map(function(p){return p.employeeId;}).join(',')+'|'+rest.key}; if(better(x,best))best=x;}); return memo[mask]=best;}; solution=solve(0);} else {let used={}; const cars=[]; candidates.sort(function(a,b){return compareCandidate_(a.g,b.g);}).forEach(function(c){if(c.g.passengers.every(function(p){return !used[p.pointId];})){c.g.passengers.forEach(function(p){used[p.pointId]=true;});cars.push(c.g);}}); solution={cars:cars,vehicle:cars.reduce(function(s,c){return s+c.routeDurationSeconds;},0),extra:cars.reduce(function(s,c){return s+c.totalPassengerExtraDurationSeconds;},0),maxExtra:Math.max.apply(null,cars.map(function(c){return c.maxExtraDurationSeconds;})),distance:cars.reduce(function(s,c){return s+c.routeDistanceMeters;},0)};}
+  const cars=(solution&&solution.cars||[]).map(function(c,i){return Object.assign({carId:'ride_car_'+(i+1),passengerCount:c.passengers.length,dropoffOrder:c.passengers.map(function(p){return p.pointId;})},c);}).sort(function(a,b){return b.passengerCount-a.passengerCount||a.routeDurationSeconds-b.routeDurationSeconds||a.dropoffOrder[0].localeCompare(b.dropoffOrder[0]);}); const count=cars.reduce(function(s,c){s[c.passengerCount]=(s[c.passengerCount]||0)+1;return s;},{}); const extras=cars.reduce(function(a,c){return a.concat(c.passengers);},[]).map(function(p){return p.extraDurationSeconds;}); return {optimizerVersion:'ride_optimizer_v1',optimizationMode:valid.length<=config.exactParticipantLimit?'exact':'heuristic',generatedAt:new Date().toISOString(),participantCount:participants.length,carCount:cars.length,cars:cars,unresolvedParticipants:unresolved,summary:{participantCount:participants.length,carCount:cars.length,averagePassengersPerCar:cars.length?valid.length/cars.length:0,singlePassengerCars:count[1]||0,twoPassengerCars:count[2]||0,threePassengerCars:count[3]||0,avoidedIndividualCars:valid.length-cars.length,maxExtraDurationSeconds:extras.length?Math.max.apply(null,extras):0,maxExtraRatio:cars.length?Math.max.apply(null,cars.map(function(c){return c.maxExtraRatio;})):0,averageExtraDurationSeconds:extras.length?extras.reduce(function(s,x){return s+x;},0)/extras.length:0,candidateGroupCount:groups.length,optimizationDurationMs:Date.now()-started}};
+}
+function compareCandidate_(a,b){const aa=[a.routeDurationSeconds,a.totalPassengerExtraDurationSeconds,a.maxExtraDurationSeconds,a.routeDistanceMeters,a.passengers.map(function(p){return p.employeeId;}).join(',')],bb=[b.routeDurationSeconds,b.totalPassengerExtraDurationSeconds,b.maxExtraDurationSeconds,b.routeDistanceMeters,b.passengers.map(function(p){return p.employeeId;}).join(',')];for(let i=0;i<aa.length;i++){if(aa[i]!==bb[i])return aa[i]<bb[i]?-1:1;}return 0;}
 // ==== TATOOINE RIDES END ====
 
 function onOpen() {
@@ -695,6 +765,17 @@ function doGet(e) {
       return jsonpOutput_(callback, { ok: true, rideDate: tatooineRideDate_(), items: listTatooineTodayRides_(auth) });
     }
 
+    if (action === 'tatooineRideRouteCalculation') {
+      return jsonpOutput_(callback, { ok: true, calculation: getTatooineRideRouteCalculation_(e.parameter, auth) });
+    }
+
+    if (action === 'tatooineRideRouteDetails') {
+      return jsonpOutput_(callback, { ok: true, details: getTatooineRideRouteDetails_(e.parameter, auth) });
+    }
+    if (action === 'tatooineRideOptimization') {
+      return jsonpOutput_(callback, { ok: true, optimization: getTatooineRideOptimization_(auth) });
+    }
+
     if (action === 'tatooineRideEmployees') {
       assertTatooineRideAddressAccess_(getTatooineCurrentUser_(auth, false));
       return jsonpOutput_(callback, { ok: true, items: listTatooineRideEmployees_(auth) });
@@ -835,6 +916,15 @@ function doPost(e) {
 
     if (action === 'tatooineSetRideOrigin') {
       setTatooineRideOrigin_(e.parameter, auth);
+      return textOutput_({ ok: true });
+    }
+
+    if (action === 'tatooineCalculateRideRoutes') {
+      calculateTatooineRideRoutes_(e.parameter, auth);
+      return textOutput_({ ok: true });
+    }
+    if (action === 'tatooineOptimizeRide') {
+      optimizeTatooineRide_(auth);
       return textOutput_({ ok: true });
     }
 
@@ -2553,7 +2643,7 @@ function telegramRouteConfig_(value) {
 
 function assertTelegramActionAllowed_(action, auth) {
   if (!auth || auth.venue !== 'tatooine') return;
-  const allowed = ['status', 'cashReportScan', 'cashReportScanImages', 'cashReportSend', 'currentUser', 'tatooineEmployees', 'tatooineSetRole', 'tatooineMyRide', 'tatooineRideToday', 'tatooineRideEmployees', 'tatooineRideAddressSuggestions', 'tatooineRideOriginSuggestions', 'tatooineRideOrigin', 'tatooineSetMyRide', 'tatooineSetEmployeeRide', 'tatooineSetEmployeeRideAddress', 'tatooineSetRideOrigin'];
+  const allowed = ['status', 'cashReportScan', 'cashReportScanImages', 'cashReportSend', 'currentUser', 'tatooineEmployees', 'tatooineSetRole', 'tatooineMyRide', 'tatooineRideToday', 'tatooineRideRouteCalculation', 'tatooineRideRouteDetails', 'tatooineRideOptimization', 'tatooineCalculateRideRoutes', 'tatooineOptimizeRide', 'tatooineRideEmployees', 'tatooineRideAddressSuggestions', 'tatooineRideOriginSuggestions', 'tatooineRideOrigin', 'tatooineSetMyRide', 'tatooineSetEmployeeRide', 'tatooineSetEmployeeRideAddress', 'tatooineSetRideOrigin'];
   if (allowed.indexOf(String(action || '')) < 0) {
     throw new Error('Недоступное действие Tatooine.');
   }
@@ -2616,6 +2706,10 @@ function tatooineRbacSheet_(name, ensure) {
   definitions[FOX_RECEIPTS.sheets.tatooineRideRequests] = { title: 'Tatooine — ЗАЯВКИ РАЗВОЗА', headers: FOX_RECEIPT_HEADERS.tatooineRideRequests };
   definitions[FOX_RECEIPTS.sheets.tatooineLocations] = { title: 'Tatooine — ЛОКАЦИИ', headers: FOX_RECEIPT_HEADERS.tatooineLocations };
   definitions[FOX_RECEIPTS.sheets.tatooineLocationAudit] = { title: 'Tatooine — АУДИТ ЛОКАЦИЙ', headers: FOX_RECEIPT_HEADERS.tatooineLocationAudit };
+  definitions[FOX_RECEIPTS.sheets.tatooineRouteCalculations] = { title: 'Tatooine — РАСЧЁТЫ МАРШРУТОВ', headers: FOX_RECEIPT_HEADERS.tatooineRouteCalculations };
+  definitions[FOX_RECEIPTS.sheets.tatooineRouteParticipants] = { title: 'Tatooine — УЧАСТНИКИ МАРШРУТОВ', headers: FOX_RECEIPT_HEADERS.tatooineRouteParticipants };
+  definitions[FOX_RECEIPTS.sheets.tatooineRouteEdges] = { title: 'Tatooine — МАТРИЦА МАРШРУТОВ', headers: FOX_RECEIPT_HEADERS.tatooineRouteEdges };
+  definitions[FOX_RECEIPTS.sheets.tatooineRideOptimizations] = { title: 'Tatooine — ОПТИМИЗАЦИИ РАЗВОЗА', headers: FOX_RECEIPT_HEADERS.tatooineRideOptimizations };
   const definition = definitions[name];
   if (!definition) throw new Error('Неизвестный служебный лист Tatooine.');
   if (ensure && (!sh || sh.getMaxColumns() < definition.headers.length)) {
@@ -2851,6 +2945,69 @@ function setTatooineEmployeeRideAddress_(p, auth) {
   }
   return address;
 }
+
+function tatooineRouteSheet_(name) { return tatooineRbacSheet_(name, true); }
+function tatooineRouteCalculationRows_() {
+  const sh = tatooineRouteSheet_(FOX_RECEIPTS.sheets.tatooineRouteCalculations);
+  if (sh.getLastRow() < 3) return [];
+  return sh.getRange(3, 1, sh.getLastRow() - 2, FOX_RECEIPT_HEADERS.tatooineRouteCalculations.length).getValues().map(function(r, i) { return { row: i + 3, id: String(r[0] || ''), rideDate: String(r[1] || ''), status: String(r[2] || ''), provider: String(r[3] || ''), employeeCount: Number(r[7] || 0), pointCount: Number(r[8] || 0), edgeCount: Number(r[9] || 0), fingerprint: String(r[10] || ''), originName: String(r[11] || ''), originAddress: String(r[12] || ''), originLatitude: r[13], originLongitude: r[14], requestedAt: r[15], completedAt: r[16], durationMs: Number(r[17] || 0), errorType: String(r[18] || ''), error: String(r[19] || '') }; }).filter(function(x) { return x.id; });
+}
+function saveTatooineRouteCalculation_(c) {
+  const sh = tatooineRouteSheet_(FOX_RECEIPTS.sheets.tatooineRouteCalculations);
+  const rows = tatooineRouteCalculationRows_(); const existing = rows.filter(function(x) { return x.id === c.id; })[0];
+  const values = [[c.id,c.rideDate,c.status,'geoapify','drive','balanced','approximated',c.employeeCount,c.pointCount,c.edgeCount,c.fingerprint,c.originName,c.originAddress,c.originLatitude,c.originLongitude,c.requestedAt,c.completedAt,c.durationMs,c.errorType,c.error]];
+  if (existing) sh.getRange(existing.row, 1, 1, values[0].length).setValues(values); else sh.getRange(sh.getLastRow() + 1, 1, 1, values[0].length).setValues(values);
+}
+function geocodeTatooineRideAddress_(text) { return getTatooineRideAddressSuggestions_(text)[0] || null; }
+function prepareTatooineRouteInput_() {
+  let origin = getTatooinePrimaryRideLocation_(); const issues = [];
+  if (origin.addressText && !isTatooineRouteCoordinatePairValid_(origin.latitude, origin.longitude)) {
+    const found = geocodeTatooineRideAddress_(origin.addressText); if (found) { origin.latitude = found.latitude; origin.longitude = found.longitude; tatooineRideLocationSheet_().getRange(origin.row, 4, 1, 2).setValues([[found.latitude, found.longitude]]); } else issues.push({ name: 'Точка начала', reason: 'Не удалось подготовить адрес.' });
+  }
+  if (!origin.addressText || !isTatooineRouteCoordinatePairValid_(origin.latitude, origin.longitude)) issues.push({ name: 'Точка начала', reason: 'Адрес или координаты не указаны.' });
+  const users = tatooineUserRows_(tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, true)); const byId = {}; users.forEach(function(item) { byId[item.userId] = item; });
+  const employees = activeTatooineRideRequests_(tatooineRideRequestRows_(tatooineRideRequestSheet_()), tatooineRideDate_()).map(function(request) { const employee = byId[request.employeeId]; return employee ? { employeeId: employee.userId, name: employee.name, address: tatooinePublicHomeAddress_(employee) } : { employeeId: request.employeeId, name: 'Сотрудник', address: { text: '', latitude: '', longitude: '' } }; });
+  employees.forEach(function(item) {
+    if (!item.address.text) { issues.push({ name: item.name, reason: 'Адрес развоза не указан.' }); return; }
+    if (!isTatooineRouteCoordinatePairValid_(item.address.latitude, item.address.longitude)) {
+      const found = geocodeTatooineRideAddress_(item.address.text);
+      if (!found) { issues.push({ name: item.name, reason: 'Не удалось подготовить адрес.' }); return; }
+      const employee = findTatooineRideEmployee_(item.employeeId); if (employee) tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, true).getRange(employee.row, 7, 1, 2).setValues([[found.latitude, found.longitude]]);
+      item.address.latitude = found.latitude; item.address.longitude = found.longitude;
+    }
+  });
+  return { origin: origin, employees: employees, issues: issues };
+}
+function geoapifyRoutingProviderGetMatrix_(points) {
+  const apiKey = String(PropertiesService.getScriptProperties().getProperty('GEOAPIFY_API_KEY') || '').trim(); if (!apiKey) throw new Error('ROUTING_NOT_CONFIGURED');
+  const body = { mode: 'drive', type: 'balanced', traffic: 'approximated', sources: points.map(function(p) { return { location: [p.longitude, p.latitude] }; }), targets: points.map(function(p) { return { location: [p.longitude, p.latitude] }; }) };
+  let response; try { response = UrlFetchApp.fetch('https://api.geoapify.com/v1/routematrix?apiKey=' + encodeURIComponent(apiKey), { method: 'post', contentType: 'application/json', payload: JSON.stringify(body), muteHttpExceptions: true }); } catch (_) { throw new Error('ROUTING_NETWORK'); }
+  const code = response.getResponseCode(); if (code !== 200) throw new Error(code === 401 || code === 403 ? 'ROUTING_AUTH' : code === 429 ? 'ROUTING_RATE_LIMIT' : code >= 500 ? 'ROUTING_UNAVAILABLE' : 'ROUTING_RESPONSE');
+  try { return normalizeGeoapifyRouteMatrix_(JSON.parse(response.getContentText()), points); } catch (error) { if (/матриц/.test(String(error && error.message))) throw error; throw new Error('ROUTING_RESPONSE'); }
+}
+const GeoapifyRoutingProvider_ = { name: 'geoapify', getMatrix: geoapifyRoutingProviderGetMatrix_ };
+function calculateTatooineRideRoutes_(p, auth) {
+  const user = requireTatooinePermission_(auth, 'rides.optimize');
+  const id = String(p.calculationId || ''); if (!/^ride_route_[A-Za-z0-9_-]{8,80}$/.test(id)) throw new Error('Некорректный ID расчёта.');
+  const started = new Date(); let c = { id: id, rideDate: tatooineRideDate_(), status: 'PROCESSING', employeeCount: 0, pointCount: 0, edgeCount: 0, fingerprint: '', originName: '', originAddress: '', originLatitude: '', originLongitude: '', requestedAt: started, completedAt: '', durationMs: 0, errorType: '', error: '' };
+  try {
+    const prepared = prepareTatooineRouteInput_(); c.originName = prepared.origin.name; c.originAddress = prepared.origin.addressText; c.originLatitude = prepared.origin.latitude; c.originLongitude = prepared.origin.longitude; c.employeeCount = prepared.employees.length;
+    if (!prepared.employees.length) throw new Error('ROUTING_NO_PARTICIPANTS');
+    if (prepared.issues.length) { c.status = 'INPUT_ERROR'; c.errorType = 'INPUT'; c.error = JSON.stringify(prepared.issues); return c; }
+    const points = buildTatooineRoutePoints_(prepared.origin, prepared.employees); c.pointCount = points.length; c.fingerprint = tatooineRouteInputFingerprint_(prepared.origin, prepared.employees); saveTatooineRouteCalculation_(c);
+    const matrix = GeoapifyRoutingProvider_.getMatrix(points); c.status = 'READY'; c.edgeCount = matrix.edges.length;
+    const participants = points.filter(function(x) { return x.type === 'employee'; }).map(function(x) { return [id,x.id,x.employeeId,x.name,x.addressText,x.latitude,x.longitude]; }); if (participants.length) tatooineRouteSheet_(FOX_RECEIPTS.sheets.tatooineRouteParticipants).getRange(tatooineRouteSheet_(FOX_RECEIPTS.sheets.tatooineRouteParticipants).getLastRow()+1,1,participants.length,7).setValues(participants);
+    const edges = matrix.edges.map(function(x) { return [id,x.fromId,x.toId,x.distanceMeters === null ? '' : x.distanceMeters,x.durationSeconds === null ? '' : x.durationSeconds,x.status]; }); if (edges.length) tatooineRouteSheet_(FOX_RECEIPTS.sheets.tatooineRouteEdges).getRange(tatooineRouteSheet_(FOX_RECEIPTS.sheets.tatooineRouteEdges).getLastRow()+1,1,edges.length,6).setValues(edges);
+  } catch (error) { c.status = 'ERROR'; c.errorType = String(error && error.message || 'ROUTING_ERROR'); c.error = c.errorType === 'ROUTING_RATE_LIMIT' ? 'Лимит Geoapify исчерпан. Повторите позже.' : c.errorType === 'ROUTING_AUTH' ? 'Маршрутизация временно недоступна.' : 'Не удалось рассчитать маршруты. Повторите позже.'; }
+  finally { c.completedAt = new Date(); c.durationMs = c.completedAt.getTime() - started.getTime(); saveTatooineRouteCalculation_(c); }
+  return c;
+}
+function getTatooineRideRouteCalculation_(p, auth) { requireTatooinePermission_(auth, 'rides.optimize'); const id = String(p.calculationId || ''); const rows = tatooineRouteCalculationRows_().filter(function(x) { return x.rideDate === tatooineRideDate_() && (!id || x.id === id); }); const c = rows[rows.length - 1] || null; if (!c) return null; const activeIds = activeTatooineRideRequests_(tatooineRideRequestRows_(tatooineRideRequestSheet_()), tatooineRideDate_()).map(function(x){return x.employeeId;}).sort().join('|'); const participantSheet = tatooineRouteSheet_(FOX_RECEIPTS.sheets.tatooineRouteParticipants); const calculatedIds = participantSheet.getLastRow() < 3 ? '' : participantSheet.getRange(3,1,participantSheet.getLastRow()-2,3).getValues().filter(function(r){return String(r[0])===c.id;}).map(function(r){return String(r[2]);}).sort().join('|'); return { id:c.id,status:c.status,employeeCount:c.employeeCount,pointCount:c.pointCount,edgeCount:c.edgeCount,originName:c.originName,originAddress:c.originAddress,requestedAt:c.requestedAt,completedAt:c.completedAt,durationMs:c.durationMs,error:c.error,errorType:c.errorType,isCurrent:activeIds === calculatedIds }; }
+function getTatooineRideRouteDetails_(p, auth) { const user = requireTatooinePermission_(auth, 'rides.optimize'); const id = requiredString_(p.calculationId, 'calculationId'); const c = tatooineRouteCalculationRows_().filter(function(x) { return x.id === id; })[0]; if (!c) throw new Error('Расчёт не найден.'); const read = function(name, cols) { const sh=tatooineRouteSheet_(name); return sh.getLastRow()<3?[]:sh.getRange(3,1,sh.getLastRow()-2,cols).getValues().filter(function(r){return String(r[0])===id;}); }; return { calculation:getTatooineRideRouteCalculation_({calculationId:id}, auth), participants:read(FOX_RECEIPTS.sheets.tatooineRouteParticipants,7).map(function(r){return {pointId:r[1],employeeId:r[2],name:r[3],address:r[4],latitude:r[5],longitude:r[6]};}), edges:read(FOX_RECEIPTS.sheets.tatooineRouteEdges,6).map(function(r){return {fromId:r[1],toId:r[2],distanceMeters:r[3]===''?null:Number(r[3]),durationSeconds:r[4]===''?null:Number(r[4]),status:r[5]};}) }; }
+
+function tatooineOptimizationRows_() { const sh=tatooineRouteSheet_(FOX_RECEIPTS.sheets.tatooineRideOptimizations); return sh.getLastRow()<3?[]:sh.getRange(3,1,sh.getLastRow()-2,FOX_RECEIPT_HEADERS.tatooineRideOptimizations.length).getValues().map(function(r,i){return {row:i+3,id:String(r[0]||''),routeCalculationId:String(r[1]||''),rideDate:String(r[2]||''),resultJson:String(r[10]||'')};}).filter(function(x){return x.id;}); }
+function getTatooineRideOptimization_(auth) { requireTatooinePermission_(auth,'rides.optimize'); const current=getTatooineRideRouteCalculation_({},auth); if(!current)return {state:'not_calculated'}; if(current.status!=='READY'||current.isCurrent===false)return {state:'stale',routeCalculationId:current.id}; const rows=tatooineOptimizationRows_().filter(function(x){return x.routeCalculationId===current.id;}); if(!rows.length)return {state:'not_calculated',routeCalculationId:current.id}; try{return {state:'ready',result:JSON.parse(rows[rows.length-1].resultJson)};}catch(_){return {state:'error'};} }
+function optimizeTatooineRide_(auth) { requireTatooinePermission_(auth,'rides.optimize'); const current=getTatooineRideRouteCalculation_({},auth); if(!current||current.status!=='READY')throw new Error('Сначала рассчитайте маршруты.'); if(current.isCurrent===false)throw new Error('Маршруты изменились. Сначала пересчитайте маршруты.'); const details=getTatooineRideRouteDetails_({calculationId:current.id},auth); const participants=(details.participants||[]).map(function(p){return {employeeId:p.employeeId,employeeName:p.name,pointId:p.pointId};}); const matrix={edges:details.edges||[]}; const result=optimizeTatooineRideMatrix_({participants:participants,matrix:matrix}); const id='ride_optimization_'+current.id+'_'+Date.now(); const config={maxPassengersPerCar:TATOOINE_RIDE_OPTIMIZER_CONFIG.maxPassengersPerCar,maxExtraMinutes:TATOOINE_RIDE_OPTIMIZER_CONFIG.maxExtraMinutes,maxExtraRatio:TATOOINE_RIDE_OPTIMIZER_CONFIG.maxExtraRatio}; const sh=tatooineRouteSheet_(FOX_RECEIPTS.sheets.tatooineRideOptimizations); sh.getRange(sh.getLastRow()+1,1,1,FOX_RECEIPT_HEADERS.tatooineRideOptimizations.length).setValues([[id,current.id,tatooineRideDate_(),result.optimizerVersion,result.optimizationMode,new Date(),result.participantCount,result.carCount,JSON.stringify(config),JSON.stringify(result.summary),JSON.stringify(result)]]); return result; }
 
 function setTatooineEmployeeRole_(p, auth) {
   const actor = requireTatooinePermission_(auth, 'roles.manage');
