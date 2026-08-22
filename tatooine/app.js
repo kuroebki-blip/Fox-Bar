@@ -298,11 +298,53 @@
     list.replaceChildren();
     if (!rideOptimization || rideOptimization.state !== 'ready') return;
     const result = rideOptimization.result; const summary = document.createElement('div'); summary.className = 'ride-status'; summary.textContent = result.participantCount + ' сотрудников · ' + result.carCount + ' машин · Средняя загрузка: ' + result.summary.averagePassengersPerCar.toFixed(1).replace('.', ',') + '\nПредотвращено отдельных поездок: ' + result.summary.avoidedIndividualCars; list.appendChild(summary);
-    (result.cars || []).forEach(car => { const row=document.createElement('div'); row.className='ride-person'; const text=document.createElement('div'); const title=document.createElement('b'); title.textContent='Машина '+car.carId.replace('ride_car_','')+' · '+car.passengerCount+' сотрудника'; const detail=document.createElement('small'); detail.textContent=car.passengers.map(p=>p.dropoffPosition+'. '+p.employeeName+' — '+(p.extraDurationSeconds ? '+'+Math.round(p.extraDurationSeconds/60)+' мин' : 'без крюка')).join('\n')+'\n'+Math.round(car.routeDurationSeconds/60)+' мин · '+(car.routeDistanceMeters/1000).toFixed(1).replace('.',',')+' км\nМаксимальный крюк: '+(car.maxExtraDurationSeconds ? '+'+Math.round(car.maxExtraDurationSeconds/60)+' мин' : 'без крюка'); text.append(title,detail); row.appendChild(text); list.appendChild(row); });
+    (result.cars || []).forEach(car => { const row=document.createElement('div'); row.className='ride-person'; const text=document.createElement('div'); const title=document.createElement('b'); title.textContent='Машина '+car.carId.replace('ride_car_','')+' · '+car.passengerCount+' сотрудника'; const detail=document.createElement('small'); detail.textContent=car.passengers.map(p=>p.dropoffPosition+'. '+p.employeeName+' — '+(p.extraDurationSeconds ? '+'+Math.round(p.extraDurationSeconds/60)+' мин' : 'без крюка')).join('\n')+'\n'+Math.round(car.routeDurationSeconds/60)+' мин · '+(car.routeDistanceMeters/1000).toFixed(1).replace('.',',')+' км\nМаксимальный крюк: '+(car.maxExtraDurationSeconds ? '+'+Math.round(car.maxExtraDurationSeconds/60)+' мин' : 'без крюка'); const actions=document.createElement('div'); actions.className='ride-person-actions'; const openMap=document.createElement('button'); openMap.className='ride-add'; openMap.type='button'; openMap.textContent='Открыть маршрут в Яндекс Картах'; openMap.addEventListener('click', () => openRideCarInYandexMaps(car, openMap)); const copyRoute=document.createElement('button'); copyRoute.type='button'; copyRoute.textContent='Скопировать маршрут'; copyRoute.addEventListener('click', () => copyRideCarRoute(car, copyRoute)); actions.append(openMap,copyRoute); text.append(title,detail); row.append(text,actions); list.appendChild(row); });
     (result.unresolvedParticipants || []).forEach(p=>{const row=document.createElement('div');row.className='ride-person';row.textContent='Не удалось автоматически распределить: '+p.employeeName+' — '+p.reason;list.appendChild(row);});
   }
   async function loadRideOptimization() { if (!can('rides.optimize')) return; const data=await jsonp(Object.assign({action:'tatooineRideOptimization'},authParams())); if(!data||!data.ok)throw new Error(data&&data.error||'Не удалось загрузить машины.'); rideOptimization=data.optimization; renderRideOptimization(); }
   async function optimizeRide() { const button=$('rideOptimize'); button.disabled=true; setRideStatus('rideRouteStatus','Формируем машины…'); try { await post({action:'tatooineOptimizeRide'}); await sleep(500); await loadRideOptimization(); haptic('success'); } catch(error) { setRideStatus('rideRouteStatus',errorMessage(error,'Не удалось сформировать машины.')); } finally { button.disabled=false; } }
+
+  function buildYandexMapsRouteUrl(origin, dropoffs) {
+    const points = [origin].concat(dropoffs || []);
+    if (points.length < 2 || points.some(point => !point || !Number.isFinite(Number(point.latitude)) || !Number.isFinite(Number(point.longitude)))) throw new Error('Не удалось подготовить точки маршрута.');
+    const routeText = points.map(point => Number(point.latitude) + ',' + Number(point.longitude)).join('~');
+    return 'https://yandex.ru/maps/?mode=routes&rtext=' + encodeURIComponent(routeText) + '&rtt=auto';
+  }
+
+  async function loadRideCarRouteData(car) {
+    if (!can('rides.optimize') || !rideRouteCalculation || rideRouteCalculation.status !== 'READY') throw new Error('Сначала подготовьте маршруты.');
+    const data = await jsonp(Object.assign({ action: 'tatooineRideRouteDetails', calculationId: rideRouteCalculation.id }, authParams()));
+    if (!data || !data.ok || !data.details) throw new Error(data && data.error ? data.error : 'Не удалось подготовить маршрут.');
+    const calculation = data.details.calculation || {};
+    const byPointId = {};
+    (data.details.participants || []).forEach(point => { byPointId[point.pointId] = point; });
+    const dropoffs = (car.dropoffOrder || []).map(pointId => byPointId[pointId]).filter(Boolean);
+    if (dropoffs.length !== (car.dropoffOrder || []).length) throw new Error('Не удалось подготовить все точки маршрута.');
+    return { origin: { name: calculation.originName || 'Tatooine', addressText: calculation.originAddress || '', latitude: calculation.originLatitude, longitude: calculation.originLongitude }, dropoffs };
+  }
+
+  async function copyRideCarRoute(car, button) {
+    button.disabled = true;
+    try {
+      const route = await loadRideCarRouteData(car);
+      const text = [route.origin.name].concat(route.dropoffs.map(point => point.address || point.addressText)).join('\n→ ');
+      if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(text);
+      else {
+        const textarea = document.createElement('textarea'); textarea.value = text; textarea.style.position = 'fixed'; textarea.style.opacity = '0'; document.body.appendChild(textarea); textarea.select(); const copied = document.execCommand('copy'); textarea.remove(); if (!copied) throw new Error('Не удалось скопировать маршрут.');
+      }
+      setRideStatus('rideRouteStatus', 'Маршрут скопирован.');
+      haptic('success');
+    } catch (error) { setRideStatus('rideRouteStatus', errorMessage(error, 'Не удалось скопировать маршрут.')); }
+    finally { button.disabled = false; }
+  }
+
+  async function openRideCarInYandexMaps(car, button) {
+    button.disabled = true;
+    try {
+      const route = await loadRideCarRouteData(car);
+      window.location.assign(buildYandexMapsRouteUrl(route.origin, route.dropoffs));
+    } catch (error) { setRideStatus('rideRouteStatus', errorMessage(error, 'Не удалось открыть маршрут.')); button.disabled = false; }
+  }
 
   async function loadRideRouteCalculation(calculationId) {
     if (!can('rides.optimize')) return null;

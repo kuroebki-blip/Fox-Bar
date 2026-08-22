@@ -112,3 +112,8 @@ test('route calculation endpoints are server-side protected by rides.optimize an
   const calculateEnd = backend.indexOf('function getTatooineRideRouteCalculation_', calculateStart);
   assert.match(backend.slice(calculateStart, calculateEnd), /requireTatooinePermission_\(auth, 'rides\.optimize'\)/);
 });
+
+test('stored route calculations and optimizations normalize Google Sheets date cells before current-day lookup', () => {
+  assert.match(backend, /rideDate: normalizeTatooineRideDate_\(r\[1\]\), status:/);
+  assert.match(backend, /routeCalculationId:String\(r\[1\]\|\|''\),rideDate:normalizeTatooineRideDate_\(r\[2\]\)/);
+});

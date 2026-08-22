@@ -18,6 +18,8 @@ const rides = new Function(`${source}; return {
   tatooinePermissionsForRole_,
   validateTatooineRideAddress_,
   normalizeGeoapifyRideAddressSuggestions_,
+  normalizeTatooineRideDate_,
+  latestTatooineRideRequestsForDate_,
   upsertTatooineRideRequest_,
   activeTatooineRideRequests_,
   assertTatooineRideAddressAccess_,
@@ -38,6 +40,25 @@ test('employee confirmation creates one active request and repeat confirmation i
   assert.equal(second.rows.length, 1);
   assert.equal(rides.activeTatooineRideRequests_(second.rows, '2026-08-21').length, 1);
   assert.equal(second.request.needsRide, true);
+});
+
+test('Google Sheets Date cells are normalized before matching and upserting today rides', () => {
+  const sheetDate = new Date('2026-08-22T00:00:00.000Z');
+  const existing = [{ id: 'ride_emp-1_2026-08-22', employeeId: 'emp-1', rideDate: sheetDate, needsRide: true, createdAt: now }];
+  const result = rides.upsertTatooineRideRequest_(existing, 'emp-1', '2026-08-22', true, 'emp-1', now);
+  assert.equal(rides.normalizeTatooineRideDate_(sheetDate), '2026-08-22');
+  assert.equal(result.rows.length, 1);
+  assert.equal(rides.activeTatooineRideRequests_(result.rows, '2026-08-22').length, 1);
+});
+
+test('legacy duplicate requests are reduced to the latest state before active rides are listed', () => {
+  const rows = [
+    { row: 3, employeeId: 'emp-1', rideDate: '2026-08-22', needsRide: true, updatedAt: new Date('2026-08-22T17:00:00.000Z') },
+    { row: 4, employeeId: 'emp-1', rideDate: '2026-08-22', needsRide: false, updatedAt: new Date('2026-08-22T17:05:00.000Z') },
+    { row: 5, employeeId: 'emp-2', rideDate: '2026-08-22', needsRide: true, updatedAt: new Date('2026-08-22T17:06:00.000Z') }
+  ];
+  assert.equal(rides.latestTatooineRideRequestsForDate_(rows, '2026-08-22').length, 2);
+  assert.deepEqual(rides.activeTatooineRideRequests_(rows, '2026-08-22').map(item => item.employeeId), ['emp-2']);
 });
 
 test('employee cancellation removes the employee from active rides and records cancellation', () => {
