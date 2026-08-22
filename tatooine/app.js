@@ -351,8 +351,13 @@
     button.disabled = true;
     try {
       const route = loadRideCarRouteData(car);
-      if (!TG || typeof TG.openLink !== 'function') throw new Error('Откройте маршрут через Telegram на iPhone.');
-      TG.openLink(buildYandexMapsNativeRouteUrl(route.origin, route.dropoffs));
+      const link = document.createElement('a');
+      link.href = buildYandexMapsNativeRouteUrl(route.origin, route.dropoffs);
+      link.target = '_blank';
+      link.rel = 'noopener';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
       setRideStatus('rideRouteStatus', 'Открываю Яндекс Карты…');
     } catch (error) { setRideStatus('rideRouteStatus', errorMessage(error, 'Не удалось открыть маршрут.')); button.disabled = false; }
     finally { button.disabled = false; }
