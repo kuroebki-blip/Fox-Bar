@@ -112,6 +112,13 @@ test('manager remove refreshes the current route calculation so Matrix and optim
   assert.match(backend, /const existing = findLatestTatooineRideRequest_\(rows, result\.request\.employeeId, result\.request\.rideDate\)/);
 });
 
+test('ride writes wait for the Apps Script result instead of trusting a single 300 ms check', () => {
+  assert.match(frontend, /const TATOOINE_RIDE_WRITE_VERIFY_ATTEMPTS = 8/);
+  assert.match(frontend, /async function waitForRideWriteConfirmation\(check\)/);
+  assert.match(frontend, /await waitForRideWriteConfirmation\(async \(\) => \{\s*await loadMyRide\(\)/);
+  assert.match(frontend, /await waitForRideWriteConfirmation\(async \(\) => \{\s*const items = await loadRideManager\(\)/);
+});
+
 test('employee cancellation removes the employee from active rides and records cancellation', () => {
   const active = rides.upsertTatooineRideRequest_([], 'emp-1', '2026-08-21', true, 'emp-1', now);
   const cancelled = rides.upsertTatooineRideRequest_(active.rows, 'emp-1', '2026-08-21', false, 'emp-1', now);

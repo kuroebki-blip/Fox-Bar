@@ -194,6 +194,16 @@
     }
   }
 
+  const TATOOINE_RIDE_WRITE_VERIFY_ATTEMPTS = 8;
+
+  async function waitForRideWriteConfirmation(check) {
+    for (let attempt = 0; attempt < TATOOINE_RIDE_WRITE_VERIFY_ATTEMPTS; attempt += 1) {
+      await sleep(attempt === 0 ? 500 : 650);
+      if (await check()) return;
+    }
+    throw new Error('Заявка не сохранилась. Повторите попытку.');
+  }
+
   async function setMyRideNeeded(needsRide) {
     const confirm = $('rideConfirm');
     const cancel = $('rideCancel');
@@ -201,9 +211,10 @@
     cancel.disabled = true;
     try {
       await post({ action: 'tatooineSetMyRide', needsRide: needsRide ? 'true' : 'false' });
-      await sleep(300);
-      await loadMyRide();
-      if (!myRide || Boolean(myRide.needsRide) !== Boolean(needsRide)) throw new Error('Заявка не сохранилась. Повторите попытку.');
+      await waitForRideWriteConfirmation(async () => {
+        await loadMyRide();
+        return myRide && Boolean(myRide.needsRide) === Boolean(needsRide);
+      });
       if (can('rides.view_all')) await loadRideManager();
       if (can('rides.optimize')) {
         await loadRideRouteCalculation();
@@ -409,11 +420,10 @@
   async function setEmployeeRideNeeded(employeeId, needsRide) {
     try {
       await post({ action: 'tatooineSetEmployeeRide', targetUserId: employeeId, needsRide: needsRide ? 'true' : 'false' });
-      await sleep(300);
-      const items = await loadRideManager();
-      if (!items || Boolean(items.some(item => String(item.employeeId || '') === String(employeeId))) !== Boolean(needsRide)) {
-        throw new Error('Заявка не сохранилась. Повторите попытку.');
-      }
+      await waitForRideWriteConfirmation(async () => {
+        const items = await loadRideManager();
+        return items && Boolean(items.some(item => String(item.employeeId || '') === String(employeeId))) === Boolean(needsRide);
+      });
       await loadRideAddresses();
       if (can('rides.optimize')) {
         await loadRideRouteCalculation();
