@@ -106,18 +106,21 @@ test('manager remove refreshes the current route calculation so Matrix and optim
   const end = frontend.indexOf('function renderRideAddresses', start);
   const handler = frontend.slice(start, end);
   assert.match(handler, /action: 'tatooineSetEmployeeRide'/);
-  assert.match(handler, /const items = await getRideManagerItems\(8000\)/);
-  assert.match(handler, /renderRideManager\(items\)/);
+  assert.match(handler, /await writeRide\(\{ action: 'tatooineSetEmployeeRide'/);
+  assert.match(handler, /await loadRideManager\(\)/);
   assert.match(handler, /await loadRideRouteCalculation\(\)/);
   assert.match(handler, /await loadRideOptimization\(\)\.catch/);
   assert.match(backend, /const existing = findLatestTatooineRideRequest_\(rows, result\.request\.employeeId, result\.request\.rideDate\)/);
 });
 
-test('ride writes confirm quietly instead of repeatedly re-rendering a slow Apps Script list', () => {
-  assert.match(frontend, /const TATOOINE_RIDE_WRITE_VERIFY_ATTEMPTS = 3/);
-  assert.match(frontend, /async function waitForRideWriteConfirmation\(check\)/);
-  assert.match(frontend, /const nextRide = await getMyRideData\(8000\)/);
-  assert.match(frontend, /const items = await getRideManagerItems\(8000\)/);
+test('ride writes use the acknowledged JSONP channel instead of an opaque POST or client polling', () => {
+  assert.match(frontend, /async function writeRide\(params\)/);
+  assert.match(frontend, /const data = await jsonp\(Object\.assign\(\{\}, params, authParams\(\)\)\)/);
+  assert.match(frontend, /await writeRide\(\{ action: 'tatooineSetMyRide'/);
+  assert.match(frontend, /await writeRide\(\{ action: 'tatooineSetEmployeeRide'/);
+  assert.doesNotMatch(frontend, /TATOOINE_RIDE_WRITE_VERIFY_ATTEMPTS/);
+  assert.match(backend, /if \(action === 'tatooineSetMyRide'\) \{\s*return jsonpOutput_\(callback, \{ ok: true, request: setTatooineMyRide_/);
+  assert.match(backend, /if \(action === 'tatooineSetEmployeeRide'\) \{\s*return jsonpOutput_\(callback, \{ ok: true, request: setTatooineEmployeeRide_/);
   assert.match(frontend, /setRideStatus\('rideManagerStatus', 'Сохраняю…'\)/);
 });
 

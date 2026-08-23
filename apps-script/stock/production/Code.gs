@@ -16,7 +16,7 @@
  */
 
 const FOX_RECEIPTS = {
-  version: 'v9.7.5 TATOOINE RIDE SHIFT LIFECYCLE',
+  version: 'v9.7.6 TATOOINE RIDE JSONP WRITES',
 
   stockSheets: [
     'Вино',
@@ -808,6 +808,17 @@ function doGet(e) {
     if (action === 'tatooineRideToday') {
       requireTatooinePermission_(auth, 'rides.view_all');
       return jsonpOutput_(callback, { ok: true, rideDate: getCurrentRideShiftKey_(), items: listTatooineTodayRides_(auth) });
+    }
+
+    // Ride writes intentionally use the same authenticated JSONP transport as
+    // ride reads. A no-cors POST is opaque to Telegram WebView and cannot tell
+    // the user whether Apps Script accepted or rejected a sensitive action.
+    if (action === 'tatooineSetMyRide') {
+      return jsonpOutput_(callback, { ok: true, request: setTatooineMyRide_(e.parameter, auth) });
+    }
+
+    if (action === 'tatooineSetEmployeeRide') {
+      return jsonpOutput_(callback, { ok: true, request: setTatooineEmployeeRide_(e.parameter, auth) });
     }
 
     if (action === 'tatooineRideRouteCalculation') {

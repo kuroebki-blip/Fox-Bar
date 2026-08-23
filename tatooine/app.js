@@ -198,16 +198,10 @@
     }
   }
 
-  const TATOOINE_RIDE_WRITE_VERIFY_ATTEMPTS = 3;
-
-  async function waitForRideWriteConfirmation(check) {
-    for (let attempt = 0; attempt < TATOOINE_RIDE_WRITE_VERIFY_ATTEMPTS; attempt += 1) {
-      await sleep(attempt === 0 ? 700 : 1000);
-      try {
-        if (await check()) return;
-      } catch (_) {}
-    }
-    throw new Error('Заявка не сохранилась. Повторите попытку.');
+  async function writeRide(params) {
+    const data = await jsonp(Object.assign({}, params, authParams()));
+    if (!data || !data.ok) throw new Error(data && data.error ? data.error : 'Не удалось сохранить заявку.');
+    return data.request || null;
   }
 
   async function setMyRideNeeded(needsRide) {
@@ -217,14 +211,8 @@
     cancel.disabled = true;
     try {
       setRideStatus('myRideStatus', 'Сохраняю…');
-      await post({ action: 'tatooineSetMyRide', needsRide: needsRide ? 'true' : 'false' });
-      await waitForRideWriteConfirmation(async () => {
-        const nextRide = await getMyRideData(8000);
-        if (Boolean(nextRide.needsRide) !== Boolean(needsRide)) return false;
-        myRide = nextRide;
-        renderMyRide();
-        return true;
-      });
+      await writeRide({ action: 'tatooineSetMyRide', needsRide: needsRide ? 'true' : 'false' });
+      await loadMyRide();
       if (can('rides.view_all')) await loadRideManager();
       if (can('rides.optimize')) {
         await loadRideRouteCalculation();
@@ -440,13 +428,8 @@
   async function setEmployeeRideNeeded(employeeId, needsRide) {
     try {
       setRideStatus('rideManagerStatus', 'Сохраняю…');
-      await post({ action: 'tatooineSetEmployeeRide', targetUserId: employeeId, needsRide: needsRide ? 'true' : 'false' });
-      await waitForRideWriteConfirmation(async () => {
-        const items = await getRideManagerItems(8000);
-        if (Boolean(items.some(item => String(item.employeeId || '') === String(employeeId))) !== Boolean(needsRide)) return false;
-        renderRideManager(items);
-        return true;
-      });
+      await writeRide({ action: 'tatooineSetEmployeeRide', targetUserId: employeeId, needsRide: needsRide ? 'true' : 'false' });
+      await loadRideManager();
       await loadRideAddresses();
       if (can('rides.optimize')) {
         await loadRideRouteCalculation();
