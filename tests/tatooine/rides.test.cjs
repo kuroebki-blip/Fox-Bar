@@ -152,6 +152,28 @@ test('ride writes use the acknowledged JSONP channel instead of an opaque POST o
   assert.match(frontend, /setRideStatus\('rideManagerStatus', 'Сохраняю…'\)/);
 });
 
+test('ride optimization uses an acknowledged JSONP request with a finite timeout', () => {
+  const start = frontend.indexOf('async function optimizeRide()');
+  const end = frontend.indexOf('function buildYandexMapsExternalRouteUrl', start);
+  const handler = frontend.slice(start, end);
+  assert.match(frontend, /const TATOOINE_RIDE_OPTIMIZE_TIMEOUT_MS = 45000;/);
+  assert.match(handler, /jsonp\(Object\.assign\(\{ action: 'tatooineOptimizeRide' \}, authParams\(\)\), TATOOINE_RIDE_OPTIMIZE_TIMEOUT_MS\)/);
+  assert.doesNotMatch(handler, /await post\(\{action:'tatooineOptimizeRide'\}\)/);
+  assert.match(handler, /rideOptimization = \{ state: 'processing' \}/);
+  assert.match(handler, /button\.disabled = false;/);
+  assert.match(handler, /Машины сформированы\./);
+});
+
+test('backend optimize endpoint returns acknowledged success or a safe error instead of opaque POST completion', () => {
+  assert.match(backend, /if \(action === 'tatooineOptimizeRide'\) \{\s*return jsonpOutput_\(callback, \{ ok: true, optimization: optimizeTatooineRide_\(auth, \{ authMs: authMs \}\) \}\);/);
+  const start = backend.indexOf('function optimizeTatooineRide_');
+  const handler = backend.slice(start, backend.indexOf('function setTatooineEmployeeRole_', start));
+  assert.match(handler, /timings\.pureOptimizerMs/);
+  assert.match(handler, /timings\.resultPersistenceMs/);
+  assert.match(handler, /optimizationJsonBytes/);
+  assert.match(handler, /tatooine_ride_optimization/);
+});
+
 test('employee cancellation removes the employee from active rides and records cancellation', () => {
   const active = rides.upsertTatooineRideRequest_([], 'emp-1', '2026-08-21', true, 'emp-1', now);
   const cancelled = rides.upsertTatooineRideRequest_(active.rows, 'emp-1', '2026-08-21', false, 'emp-1', now);

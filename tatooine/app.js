@@ -372,6 +372,8 @@
     setRideStatus('rideRouteStatus', rideRouteCalculation.error || 'Не удалось рассчитать маршруты.'); renderRideOptimization();
   }
 
+  const TATOOINE_RIDE_OPTIMIZE_TIMEOUT_MS = 45000;
+
   function renderRideOptimization() {
     const button = $('rideOptimize'); const list = $('rideOptimizationList'); if (!button || !list) return;
     button.hidden = !(rideRouteCalculation && rideRouteCalculation.status === 'READY' && rideRouteCalculation.isCurrent !== false && can('rides.optimize'));
@@ -382,7 +384,28 @@
     (result.unresolvedParticipants || []).forEach(p=>{const row=document.createElement('div');row.className='ride-person';row.textContent='Не удалось автоматически распределить: '+p.employeeName+' — '+p.reason;list.appendChild(row);});
   }
   async function loadRideOptimization() { if (!can('rides.optimize')) return; const data=await jsonp(Object.assign({action:'tatooineRideOptimization'},authParams())); if(!data||!data.ok)throw new Error(data&&data.error||'Не удалось загрузить машины.'); rideOptimization=data.optimization; if (rideOptimization && rideOptimization.state === 'ready') { try { await loadRideRouteDetails(); } catch (_) {} } renderRideOptimization(); }
-  async function optimizeRide() { const button=$('rideOptimize'); button.disabled=true; setRideStatus('rideRouteStatus','Формируем машины…'); try { await post({action:'tatooineOptimizeRide'}); await sleep(500); await loadRideOptimization(); haptic('success'); } catch(error) { setRideStatus('rideRouteStatus',errorMessage(error,'Не удалось сформировать машины.')); } finally { button.disabled=false; } }
+  async function optimizeRide() {
+    const button = $('rideOptimize');
+    if (!button || button.disabled) return;
+    button.disabled = true;
+    rideOptimization = { state: 'processing' };
+    renderRideOptimization();
+    setRideStatus('rideRouteStatus', 'Формируем машины…');
+    try {
+      const data = await jsonp(Object.assign({ action: 'tatooineOptimizeRide' }, authParams()), TATOOINE_RIDE_OPTIMIZE_TIMEOUT_MS);
+      if (!data || !data.ok) throw new Error(data && data.error || 'Не удалось сформировать машины.');
+      rideOptimization = { state: 'ready', result: data.optimization };
+      renderRideOptimization();
+      setRideStatus('rideRouteStatus', 'Машины сформированы.');
+      haptic('success');
+    } catch (error) {
+      rideOptimization = { state: error && /Маршруты изменились/.test(String(error.message || error)) ? 'stale' : 'error' };
+      renderRideOptimization();
+      setRideStatus('rideRouteStatus', errorMessage(error, 'Не удалось сформировать машины.'));
+    } finally {
+      button.disabled = false;
+    }
+  }
 
   function buildYandexMapsExternalRouteUrl(origin, dropoffs) {
     const points = [origin].concat(dropoffs || []);
