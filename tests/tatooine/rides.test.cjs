@@ -9,17 +9,21 @@ const rbacStart = backend.indexOf('// ==== TATOOINE RBAC START ====');
 const rbacEnd = backend.indexOf('// ==== TATOOINE RBAC END ====', rbacStart);
 const ridesStart = backend.indexOf('// ==== TATOOINE RIDES START ====');
 const ridesEnd = backend.indexOf('// ==== TATOOINE RIDES END ====', ridesStart);
+const shiftStart = backend.indexOf('const TATOOINE_RIDE_SHIFT_CUTOFF_HOUR');
+const shiftEnd = backend.indexOf('function assertTatooineSelfRideRequestOpen_', shiftStart);
 
 assert.ok(ridesStart >= 0, 'Tatooine rides domain must be defined');
 assert.ok(ridesEnd > ridesStart, 'Tatooine rides domain must have an end marker');
 
-const source = backend.slice(rbacStart, rbacEnd) + backend.slice(ridesStart, ridesEnd);
+const source = backend.slice(rbacStart, rbacEnd) + backend.slice(ridesStart, ridesEnd) + backend.slice(shiftStart, shiftEnd);
 const rides = new Function(`${source}; return {
   tatooinePermissionsForRole_,
   validateTatooineRideAddress_,
   normalizeGeoapifyRideAddressSuggestions_,
   normalizeTatooineRideDate_,
+  getCurrentRideShiftKeyFromLocalParts_,
   latestTatooineRideRequestsForDate_,
+  findLatestTatooineRideRequest_,
   upsertTatooineRideRequest_,
   activeTatooineRideRequests_,
   assertTatooineRideAddressAccess_,
@@ -32,6 +36,22 @@ const manager = { id: 'mgr-1', permissions: rides.tatooinePermissionsForRole_('m
 
 test('no ride request means the employee is not included in today rides', () => {
   assert.deepEqual(rides.activeTatooineRideRequests_([], '2026-08-21'), []);
+});
+
+test('ride shift key switches at 14:00 local restaurant time', () => {
+  assert.equal(rides.getCurrentRideShiftKeyFromLocalParts_('2026-08-23', 13, 59), '2026-08-22');
+  assert.equal(rides.getCurrentRideShiftKeyFromLocalParts_('2026-08-23', 14, 0), '2026-08-23');
+  assert.equal(rides.getCurrentRideShiftKeyFromLocalParts_('2026-08-23', 23, 59), '2026-08-23');
+  assert.equal(rides.getCurrentRideShiftKeyFromLocalParts_('2026-08-24', 0, 30), '2026-08-23');
+  assert.equal(rides.getCurrentRideShiftKeyFromLocalParts_('2026-08-24', 13, 59), '2026-08-23');
+  assert.equal(rides.getCurrentRideShiftKeyFromLocalParts_('2026-08-24', 14, 0), '2026-08-24');
+});
+
+test('a prior shift never becomes part of the new current shift', () => {
+  const rows = [
+    { row: 3, employeeId: 'emp-1', rideDate: '2026-08-22', needsRide: true, updatedAt: now }
+  ];
+  assert.equal(rides.activeTatooineRideRequests_(rows, '2026-08-23').length, 0);
 });
 
 test('employee confirmation creates one active request and repeat confirmation is idempotent', () => {
@@ -59,6 +79,37 @@ test('legacy duplicate requests are reduced to the latest state before active ri
   ];
   assert.equal(rides.latestTatooineRideRequestsForDate_(rows, '2026-08-22').length, 2);
   assert.deepEqual(rides.activeTatooineRideRequests_(rows, '2026-08-22').map(item => item.employeeId), ['emp-2']);
+});
+
+test('manager cancellation updates the same latest request instead of leaving a later active duplicate', () => {
+  const rows = [
+    { row: 3, id: 'old', employeeId: 'emp-1', rideDate: '2026-08-23', needsRide: true, updatedAt: new Date('2026-08-23T17:00:00.000Z') },
+    { row: 4, id: 'new', employeeId: 'emp-1', rideDate: '2026-08-23', needsRide: true, updatedAt: new Date('2026-08-23T17:05:00.000Z') }
+  ];
+  const latest = rides.findLatestTatooineRideRequest_(rows, 'emp-1', '2026-08-23');
+  assert.equal(latest.row, 4);
+  const cancelled = rides.upsertTatooineRideRequest_(rows, 'emp-1', '2026-08-23', false, 'mgr-1', new Date('2026-08-23T17:06:00.000Z'));
+  assert.equal(cancelled.request.row, 4);
+  assert.equal(rides.activeTatooineRideRequests_(cancelled.rows, '2026-08-23').length, 0);
+});
+
+test('a cancelled employee can rejoin the same shift without creating a second current request', () => {
+  const active = rides.upsertTatooineRideRequest_([], 'emp-1', '2026-08-23', true, 'emp-1', now);
+  const cancelled = rides.upsertTatooineRideRequest_(active.rows, 'emp-1', '2026-08-23', false, 'mgr-1', now);
+  const rejoined = rides.upsertTatooineRideRequest_(cancelled.rows, 'emp-1', '2026-08-23', true, 'emp-1', now);
+  assert.equal(rides.latestTatooineRideRequestsForDate_(rejoined.rows, '2026-08-23').length, 1);
+  assert.equal(rides.activeTatooineRideRequests_(rejoined.rows, '2026-08-23').length, 1);
+});
+
+test('manager remove refreshes the current route calculation so Matrix and optimization become stale immediately', () => {
+  const start = frontend.indexOf('async function setEmployeeRideNeeded');
+  const end = frontend.indexOf('function renderRideAddresses', start);
+  const handler = frontend.slice(start, end);
+  assert.match(handler, /action: 'tatooineSetEmployeeRide'/);
+  assert.match(handler, /await loadRideManager\(\)/);
+  assert.match(handler, /await loadRideRouteCalculation\(\)/);
+  assert.match(handler, /await loadRideOptimization\(\)\.catch/);
+  assert.match(backend, /const existing = findLatestTatooineRideRequest_\(rows, result\.request\.employeeId, result\.request\.rideDate\)/);
 });
 
 test('employee cancellation removes the employee from active rides and records cancellation', () => {
