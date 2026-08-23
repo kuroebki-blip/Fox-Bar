@@ -127,6 +127,20 @@ test('manager removal gives visible feedback and only fades the card after the b
   assert.match(styles, /\.ride-person-removing/);
 });
 
+test('manager ride rendering deduplicates a delayed response and does not resurrect a locally confirmed removal', () => {
+  assert.match(frontend, /let locallyRemovedRideEmployeeIds = new Set\(\);/);
+  assert.match(frontend, /function currentRideManagerItems\(items\)/);
+  assert.match(frontend, /if \(!employeeId \|\| seen\.has\(employeeId\) \|\| locallyRemovedRideEmployeeIds\.has\(employeeId\)\) return false;/);
+  const start = frontend.indexOf('async function setEmployeeRideNeeded');
+  const end = frontend.indexOf('function renderRideAddresses', start);
+  const handler = frontend.slice(start, end);
+  assert.match(handler, /locallyRemovedRideEmployeeIds\.add\(String\(employeeId\)\)/);
+  assert.match(handler, /locallyRemovedRideEmployeeIds\.delete\(String\(employeeId\)\)/);
+  assert.match(handler, /let writeCompleted = false;/);
+  assert.match(handler, /writeCompleted = true;/);
+  assert.match(handler, /if \(!needsRide && !writeCompleted\)/);
+});
+
 test('ride writes use the acknowledged JSONP channel instead of an opaque POST or client polling', () => {
   assert.match(frontend, /async function writeRide\(params\)/);
   assert.match(frontend, /const data = await jsonp\(Object\.assign\(\{\}, params, authParams\(\)\)\)/);

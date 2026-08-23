@@ -23,6 +23,7 @@
   let rideOriginSuggestionTimer = null;
   let rideOriginSuggestionRequest = 0;
   let todayRideEmployeeIds = new Set();
+  let locallyRemovedRideEmployeeIds = new Set();
   let rideRouteCalculation = null;
   let rideOptimization = null;
   let rideRouteDetails = null;
@@ -207,11 +208,18 @@
   async function setMyRideNeeded(needsRide) {
     const confirm = $('rideConfirm');
     const cancel = $('rideCancel');
+    let writeCompleted = false;
     confirm.disabled = true;
     cancel.disabled = true;
     try {
       setRideStatus('myRideStatus', 'Сохраняю…');
+      const currentEmployeeId = currentUser ? String(currentUser.id || '') : '';
+      if (can('rides.view_all') && currentEmployeeId) {
+        if (needsRide) locallyRemovedRideEmployeeIds.delete(currentEmployeeId);
+        else locallyRemovedRideEmployeeIds.add(currentEmployeeId);
+      }
       await writeRide({ action: 'tatooineSetMyRide', needsRide: needsRide ? 'true' : 'false' });
+      writeCompleted = true;
       await loadMyRide();
       if (can('rides.view_all')) await loadRideManager();
       if (can('rides.optimize')) {
@@ -224,6 +232,7 @@
       // out. Do not leave the previous confirmed state visible as if it were
       // still current; it will be refreshed on the next successful read.
       myRide = null;
+      if (!needsRide && !writeCompleted && currentUser) locallyRemovedRideEmployeeIds.delete(String(currentUser.id || ''));
       confirm.hidden = true;
       cancel.hidden = true;
       setRideStatus('myRideStatus', errorMessage(error, 'Не удалось сохранить заявку.'));
@@ -302,12 +311,22 @@
     if (!card || !list) return;
     card.hidden = !can('rides.view_all');
     if (card.hidden) return;
-    const values = Array.isArray(items) ? items : [];
+    const values = currentRideManagerItems(items);
     todayRideEmployeeIds = new Set(values.map(item => String(item.employeeId || '')));
     setRideStatus('rideManagerStatus', 'Едут домой: ' + values.length);
     list.replaceChildren();
     values.forEach(item => list.appendChild(ridePersonElement(item, can('rides.override') ? 'Убрать из развоза' : '', 'ride-remove', () => setEmployeeRideNeeded(item.employeeId, false))));
     if (!values.length) list.textContent = 'Сегодня активных заявок нет.';
+  }
+
+  function currentRideManagerItems(items) {
+    const seen = new Set();
+    return (Array.isArray(items) ? items : []).filter(item => {
+      const employeeId = String(item && item.employeeId || '');
+      if (!employeeId || seen.has(employeeId) || locallyRemovedRideEmployeeIds.has(employeeId)) return false;
+      seen.add(employeeId);
+      return true;
+    });
   }
 
   async function getRideManagerItems(timeoutMs) {
@@ -462,10 +481,16 @@
   }
 
   async function setEmployeeRideNeeded(employeeId, needsRide) {
+    let writeCompleted = false;
     try {
       setRideStatus('rideManagerStatus', 'Сохраняю…');
-      if (!needsRide) setRidePersonRemoving(employeeId, true);
+      if (needsRide) locallyRemovedRideEmployeeIds.delete(String(employeeId));
+      else {
+        locallyRemovedRideEmployeeIds.add(String(employeeId));
+        setRidePersonRemoving(employeeId, true);
+      }
       await writeRide({ action: 'tatooineSetEmployeeRide', targetUserId: employeeId, needsRide: needsRide ? 'true' : 'false' });
+      writeCompleted = true;
       if (!needsRide) {
         setRidePersonRemoved(employeeId);
         await sleep(220);
@@ -478,7 +503,10 @@
       }
       setRideStatus('rideManagerStatus', needsRide ? 'Сотрудник добавлен в развоз.' : 'Сотрудник убран из развоза.');
     } catch (error) {
-      if (!needsRide) setRidePersonRemoving(employeeId, false);
+      if (!needsRide && !writeCompleted) {
+        locallyRemovedRideEmployeeIds.delete(String(employeeId));
+        setRidePersonRemoving(employeeId, false);
+      }
       setRideStatus('rideManagerStatus', errorMessage(error, 'Не удалось обновить развоз.'));
     }
   }
