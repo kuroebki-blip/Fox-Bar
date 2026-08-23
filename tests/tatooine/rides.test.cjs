@@ -106,17 +106,19 @@ test('manager remove refreshes the current route calculation so Matrix and optim
   const end = frontend.indexOf('function renderRideAddresses', start);
   const handler = frontend.slice(start, end);
   assert.match(handler, /action: 'tatooineSetEmployeeRide'/);
-  assert.match(handler, /await loadRideManager\(\)/);
+  assert.match(handler, /const items = await getRideManagerItems\(8000\)/);
+  assert.match(handler, /renderRideManager\(items\)/);
   assert.match(handler, /await loadRideRouteCalculation\(\)/);
   assert.match(handler, /await loadRideOptimization\(\)\.catch/);
   assert.match(backend, /const existing = findLatestTatooineRideRequest_\(rows, result\.request\.employeeId, result\.request\.rideDate\)/);
 });
 
-test('ride writes wait for the Apps Script result instead of trusting a single 300 ms check', () => {
-  assert.match(frontend, /const TATOOINE_RIDE_WRITE_VERIFY_ATTEMPTS = 8/);
+test('ride writes confirm quietly instead of repeatedly re-rendering a slow Apps Script list', () => {
+  assert.match(frontend, /const TATOOINE_RIDE_WRITE_VERIFY_ATTEMPTS = 3/);
   assert.match(frontend, /async function waitForRideWriteConfirmation\(check\)/);
-  assert.match(frontend, /await waitForRideWriteConfirmation\(async \(\) => \{\s*await loadMyRide\(\)/);
-  assert.match(frontend, /await waitForRideWriteConfirmation\(async \(\) => \{\s*const items = await loadRideManager\(\)/);
+  assert.match(frontend, /const nextRide = await getMyRideData\(8000\)/);
+  assert.match(frontend, /const items = await getRideManagerItems\(8000\)/);
+  assert.match(frontend, /setRideStatus\('rideManagerStatus', 'Сохраняю…'\)/);
 });
 
 test('employee cancellation removes the employee from active rides and records cancellation', () => {

@@ -179,12 +179,16 @@
     cancel.hidden = !myRide || !myRide.needsRide;
   }
 
+  async function getMyRideData(timeoutMs) {
+    const data = await jsonp(Object.assign({ action: 'tatooineMyRide' }, authParams()), timeoutMs);
+    if (!data || !data.ok || !data.ride) throw new Error(data && data.error ? data.error : 'Не удалось загрузить развоз.');
+    return data.ride;
+  }
+
   async function loadMyRide() {
     setRideStatus('myRideStatus', 'Загружаю данные…');
     try {
-      const data = await jsonp(Object.assign({ action: 'tatooineMyRide' }, authParams()));
-      if (!data || !data.ok || !data.ride) throw new Error(data && data.error ? data.error : 'Не удалось загрузить развоз.');
-      myRide = data.ride;
+      myRide = await getMyRideData();
       renderMyRide();
     } catch (error) {
       myRide = null;
@@ -194,12 +198,14 @@
     }
   }
 
-  const TATOOINE_RIDE_WRITE_VERIFY_ATTEMPTS = 8;
+  const TATOOINE_RIDE_WRITE_VERIFY_ATTEMPTS = 3;
 
   async function waitForRideWriteConfirmation(check) {
     for (let attempt = 0; attempt < TATOOINE_RIDE_WRITE_VERIFY_ATTEMPTS; attempt += 1) {
-      await sleep(attempt === 0 ? 500 : 650);
-      if (await check()) return;
+      await sleep(attempt === 0 ? 700 : 1000);
+      try {
+        if (await check()) return;
+      } catch (_) {}
     }
     throw new Error('Заявка не сохранилась. Повторите попытку.');
   }
@@ -210,10 +216,14 @@
     confirm.disabled = true;
     cancel.disabled = true;
     try {
+      setRideStatus('myRideStatus', 'Сохраняю…');
       await post({ action: 'tatooineSetMyRide', needsRide: needsRide ? 'true' : 'false' });
       await waitForRideWriteConfirmation(async () => {
-        await loadMyRide();
-        return myRide && Boolean(myRide.needsRide) === Boolean(needsRide);
+        const nextRide = await getMyRideData(8000);
+        if (Boolean(nextRide.needsRide) !== Boolean(needsRide)) return false;
+        myRide = nextRide;
+        renderMyRide();
+        return true;
       });
       if (can('rides.view_all')) await loadRideManager();
       if (can('rides.optimize')) {
@@ -257,7 +267,12 @@
       button.type = 'button';
       button.className = className || '';
       button.textContent = label;
-      button.addEventListener('click', onClick);
+      button.addEventListener('click', async () => {
+        if (button.disabled) return;
+        button.disabled = true;
+        try { await onClick(); }
+        finally { button.disabled = false; }
+      });
       controls.appendChild(button);
     }
   }
@@ -276,14 +291,19 @@
     if (!values.length) list.textContent = 'Сегодня активных заявок нет.';
   }
 
+  async function getRideManagerItems(timeoutMs) {
+    const data = await jsonp(Object.assign({ action: 'tatooineRideToday' }, authParams()), timeoutMs);
+    if (!data || !data.ok) throw new Error(data && data.error ? data.error : 'Не удалось загрузить список.');
+    return Array.isArray(data.items) ? data.items : [];
+  }
+
   async function loadRideManager() {
     if (!can('rides.view_all')) return;
     setRideStatus('rideManagerStatus', 'Загружаю список…');
     try {
-      const data = await jsonp(Object.assign({ action: 'tatooineRideToday' }, authParams()));
-      if (!data || !data.ok) throw new Error(data && data.error ? data.error : 'Не удалось загрузить список.');
-      renderRideManager(data.items);
-      return Array.isArray(data.items) ? data.items : [];
+      const items = await getRideManagerItems();
+      renderRideManager(items);
+      return items;
     } catch (error) {
       setRideStatus('rideManagerStatus', errorMessage(error, 'Не удалось загрузить список.'));
       return null;
@@ -419,10 +439,13 @@
 
   async function setEmployeeRideNeeded(employeeId, needsRide) {
     try {
+      setRideStatus('rideManagerStatus', 'Сохраняю…');
       await post({ action: 'tatooineSetEmployeeRide', targetUserId: employeeId, needsRide: needsRide ? 'true' : 'false' });
       await waitForRideWriteConfirmation(async () => {
-        const items = await loadRideManager();
-        return items && Boolean(items.some(item => String(item.employeeId || '') === String(employeeId))) === Boolean(needsRide);
+        const items = await getRideManagerItems(8000);
+        if (Boolean(items.some(item => String(item.employeeId || '') === String(employeeId))) !== Boolean(needsRide)) return false;
+        renderRideManager(items);
+        return true;
       });
       await loadRideAddresses();
       if (can('rides.optimize')) {
