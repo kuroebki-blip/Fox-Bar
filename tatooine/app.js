@@ -204,6 +204,11 @@
       await sleep(300);
       await loadMyRide();
       if (!myRide || Boolean(myRide.needsRide) !== Boolean(needsRide)) throw new Error('Заявка не сохранилась. Повторите попытку.');
+      if (can('rides.view_all')) await loadRideManager();
+      if (can('rides.optimize')) {
+        await loadRideRouteCalculation();
+        await loadRideOptimization().catch(() => {});
+      }
       haptic('success');
     } catch (error) {
       setRideStatus('myRideStatus', errorMessage(error, 'Не удалось сохранить заявку.'));
@@ -410,6 +415,11 @@
         throw new Error('Заявка не сохранилась. Повторите попытку.');
       }
       await loadRideAddresses();
+      if (can('rides.optimize')) {
+        await loadRideRouteCalculation();
+        await loadRideOptimization().catch(() => {});
+      }
+      setRideStatus('rideManagerStatus', needsRide ? 'Сотрудник добавлен в развоз.' : 'Сотрудник убран из развоза.');
     } catch (error) {
       setRideStatus('rideManagerStatus', errorMessage(error, 'Не удалось обновить развоз.'));
     }

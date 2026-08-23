@@ -16,7 +16,7 @@
  */
 
 const FOX_RECEIPTS = {
-  version: 'v9.7.4 TATOOINE YANDEX MAPS ROUTE EXPERIMENT',
+  version: 'v9.7.5 TATOOINE RIDE SHIFT LIFECYCLE',
 
   stockSheets: [
     'Вино',
@@ -287,17 +287,23 @@ function activeTatooineRideRequests_(rows, rideDate) {
   return latestTatooineRideRequestsForDate_(rows, rideDate).filter(function(item) { return item.needsRide === true; });
 }
 
+function findLatestTatooineRideRequest_(rows, employeeId, rideDate) {
+  const targetEmployeeId = String(employeeId || '');
+  const shiftKey = normalizeTatooineRideDate_(rideDate);
+  return (rows || []).reduce(function(latest, item) {
+    if (String(item.employeeId || '') !== targetEmployeeId || normalizeTatooineRideDate_(item.rideDate) !== shiftKey) return latest;
+    return isNewerTatooineRideRequest_(item, latest) ? item : latest;
+  }, null);
+}
+
 function upsertTatooineRideRequest_(rows, employeeId, rideDate, needsRide, actorUserId, now) {
   const id = String(employeeId || '');
   const day = normalizeTatooineRideDate_(rideDate);
   if (!id || !day) throw new Error('Не удалось определить сотрудника или дату развоза.');
   const stamp = now || new Date();
   const copy = (rows || []).map(function(item) { return Object.assign({}, item); });
-  const index = copy.reduce(function(best, item, itemIndex) {
-    if (String(item.employeeId || '') !== id || normalizeTatooineRideDate_(item.rideDate) !== day) return best;
-    return best < 0 || isNewerTatooineRideRequest_(item, copy[best]) ? itemIndex : best;
-  }, -1);
-  const existing = index >= 0 ? copy[index] : null;
+  const existing = findLatestTatooineRideRequest_(copy, id, day);
+  const index = existing ? copy.indexOf(existing) : -1;
   const active = needsRide === true;
   const request = Object.assign({}, existing || {
     id: 'ride_' + id + '_' + day,
@@ -801,7 +807,7 @@ function doGet(e) {
 
     if (action === 'tatooineRideToday') {
       requireTatooinePermission_(auth, 'rides.view_all');
-      return jsonpOutput_(callback, { ok: true, rideDate: tatooineRideDate_(), items: listTatooineTodayRides_(auth) });
+      return jsonpOutput_(callback, { ok: true, rideDate: getCurrentRideShiftKey_(), items: listTatooineTodayRides_(auth) });
     }
 
     if (action === 'tatooineRideRouteCalculation') {
@@ -2807,8 +2813,24 @@ function listTatooineEmployees_(auth) {
   return tatooineUserRows_(sh).map(function(item) { return publicTatooineUser_(item, auth); });
 }
 
-function tatooineRideDate_() {
-  return Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Europe/Moscow', 'yyyy-MM-dd');
+const TATOOINE_RIDE_SHIFT_CUTOFF_HOUR = 14;
+
+function getCurrentRideShiftKeyFromLocalParts_(localDate, hour, minute) {
+  const date = normalizeTatooineRideDate_(localDate);
+  const localHour = Number(hour);
+  if (!date || !isFinite(localHour)) throw new Error('Не удалось определить время смены развоза.');
+  if (localHour >= TATOOINE_RIDE_SHIFT_CUTOFF_HOUR) return date;
+  const parts = date.split('-').map(Number);
+  const previous = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] - 1));
+  return previous.getUTCFullYear() + '-' + ('0' + (previous.getUTCMonth() + 1)).slice(-2) + '-' + ('0' + previous.getUTCDate()).slice(-2);
+}
+
+function getCurrentRideShiftKey_(now) {
+  const time = now instanceof Date ? now : new Date();
+  const timezone = Session.getScriptTimeZone() || 'Europe/Moscow';
+  const localDate = Utilities.formatDate(time, timezone, 'yyyy-MM-dd');
+  const localHour = Number(Utilities.formatDate(time, timezone, 'H'));
+  return getCurrentRideShiftKeyFromLocalParts_(localDate, localHour);
 }
 
 function assertTatooineSelfRideRequestOpen_() {
@@ -2847,22 +2869,27 @@ function tatooineRideRequestSheet_() {
 }
 
 function deduplicateTatooineRideRequestsForDate_(rideDate) {
-  const day = normalizeTatooineRideDate_(rideDate || tatooineRideDate_());
+  const day = normalizeTatooineRideDate_(rideDate || getCurrentRideShiftKey_());
   const sh = tatooineRideRequestSheet_();
   const rows = tatooineRideRequestRows_(sh);
   const latest = latestTatooineRideRequestsForDate_(rows, day);
   const keepRows = {};
   latest.forEach(function(item) { keepRows[item.row] = true; });
-  const duplicateRows = rows.filter(function(item) {
+  const duplicates = rows.filter(function(item) {
     return normalizeTatooineRideDate_(item.rideDate) === day && !keepRows[item.row];
-  }).map(function(item) { return item.row; }).sort(function(a, b) { return b - a; });
-  duplicateRows.forEach(function(row) { sh.deleteRow(row); });
-  return { rideDate: day, kept: latest.length, removed: duplicateRows.length };
+  });
+  duplicates.forEach(function(item) {
+    item.needsRide = false;
+    item.cancelledAt = item.cancelledAt || item.updatedAt || item.createdAt || new Date();
+    sh.getRange(item.row, 1, 1, FOX_RECEIPT_HEADERS.tatooineRideRequests.length).setValues(tatooineRideRequestValues_(item));
+  });
+  if (duplicates.length) Logger.log('Tatooine: superseded duplicate ride requests for shift ' + day + ': ' + duplicates.length);
+  return { rideDate: day, kept: latest.length, superseded: duplicates.length };
 }
 
 // One-time maintenance entry point for the Apps Script editor; it is not a Web App action.
 function tatooineDeduplicateRideRequests() {
-  return deduplicateTatooineRideRequestsForDate_(tatooineRideDate_());
+  return deduplicateTatooineRideRequestsForDate_(getCurrentRideShiftKey_());
 }
 
 function findTatooineRideEmployee_(userId) {
@@ -2880,7 +2907,7 @@ function getTatooineMyRide_(auth) {
   if (!hasTatooinePermission_(user, 'rides.view_self')) throw new Error('Нет доступа.');
   const employee = findTatooineRideEmployee_(user.id);
   if (!employee) throw new Error('Сотрудник не найден.');
-  const rideDate = tatooineRideDate_();
+  const rideDate = getCurrentRideShiftKey_();
   const request = activeTatooineRideRequests_(tatooineRideRequestRows_(tatooineRideRequestSheet_()), rideDate).filter(function(item) { return item.employeeId === user.id; })[0] || null;
   return { rideDate: rideDate, address: tatooinePublicHomeAddress_(employee), needsRide: Boolean(request), request: request ? { confirmedAt: request.confirmedAt, cancelledAt: request.cancelledAt } : null };
 }
@@ -2888,10 +2915,11 @@ function getTatooineMyRide_(auth) {
 function saveTatooineRideRequest_(employeeId, needsRide, actorUserId) {
   const sh = tatooineRideRequestSheet_();
   const rows = tatooineRideRequestRows_(sh);
-  const result = upsertTatooineRideRequest_(rows, employeeId, tatooineRideDate_(), needsRide, actorUserId, new Date());
-  const existing = rows.filter(function(item) { return item.employeeId === result.request.employeeId && item.rideDate === result.request.rideDate; })[0] || null;
+  const result = upsertTatooineRideRequest_(rows, employeeId, getCurrentRideShiftKey_(), needsRide, actorUserId, new Date());
+  const existing = findLatestTatooineRideRequest_(rows, result.request.employeeId, result.request.rideDate);
   if (existing) sh.getRange(existing.row, 1, 1, FOX_RECEIPT_HEADERS.tatooineRideRequests.length).setValues(tatooineRideRequestValues_(result.request));
   else sh.getRange(sh.getLastRow() + 1, 1, 1, FOX_RECEIPT_HEADERS.tatooineRideRequests.length).setValues(tatooineRideRequestValues_(result.request));
+  deduplicateTatooineRideRequestsForDate_(result.request.rideDate);
   return result.request;
 }
 
@@ -2928,7 +2956,7 @@ function listTatooineTodayRides_(auth) {
   const employees = tatooineUserRows_(tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, true));
   const byId = {};
   employees.forEach(function(item) { byId[item.userId] = item; });
-  return activeTatooineRideRequests_(tatooineRideRequestRows_(tatooineRideRequestSheet_()), tatooineRideDate_()).map(function(request) {
+  return activeTatooineRideRequests_(tatooineRideRequestRows_(tatooineRideRequestSheet_()), getCurrentRideShiftKey_()).map(function(request) {
     const employee = byId[request.employeeId];
     if (!employee || !employee.homeAddressText) return null;
     return { employeeId: employee.userId, name: employee.name, address: tatooinePublicHomeAddress_(employee), requestedByEmployee: request.createdByUserId === employee.userId, updatedByUserId: request.updatedByUserId, confirmedAt: request.confirmedAt };
@@ -3024,7 +3052,7 @@ function prepareTatooineRouteInput_() {
   }
   if (!origin.addressText || !isTatooineRouteCoordinatePairValid_(origin.latitude, origin.longitude)) issues.push({ name: 'Точка начала', reason: 'Адрес или координаты не указаны.' });
   const users = tatooineUserRows_(tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, true)); const byId = {}; users.forEach(function(item) { byId[item.userId] = item; });
-  const employees = activeTatooineRideRequests_(tatooineRideRequestRows_(tatooineRideRequestSheet_()), tatooineRideDate_()).map(function(request) { const employee = byId[request.employeeId]; return employee ? { employeeId: employee.userId, name: employee.name, address: tatooinePublicHomeAddress_(employee) } : { employeeId: request.employeeId, name: 'Сотрудник', address: { text: '', latitude: '', longitude: '' } }; });
+  const employees = activeTatooineRideRequests_(tatooineRideRequestRows_(tatooineRideRequestSheet_()), getCurrentRideShiftKey_()).map(function(request) { const employee = byId[request.employeeId]; return employee ? { employeeId: employee.userId, name: employee.name, address: tatooinePublicHomeAddress_(employee) } : { employeeId: request.employeeId, name: 'Сотрудник', address: { text: '', latitude: '', longitude: '' } }; });
   employees.forEach(function(item) {
     if (!item.address.text) { issues.push({ name: item.name, reason: 'Адрес развоза не указан.' }); return; }
     if (!isTatooineRouteCoordinatePairValid_(item.address.latitude, item.address.longitude)) {
@@ -3047,7 +3075,7 @@ const GeoapifyRoutingProvider_ = { name: 'geoapify', getMatrix: geoapifyRoutingP
 function calculateTatooineRideRoutes_(p, auth) {
   const user = requireTatooinePermission_(auth, 'rides.optimize');
   const id = String(p.calculationId || ''); if (!/^ride_route_[A-Za-z0-9_-]{8,80}$/.test(id)) throw new Error('Некорректный ID расчёта.');
-  const started = new Date(); let c = { id: id, rideDate: tatooineRideDate_(), status: 'PROCESSING', employeeCount: 0, pointCount: 0, edgeCount: 0, fingerprint: '', originName: '', originAddress: '', originLatitude: '', originLongitude: '', requestedAt: started, completedAt: '', durationMs: 0, errorType: '', error: '' };
+  const started = new Date(); let c = { id: id, rideDate: getCurrentRideShiftKey_(), status: 'PROCESSING', employeeCount: 0, pointCount: 0, edgeCount: 0, fingerprint: '', originName: '', originAddress: '', originLatitude: '', originLongitude: '', requestedAt: started, completedAt: '', durationMs: 0, errorType: '', error: '' };
   try {
     const prepared = prepareTatooineRouteInput_(); c.originName = prepared.origin.name; c.originAddress = prepared.origin.addressText; c.originLatitude = prepared.origin.latitude; c.originLongitude = prepared.origin.longitude; c.employeeCount = prepared.employees.length;
     if (!prepared.employees.length) throw new Error('ROUTING_NO_PARTICIPANTS');
@@ -3060,12 +3088,12 @@ function calculateTatooineRideRoutes_(p, auth) {
   finally { c.completedAt = new Date(); c.durationMs = c.completedAt.getTime() - started.getTime(); saveTatooineRouteCalculation_(c); }
   return c;
 }
-function getTatooineRideRouteCalculation_(p, auth) { requireTatooinePermission_(auth, 'rides.optimize'); const id = String(p.calculationId || ''); const rows = tatooineRouteCalculationRows_().filter(function(x) { return x.rideDate === tatooineRideDate_() && (!id || x.id === id); }); const c = rows[rows.length - 1] || null; if (!c) return null; const activeIds = activeTatooineRideRequests_(tatooineRideRequestRows_(tatooineRideRequestSheet_()), tatooineRideDate_()).map(function(x){return x.employeeId;}).sort().join('|'); const participantSheet = tatooineRouteSheet_(FOX_RECEIPTS.sheets.tatooineRouteParticipants); const calculatedIds = participantSheet.getLastRow() < 3 ? '' : participantSheet.getRange(3,1,participantSheet.getLastRow()-2,3).getValues().filter(function(r){return String(r[0])===c.id;}).map(function(r){return String(r[2]);}).sort().join('|'); return { id:c.id,status:c.status,employeeCount:c.employeeCount,pointCount:c.pointCount,edgeCount:c.edgeCount,originName:c.originName,originAddress:c.originAddress,originLatitude:c.originLatitude,originLongitude:c.originLongitude,requestedAt:c.requestedAt,completedAt:c.completedAt,durationMs:c.durationMs,error:c.error,errorType:c.errorType,isCurrent:activeIds === calculatedIds }; }
+function getTatooineRideRouteCalculation_(p, auth) { requireTatooinePermission_(auth, 'rides.optimize'); const shiftKey = getCurrentRideShiftKey_(); const id = String(p.calculationId || ''); const rows = tatooineRouteCalculationRows_().filter(function(x) { return x.rideDate === shiftKey && (!id || x.id === id); }); const c = rows[rows.length - 1] || null; if (!c) return null; const activeIds = activeTatooineRideRequests_(tatooineRideRequestRows_(tatooineRideRequestSheet_()), shiftKey).map(function(x){return x.employeeId;}).sort().join('|'); const participantSheet = tatooineRouteSheet_(FOX_RECEIPTS.sheets.tatooineRouteParticipants); const calculatedIds = participantSheet.getLastRow() < 3 ? '' : participantSheet.getRange(3,1,participantSheet.getLastRow()-2,3).getValues().filter(function(r){return String(r[0])===c.id;}).map(function(r){return String(r[2]);}).sort().join('|'); return { id:c.id,rideShiftKey:shiftKey,status:c.status,employeeCount:c.employeeCount,pointCount:c.pointCount,edgeCount:c.edgeCount,originName:c.originName,originAddress:c.originAddress,originLatitude:c.originLatitude,originLongitude:c.originLongitude,requestedAt:c.requestedAt,completedAt:c.completedAt,durationMs:c.durationMs,error:c.error,errorType:c.errorType,isCurrent:activeIds === calculatedIds }; }
 function getTatooineRideRouteDetails_(p, auth) { const user = requireTatooinePermission_(auth, 'rides.optimize'); const id = requiredString_(p.calculationId, 'calculationId'); const c = tatooineRouteCalculationRows_().filter(function(x) { return x.id === id; })[0]; if (!c) throw new Error('Расчёт не найден.'); const read = function(name, cols) { const sh=tatooineRouteSheet_(name); return sh.getLastRow()<3?[]:sh.getRange(3,1,sh.getLastRow()-2,cols).getValues().filter(function(r){return String(r[0])===id;}); }; return { calculation:getTatooineRideRouteCalculation_({calculationId:id}, auth), participants:read(FOX_RECEIPTS.sheets.tatooineRouteParticipants,7).map(function(r){return {pointId:r[1],employeeId:r[2],name:r[3],address:r[4],latitude:r[5],longitude:r[6]};}), edges:read(FOX_RECEIPTS.sheets.tatooineRouteEdges,6).map(function(r){return {fromId:r[1],toId:r[2],distanceMeters:r[3]===''?null:Number(r[3]),durationSeconds:r[4]===''?null:Number(r[4]),status:r[5]};}) }; }
 
 function tatooineOptimizationRows_() { const sh=tatooineRouteSheet_(FOX_RECEIPTS.sheets.tatooineRideOptimizations); return sh.getLastRow()<3?[]:sh.getRange(3,1,sh.getLastRow()-2,FOX_RECEIPT_HEADERS.tatooineRideOptimizations.length).getValues().map(function(r,i){return {row:i+3,id:String(r[0]||''),routeCalculationId:String(r[1]||''),rideDate:normalizeTatooineRideDate_(r[2]),resultJson:String(r[10]||'')};}).filter(function(x){return x.id;}); }
 function getTatooineRideOptimization_(auth) { requireTatooinePermission_(auth,'rides.optimize'); const current=getTatooineRideRouteCalculation_({},auth); if(!current)return {state:'not_calculated'}; if(current.status!=='READY'||current.isCurrent===false)return {state:'stale',routeCalculationId:current.id}; const rows=tatooineOptimizationRows_().filter(function(x){return x.routeCalculationId===current.id;}); if(!rows.length)return {state:'not_calculated',routeCalculationId:current.id}; try{return {state:'ready',result:JSON.parse(rows[rows.length-1].resultJson)};}catch(_){return {state:'error'};} }
-function optimizeTatooineRide_(auth) { requireTatooinePermission_(auth,'rides.optimize'); const current=getTatooineRideRouteCalculation_({},auth); if(!current||current.status!=='READY')throw new Error('Сначала рассчитайте маршруты.'); if(current.isCurrent===false)throw new Error('Маршруты изменились. Сначала пересчитайте маршруты.'); const details=getTatooineRideRouteDetails_({calculationId:current.id},auth); const participants=(details.participants||[]).map(function(p){return {employeeId:p.employeeId,employeeName:p.name,pointId:p.pointId};}); const matrix={edges:details.edges||[]}; const result=optimizeTatooineRideMatrix_({participants:participants,matrix:matrix}); const id='ride_optimization_'+current.id+'_'+Date.now(); const config={maxPassengersPerCar:TATOOINE_RIDE_OPTIMIZER_CONFIG.maxPassengersPerCar,maxExtraMinutes:TATOOINE_RIDE_OPTIMIZER_CONFIG.maxExtraMinutes,maxExtraRatio:TATOOINE_RIDE_OPTIMIZER_CONFIG.maxExtraRatio}; const sh=tatooineRouteSheet_(FOX_RECEIPTS.sheets.tatooineRideOptimizations); sh.getRange(sh.getLastRow()+1,1,1,FOX_RECEIPT_HEADERS.tatooineRideOptimizations.length).setValues([[id,current.id,tatooineRideDate_(),result.optimizerVersion,result.optimizationMode,new Date(),result.participantCount,result.carCount,JSON.stringify(config),JSON.stringify(result.summary),JSON.stringify(result)]]); return result; }
+function optimizeTatooineRide_(auth) { requireTatooinePermission_(auth,'rides.optimize'); const current=getTatooineRideRouteCalculation_({},auth); if(!current||current.status!=='READY')throw new Error('Сначала рассчитайте маршруты.'); if(current.isCurrent===false)throw new Error('Маршруты изменились. Сначала пересчитайте маршруты.'); const details=getTatooineRideRouteDetails_({calculationId:current.id},auth); const participants=(details.participants||[]).map(function(p){return {employeeId:p.employeeId,employeeName:p.name,pointId:p.pointId};}); const matrix={edges:details.edges||[]}; const result=optimizeTatooineRideMatrix_({participants:participants,matrix:matrix}); const id='ride_optimization_'+current.id+'_'+Date.now(); const config={maxPassengersPerCar:TATOOINE_RIDE_OPTIMIZER_CONFIG.maxPassengersPerCar,maxExtraMinutes:TATOOINE_RIDE_OPTIMIZER_CONFIG.maxExtraMinutes,maxExtraRatio:TATOOINE_RIDE_OPTIMIZER_CONFIG.maxExtraRatio}; const sh=tatooineRouteSheet_(FOX_RECEIPTS.sheets.tatooineRideOptimizations); sh.getRange(sh.getLastRow()+1,1,1,FOX_RECEIPT_HEADERS.tatooineRideOptimizations.length).setValues([[id,current.id,getCurrentRideShiftKey_(),result.optimizerVersion,result.optimizationMode,new Date(),result.participantCount,result.carCount,JSON.stringify(config),JSON.stringify(result.summary),JSON.stringify(result)]]); return result; }
 
 function setTatooineEmployeeRole_(p, auth) {
   const actor = requireTatooinePermission_(auth, 'roles.manage');
