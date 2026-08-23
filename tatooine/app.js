@@ -383,7 +383,7 @@
     (result.cars || []).forEach(car => { const row=document.createElement('div'); row.className='ride-person'; const text=document.createElement('div'); const title=document.createElement('b'); title.textContent='Машина '+car.carId.replace('ride_car_','')+' · '+car.passengerCount+' сотрудника'; const detail=document.createElement('small'); detail.textContent=car.passengers.map(p=>p.dropoffPosition+'. '+p.employeeName+' — '+(p.extraDurationSeconds ? '+'+Math.round(p.extraDurationSeconds/60)+' мин' : 'без крюка')).join('\n')+'\n'+Math.round(car.routeDurationSeconds/60)+' мин · '+(car.routeDistanceMeters/1000).toFixed(1).replace('.',',')+' км\nМаксимальный крюк: '+(car.maxExtraDurationSeconds ? '+'+Math.round(car.maxExtraDurationSeconds/60)+' мин' : 'без крюка'); const actions=document.createElement('div'); actions.className='ride-person-actions'; const openMap=document.createElement('button'); openMap.className='ride-add'; openMap.type='button'; openMap.textContent='Открыть в Яндекс Картах'; openMap.addEventListener('click', () => openRideCarInYandexMaps(car, openMap)); const copyRoute=document.createElement('button'); copyRoute.type='button'; copyRoute.textContent='Скопировать маршрут'; copyRoute.addEventListener('click', () => copyRideCarRoute(car, copyRoute)); actions.append(openMap,copyRoute); text.append(title,detail); row.append(text,actions); list.appendChild(row); });
     (result.unresolvedParticipants || []).forEach(p=>{const row=document.createElement('div');row.className='ride-person';row.textContent='Не удалось автоматически распределить: '+p.employeeName+' — '+p.reason;list.appendChild(row);});
   }
-  async function loadRideOptimization() { if (!can('rides.optimize')) return; const data=await jsonp(Object.assign({action:'tatooineRideOptimization'},authParams())); if(!data||!data.ok)throw new Error(data&&data.error||'Не удалось загрузить машины.'); rideOptimization=data.optimization; if (rideOptimization && rideOptimization.state === 'ready') { try { await loadRideRouteDetails(); } catch (_) {} } renderRideOptimization(); }
+  async function loadRideOptimization() { if (!can('rides.optimize')) return; const data=await jsonp(Object.assign({action:'tatooineRideOptimization'},authParams())); if(!data||!data.ok)throw new Error(data&&data.error||'Не удалось загрузить машины.'); rideOptimization=data.optimization; renderRideOptimization(); }
   async function optimizeRide() {
     const button = $('rideOptimize');
     if (!button || button.disabled) return;
@@ -423,7 +423,8 @@
     return rideRouteDetails;
   }
 
-  function loadRideCarRouteData(car) {
+  async function loadRideCarRouteData(car) {
+    if (!rideRouteDetails) await loadRideRouteDetails();
     const details = rideRouteDetails;
     if (!details) throw new Error('Маршрут ещё загружается. Повторите попытку через секунду.');
     const calculation = details.calculation || {};
@@ -452,7 +453,7 @@
   async function openRideCarInYandexMaps(car, button) {
     button.disabled = true;
     try {
-      const route = loadRideCarRouteData(car);
+      const route = await loadRideCarRouteData(car);
       if (!TG || typeof TG.openLink !== 'function') throw new Error('Откройте маршрут через Telegram на iPhone.');
       TG.openLink(buildYandexMapsExternalRouteUrl(route.origin, route.dropoffs));
       setRideStatus('rideRouteStatus', 'Открываю Яндекс Карты…');

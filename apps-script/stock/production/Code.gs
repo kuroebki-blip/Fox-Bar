@@ -3109,31 +3109,38 @@ function calculateTatooineRideRoutes_(p, auth) {
   return c;
 }
 function getTatooineRideRouteCalculation_(p, auth) { requireTatooinePermission_(auth, 'rides.optimize'); const shiftKey = getCurrentRideShiftKey_(); const id = String(p.calculationId || ''); const rows = tatooineRouteCalculationRows_().filter(function(x) { return x.rideDate === shiftKey && (!id || x.id === id); }); const c = rows[rows.length - 1] || null; if (!c) return null; const activeIds = activeTatooineRideRequests_(tatooineRideRequestRows_(tatooineRideRequestSheet_()), shiftKey).map(function(x){return x.employeeId;}).sort().join('|'); const participantSheet = tatooineRouteSheet_(FOX_RECEIPTS.sheets.tatooineRouteParticipants); const calculatedIds = participantSheet.getLastRow() < 3 ? '' : participantSheet.getRange(3,1,participantSheet.getLastRow()-2,3).getValues().filter(function(r){return String(r[0])===c.id;}).map(function(r){return String(r[2]);}).sort().join('|'); return { id:c.id,rideShiftKey:shiftKey,status:c.status,employeeCount:c.employeeCount,pointCount:c.pointCount,edgeCount:c.edgeCount,originName:c.originName,originAddress:c.originAddress,originLatitude:c.originLatitude,originLongitude:c.originLongitude,requestedAt:c.requestedAt,completedAt:c.completedAt,durationMs:c.durationMs,error:c.error,errorType:c.errorType,isCurrent:activeIds === calculatedIds }; }
-function getTatooineRideRouteDetails_(p, auth, diagnostics) {
+function tatooineRouteRowsForCalculation_(sheetName, calculationId, columnCount) {
+  const sh = tatooineRouteSheet_(sheetName);
+  const matches = sh.createTextFinder(String(calculationId)).matchEntireCell(true).findAll();
+  if (!matches.length) return { rows: [], sheetRowCount: Math.max(0, sh.getLastRow() - 2), readRowCount: 0 };
+  const rowNumbers = matches.map(function(match) { return match.getRow(); }).sort(function(a, b) { return a - b; });
+  const firstRow = rowNumbers[0];
+  const lastRow = rowNumbers[rowNumbers.length - 1];
+  const rows = sh.getRange(firstRow, 1, lastRow - firstRow + 1, columnCount).getValues()
+    .filter(function(row) { return String(row[0]) === String(calculationId); });
+  return { rows: rows, sheetRowCount: Math.max(0, sh.getLastRow() - 2), readRowCount: lastRow - firstRow + 1 };
+}
+function getTatooineRideRouteDetails_(p, auth, diagnostics, knownCalculation) {
   requireTatooinePermission_(auth, 'rides.optimize');
   const id = requiredString_(p.calculationId, 'calculationId');
-  const c = tatooineRouteCalculationRows_().filter(function(x) { return x.id === id; })[0];
+  const c = knownCalculation && String(knownCalculation.id) === id ? knownCalculation : tatooineRouteCalculationRows_().filter(function(x) { return x.id === id; })[0];
   if (!c) throw new Error('Расчёт не найден.');
-  const read = function(name, cols) {
-    const sh = tatooineRouteSheet_(name);
-    const lastRow = sh.getLastRow();
-    const rows = lastRow < 3 ? [] : sh.getRange(3, 1, lastRow - 2, cols).getValues().filter(function(r) { return String(r[0]) === id; });
-    return { rows: rows, sheetRowCount: Math.max(0, lastRow - 2) };
-  };
   const startedAt = Date.now();
-  const participantRows = read(FOX_RECEIPTS.sheets.tatooineRouteParticipants, 7);
+  const participantRows = tatooineRouteRowsForCalculation_(FOX_RECEIPTS.sheets.tatooineRouteParticipants, id, 7);
   if (diagnostics) {
     diagnostics.routeParticipantsReadMs = Date.now() - startedAt;
     diagnostics.participantsSheetRowCount = participantRows.sheetRowCount;
+    diagnostics.participantsRowsRead = participantRows.readRowCount;
   }
   const edgesStartedAt = Date.now();
-  const edgeRows = read(FOX_RECEIPTS.sheets.tatooineRouteEdges, 6);
+  const edgeRows = tatooineRouteRowsForCalculation_(FOX_RECEIPTS.sheets.tatooineRouteEdges, id, 6);
   if (diagnostics) {
     diagnostics.routeEdgesReadMs = Date.now() - edgesStartedAt;
     diagnostics.edgesSheetRowCount = edgeRows.sheetRowCount;
+    diagnostics.edgesRowsRead = edgeRows.readRowCount;
   }
   return {
-    calculation: getTatooineRideRouteCalculation_({ calculationId: id }, auth),
+    calculation: knownCalculation || getTatooineRideRouteCalculation_({ calculationId: id }, auth),
     participants: participantRows.rows.map(function(r) { return { pointId:r[1], employeeId:r[2], name:r[3], address:r[4], latitude:r[5], longitude:r[6] }; }),
     edges: edgeRows.rows.map(function(r) { return { fromId:r[1], toId:r[2], distanceMeters:r[3]===''?null:Number(r[3]), durationSeconds:r[4]===''?null:Number(r[4]), status:r[5] }; })
   };
@@ -3154,7 +3161,7 @@ function optimizeTatooineRide_(auth, options) {
   timings.currentStateValidationMs = Date.now() - mark;
   mark = Date.now();
   const operational = {};
-  const details = getTatooineRideRouteDetails_({ calculationId: current.id }, auth, operational);
+  const details = getTatooineRideRouteDetails_({ calculationId: current.id }, auth, operational, current);
   timings.routeDetailsTotalMs = Date.now() - mark;
   const participants = (details.participants || []).map(function(p) { return { employeeId: p.employeeId, employeeName: p.name, pointId: p.pointId }; });
   const matrix = { edges: details.edges || [] };
@@ -3172,6 +3179,8 @@ function optimizeTatooineRide_(auth, options) {
     optimizationResultCars: result.carCount,
     participantsSheetRowCount: operational.participantsSheetRowCount,
     edgesSheetRowCount: operational.edgesSheetRowCount,
+    participantsRowsRead: operational.participantsRowsRead,
+    edgesRowsRead: operational.edgesRowsRead,
     timings: Object.assign(timings, {
       routeParticipantsReadMs: operational.routeParticipantsReadMs,
       routeEdgesReadMs: operational.routeEdgesReadMs
