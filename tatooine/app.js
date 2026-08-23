@@ -220,6 +220,12 @@
       }
       haptic('success');
     } catch (error) {
+      // The backend may have completed a write while the JSONP response timed
+      // out. Do not leave the previous confirmed state visible as if it were
+      // still current; it will be refreshed on the next successful read.
+      myRide = null;
+      confirm.hidden = true;
+      cancel.hidden = true;
       setRideStatus('myRideStatus', errorMessage(error, 'Не удалось сохранить заявку.'));
     } finally {
       confirm.disabled = false;
@@ -293,6 +299,11 @@
       renderRideManager(items);
       return items;
     } catch (error) {
+      // A failed refresh must never keep an old active list on screen. That
+      // would make a completed cancellation look as if it had not worked.
+      todayRideEmployeeIds = new Set();
+      const list = $('rideTodayList');
+      if (list) list.replaceChildren();
       setRideStatus('rideManagerStatus', errorMessage(error, 'Не удалось загрузить список.'));
       return null;
     }
@@ -652,10 +663,16 @@
   async function openTaxi() {
     showScreen('taxi');
     if (!currentUser) await loadCurrentUser();
-    const routeCalculationLoad = can('rides.optimize') ? loadRideRouteCalculation() : Promise.resolve();
-    await Promise.all([loadMyRide(), loadRideManager(), loadRideAddresses()]);
-    await routeCalculationLoad;
-    await loadRideOptimization().catch(() => {});
+    // Apps Script + Google Sheets is rate/queue sensitive in Telegram WebView.
+    // Loading independent ride widgets in parallel caused requests to time out
+    // and left stale cards visible. Keep this small, lazy screen load ordered.
+    await loadMyRide();
+    await loadRideManager();
+    await loadRideAddresses();
+    if (can('rides.optimize')) {
+      await loadRideRouteCalculation();
+      await loadRideOptimization().catch(() => {});
+    }
   }
 
   function roleLabel(role) {

@@ -203,12 +203,29 @@ test('ride data is loaded lazily when the user opens the ride section', () => {
   assert.match(taxiHandler, /loadRideManager\(\)/);
 });
 
-test('opening taxi loads independent ride data in parallel instead of an Apps Script waterfall', () => {
+test('opening taxi serializes Apps Script ride reads so Telegram does not time out or show stale cards', () => {
   const taxiStart = frontend.indexOf('async function openTaxi()');
   const taxiEnd = frontend.indexOf('function roleLabel(', taxiStart);
   const taxiHandler = frontend.slice(taxiStart, taxiEnd);
-  assert.match(taxiHandler, /await Promise\.all\(\[loadMyRide\(\), loadRideManager\(\), loadRideAddresses\(\)\]\)/);
-  assert.equal(taxiHandler.includes('await loadMyRide();\n    await loadRideManager();'), false);
+  assert.doesNotMatch(taxiHandler, /Promise\.all/);
+  assert.match(taxiHandler, /await loadMyRide\(\);\n    await loadRideManager\(\);\n    await loadRideAddresses\(\);/);
+  assert.match(taxiHandler, /await loadRideRouteCalculation\(\);\n      await loadRideOptimization\(\)\.catch/);
+});
+
+test('a failed manager refresh clears stale active ride cards instead of preserving old data', () => {
+  const start = frontend.indexOf('async function loadRideManager()');
+  const end = frontend.indexOf('function renderRideRouteCalculation', start);
+  const handler = frontend.slice(start, end);
+  assert.match(handler, /todayRideEmployeeIds = new Set\(\);/);
+  assert.match(handler, /list\.replaceChildren\(\);/);
+});
+
+test('ride writes fail fast when another ride update holds the document lock', () => {
+  const selfStart = backend.indexOf('function setTatooineMyRide_');
+  const managerStart = backend.indexOf('function setTatooineEmployeeRide_');
+  const managerEnd = backend.indexOf('function listTatooineTodayRides_', managerStart);
+  assert.match(backend.slice(selfStart, managerStart), /lock\.tryLock\(3000\)/);
+  assert.match(backend.slice(managerStart, managerEnd), /lock\.tryLock\(3000\)/);
 });
 
 test('an active ride cannot be created without an address and address deletion cancels today request', () => {

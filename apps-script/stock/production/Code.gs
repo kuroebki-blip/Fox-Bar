@@ -16,7 +16,7 @@
  */
 
 const FOX_RECEIPTS = {
-  version: 'v9.7.6 TATOOINE RIDE JSONP WRITES',
+  version: 'v9.7.7 TATOOINE RIDE RELIABLE LOAD',
 
   stockSheets: [
     'Вино',
@@ -2943,7 +2943,7 @@ function setTatooineMyRide_(p, auth) {
   if (!employee) throw new Error('Сотрудник не найден.');
   if (needsRide && !employee.homeAddressText) throw new Error('Адрес развоза не указан. Обратитесь к менеджеру.');
   const lock = LockService.getDocumentLock();
-  if (!lock.tryLock(30000)) throw new Error('Заявки на развоз сейчас обновляются. Повторите попытку.');
+  if (!lock.tryLock(3000)) throw new Error('Заявки на развоз сейчас обновляются. Повторите попытку.');
   try { return saveTatooineRideRequest_(user.id, needsRide, user.id); }
   finally { lock.releaseLock(); }
 }
@@ -2957,7 +2957,7 @@ function setTatooineEmployeeRide_(p, auth) {
   if (!employee) throw new Error('Сотрудник не найден.');
   if (needsRide && !employee.homeAddressText) throw new Error('Адрес развоза не указан.');
   const lock = LockService.getDocumentLock();
-  if (!lock.tryLock(30000)) throw new Error('Заявки на развоз сейчас обновляются. Повторите попытку.');
+  if (!lock.tryLock(3000)) throw new Error('Заявки на развоз сейчас обновляются. Повторите попытку.');
   try { return saveTatooineRideRequest_(targetUserId, needsRide, user.id); }
   finally { lock.releaseLock(); }
 }
