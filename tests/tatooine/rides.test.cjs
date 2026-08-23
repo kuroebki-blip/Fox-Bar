@@ -113,6 +113,20 @@ test('manager remove refreshes the current route calculation so Matrix and optim
   assert.match(backend, /const existing = findLatestTatooineRideRequest_\(rows, result\.request\.employeeId, result\.request\.rideDate\)/);
 });
 
+test('manager removal gives visible feedback and only fades the card after the backend confirms it', () => {
+  assert.match(frontend, /function setRidePersonRemoving\(employeeId, removing\)/);
+  assert.match(frontend, /row\.classList\.toggle\('ride-person-removing', Boolean\(removing\)\)/);
+  const start = frontend.indexOf('async function setEmployeeRideNeeded');
+  const end = frontend.indexOf('function renderRideAddresses', start);
+  const handler = frontend.slice(start, end);
+  assert.match(handler, /setRidePersonRemoving\(employeeId, true\)/);
+  assert.match(handler, /await writeRide\(\{ action: 'tatooineSetEmployeeRide'/);
+  assert.match(handler, /setRidePersonRemoving\(employeeId, false\)/);
+  assert.match(handler, /Сотрудник убран из развоза\./);
+  const styles = fs.readFileSync(path.join(__dirname, '../../tatooine/styles.css'), 'utf8');
+  assert.match(styles, /\.ride-person-removing/);
+});
+
 test('ride writes use the acknowledged JSONP channel instead of an opaque POST or client polling', () => {
   assert.match(frontend, /async function writeRide\(params\)/);
   assert.match(frontend, /const data = await jsonp\(Object\.assign\(\{\}, params, authParams\(\)\)\)/);

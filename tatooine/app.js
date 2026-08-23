@@ -236,6 +236,7 @@
   function ridePersonElement(item, buttonLabel, buttonClass, onClick) {
     const row = document.createElement('div');
     row.className = 'ride-person';
+    row.dataset.rideEmployeeId = String(item.employeeId || '');
     const details = document.createElement('div');
     const name = document.createElement('b');
     name.textContent = item.name || 'Сотрудник';
@@ -247,6 +248,30 @@
       appendRidePersonAction(row, buttonLabel, buttonClass, onClick);
     }
     return row;
+  }
+
+  function ridePersonRows(employeeId) {
+    return Array.from(document.querySelectorAll('.ride-person[data-ride-employee-id]')).filter(row => row.dataset.rideEmployeeId === String(employeeId));
+  }
+
+  function setRidePersonRemoving(employeeId, removing) {
+    ridePersonRows(employeeId).forEach(row => {
+      row.classList.toggle('ride-person-removing', Boolean(removing));
+      const button = row.querySelector('.ride-remove');
+      if (!button) return;
+      if (removing) {
+        button.dataset.defaultLabel = button.dataset.defaultLabel || button.textContent;
+        button.textContent = 'Убираем…';
+        button.disabled = true;
+      } else {
+        button.textContent = button.dataset.defaultLabel || 'Убрать из развоза';
+        button.disabled = false;
+      }
+    });
+  }
+
+  function setRidePersonRemoved(employeeId) {
+    ridePersonRows(employeeId).forEach(row => row.classList.add('ride-person-removed'));
   }
 
   function appendRidePersonAction(row, label, className, onClick) {
@@ -439,7 +464,12 @@
   async function setEmployeeRideNeeded(employeeId, needsRide) {
     try {
       setRideStatus('rideManagerStatus', 'Сохраняю…');
+      if (!needsRide) setRidePersonRemoving(employeeId, true);
       await writeRide({ action: 'tatooineSetEmployeeRide', targetUserId: employeeId, needsRide: needsRide ? 'true' : 'false' });
+      if (!needsRide) {
+        setRidePersonRemoved(employeeId);
+        await sleep(220);
+      }
       await loadRideManager();
       await loadRideAddresses();
       if (can('rides.optimize')) {
@@ -448,6 +478,7 @@
       }
       setRideStatus('rideManagerStatus', needsRide ? 'Сотрудник добавлен в развоз.' : 'Сотрудник убран из развоза.');
     } catch (error) {
+      if (!needsRide) setRidePersonRemoving(employeeId, false);
       setRideStatus('rideManagerStatus', errorMessage(error, 'Не удалось обновить развоз.'));
     }
   }
