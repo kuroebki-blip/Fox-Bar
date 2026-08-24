@@ -6,6 +6,7 @@ const vm = require('node:vm');
 
 const stockSource = readFileSync(join(process.cwd(), 'apps-script/stock/production/Code.gs'), 'utf8');
 const banquetsSource = readFileSync(join(process.cwd(), 'apps-script/banquets/production/Code.gs'), 'utf8');
+const frontendSource = readFileSync(join(process.cwd(), 'index.html'), 'utf8');
 
 class FakeSheet {
   constructor(rows) { this.rows = rows.map(row => [...row]); }
@@ -275,4 +276,11 @@ test('итоговая сумма банкета хранится числом, 
   assert.equal(context.setFoxBanquetFinalAmount_('b-final', '0').finalAmount, 0);
   assert.equal(context.setFoxBanquetFinalAmount_('b-final', '').finalAmount, null);
   assert.throws(() => context.setFoxBanquetFinalAmount_('b-final', '-1'));
+});
+
+test('OCR графика показывает собственный статус и ждёт Gemini дольше обычного JSONP', () => {
+  assert.match(frontendSource, /id="foxScheduleStatus"/);
+  assert.match(frontendSource, /function setFoxScheduleStatus_/);
+  assert.match(frontendSource, /action:'foxScheduleRecognize'[^\n]*90000/);
+  assert.match(frontendSource, /Gemini распознаёт график/);
 });
