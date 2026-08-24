@@ -634,6 +634,11 @@ body.mode-cash-report #backBtn{display:inline-flex}
   </div>
 
   <div id="banqAdminBlock" class="admin-hidden">
+    <div class="group-label">График сотрудников</div>
+    <div class="banq-form" id="foxScheduleAdmin" hidden>
+      <div class="form-grid"><div class="form-field"><label>Месяц</label><input id="foxScheduleMonth" type="month"></div><div class="form-field full"><label>Изображение графика</label><input id="foxScheduleImage" type="file" accept="image/*"><button class="small-btn" id="foxScheduleRecognize" type="button">Распознать график</button></div></div>
+      <div id="foxScheduleReview" hidden></div>
+    </div>
     <div class="group-label">Добавить банкет</div>
     <form class="banq-form" id="banqForm">
     <div class="form-grid">
@@ -1425,6 +1430,7 @@ function setAppSection(section){
   if(section==='banquets'){
     renderBanquets();
     ensureBanquetsLoaded_();
+    initFoxScheduleAdmin_();
   }
   if(section==='receipts') openReceiptsSection();
   if(section==='cash-report') openCashReportSection();
@@ -1471,6 +1477,43 @@ let banqEditingBanquet=null;
 let banqReplaceIndex=-1;
 let banqGalleryUrls=[];
 let banqGalleryIndex=0;
+const banqScheduleWorkersByDate=new Map();
+let foxScheduleCanManage=false,foxSchedulePreview=[];
+
+async function initFoxScheduleAdmin_(){
+  const root=document.getElementById('foxScheduleAdmin');if(!root||!isStockApiConfigured())return;
+  try{const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxScheduleAccess'},receiptAuthParams()));foxScheduleCanManage=Boolean(res&&res.ok&&res.canManage);root.hidden=!foxScheduleCanManage;}catch(_){root.hidden=true;}
+}
+function renderFoxScheduleReview_(){
+  const root=document.getElementById('foxScheduleReview');if(!root)return;root.hidden=!foxSchedulePreview.length;
+  if(!foxSchedulePreview.length)return;
+  root.innerHTML='<div class="banq-comment"><b>Проверьте распознанный график</b></div>'+foxSchedulePreview.map((row,i)=>'<div class="form-grid"><div class="form-field"><input data-sr-name="'+i+'" value="'+escapeHtml(row.name)+'"></div><div class="form-field"><input data-sr-date="'+i+'" type="date" value="'+escapeHtml(row.date)+'"></div><div class="form-field"><input data-sr-value="'+i+'" value="'+escapeHtml(row.rawValue)+'"></div></div>').join('')+'<button class="save-btn" id="foxScheduleSave" type="button">Подтвердить график</button>';
+  document.getElementById('foxScheduleSave').onclick=saveFoxSchedule_;
+}
+async function recognizeFoxSchedule_(){
+  const file=document.getElementById('foxScheduleImage').files[0];if(!file)throw new Error('Выберите изображение графика.');
+  const button=document.getElementById('foxScheduleRecognize');button.disabled=true;button.textContent='Распознаю…';
+  try{const uploaded=await uploadPhotoToCloudinary(file);const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxScheduleRecognize',imageUrl:uploaded.url},receiptAuthParams()));if(!res||!res.ok)throw new Error(res&&res.error||'График не распознан.');document.getElementById('foxScheduleMonth').value=res.preview.month;foxSchedulePreview=(res.preview.rows||[]).map(row=>Object.assign({imageUrl:uploaded.url},row));renderFoxScheduleReview_();}finally{button.disabled=false;button.textContent='Распознать график';}
+}
+async function saveFoxSchedule_(){
+  foxSchedulePreview.forEach((row,i)=>{row.name=document.querySelector('[data-sr-name="'+i+'"]').value.trim();row.date=document.querySelector('[data-sr-date="'+i+'"]').value;row.rawValue=document.querySelector('[data-sr-value="'+i+'"]').value;});
+  const month=document.getElementById('foxScheduleMonth').value;if(!month)throw new Error('Проверьте месяц графика.');
+  const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxScheduleSave',month:month,imageUrl:foxSchedulePreview[0]&&foxSchedulePreview[0].imageUrl||'',rowsJson:JSON.stringify(foxSchedulePreview)},receiptAuthParams()));if(!res||!res.ok)throw new Error(res&&res.error||'График не сохранён.');foxSchedulePreview=[];renderFoxScheduleReview_();banqScheduleWorkersByDate.clear();renderBanquets();setSyncStatus('ok','График сотрудников сохранён.');
+}
+const foxScheduleRecognizeButton=document.getElementById('foxScheduleRecognize');
+if(foxScheduleRecognizeButton)foxScheduleRecognizeButton.onclick=()=>recognizeFoxSchedule_().catch(err=>setSyncStatus('err',String(err&&err.message||err)));
+
+async function loadBanqScheduleWorkers_(date){
+  if(!isStockApiConfigured()||banqScheduleWorkersByDate.has(date)) return;
+  try{const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxScheduleWorkers',date:date},receiptAuthParams()));if(res&&res.ok)banqScheduleWorkersByDate.set(date,res.schedule||{scheduleFound:false,items:[]});renderBanquets();}catch(_){}
+}
+function renderBanqScheduleWorkers_(date){
+  const data=banqScheduleWorkersByDate.get(date);
+  if(!data) return '<div class="banq-comment">Загружаю сотрудников по графику…</div>';
+  if(!data.scheduleFound) return '<div class="banq-comment">График сотрудников на этот месяц не загружен.</div>';
+  const names=(data.items||[]).map(x=>escapeHtml(x.name)+(x.rawValue?' · '+escapeHtml(x.rawValue):'')).join('<br>');
+  return '<div class="banq-comment"><b>Сотрудники по графику</b><br>'+(names||'На эту дату смен нет.')+'</div>';
+}
 
 function getTgUser(){
   try{ return TG && TG.initDataUnsafe && TG.initDataUnsafe.user ? TG.initDataUnsafe.user : null; }
@@ -1799,6 +1842,7 @@ function renderBanqCalendar(){
 function renderBanqDay(){
   const list=document.getElementById('banqList');
   const items=banquets.filter(b=>b.date===selectedBanqDate).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  loadBanqScheduleWorkers_(selectedBanqDate);
   document.getElementById('banqSelectedTitle').textContent=humanDate(selectedBanqDate);
   document.getElementById('banqSelectedCount').textContent=items.length+' '+pluralRu(items.length,'заказ','заказа','заказов');
 
@@ -1835,6 +1879,7 @@ function renderBanqDay(){
       '<div class="banq-item-head"><div class="banq-time">'+escapeHtml(b.time||'')+'</div><div class="banq-status '+meta.key+'">'+meta.label+'</div></div>'+ 
       '<div class="banq-name">'+safeName+'</div>'+ 
       (safeComment?'<div class="banq-comment">'+safeComment+'</div>':'')+
+      renderBanqScheduleWorkers_(b.date)+
       renderBanqPhotoHtml(b)+renderBanqReserveHtml_(b)+adminActions;
 
     card.querySelectorAll('[data-status]').forEach(btn=>{

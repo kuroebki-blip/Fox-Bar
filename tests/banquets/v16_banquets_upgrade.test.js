@@ -258,3 +258,12 @@ test('отправка заказа снимает только сопостав
   const row = reserveSheet.rows.find(item => item[0] === 'b-order');
   assert.deepEqual([row[10], row[11], row[4]], [2, 0, 'Заказ отправлен']);
 });
+
+test('график: пусто и X не являются сменой, число и диапазон являются', () => {
+  const { context } = makeRuntime();
+  assert.equal(context.parseFoxScheduleShift_('').isWorking, false);
+  assert.equal(context.parseFoxScheduleShift_('X').isWorking, false);
+  assert.deepEqual(JSON.parse(JSON.stringify(context.parseFoxScheduleShift_('10'))), { rawValue:'10', isWorking:true, shiftStart:'10', shiftEnd:'' });
+  assert.deepEqual(JSON.parse(JSON.stringify(context.parseFoxScheduleShift_('11-17'))), { rawValue:'11-17', isWorking:true, shiftStart:'11', shiftEnd:'17' });
+  assert.equal(context.parseFoxScheduleShift_('Инв').isWorking, false);
+});
