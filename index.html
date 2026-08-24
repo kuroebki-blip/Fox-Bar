@@ -1484,7 +1484,7 @@ async function initFoxScheduleAdmin_(){
   const root=document.getElementById('foxScheduleAdmin'),open=document.getElementById('foxScheduleOpen');if(!root||!open||!isStockApiConfigured())return;
   const knownAdmin=isBanqAdmin();
   open.hidden=!knownAdmin;root.hidden=true;
-  try{const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxScheduleAccess'},receiptAuthParams()));foxScheduleCanManage=Boolean(res&&res.ok&&res.canManage);open.hidden=!foxScheduleCanManage;}catch(_){foxScheduleCanManage=knownAdmin;}
+  try{const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxScheduleAccess'},receiptAuthParams()));foxScheduleCanManage=knownAdmin||Boolean(res&&res.ok&&res.canManage);open.hidden=!foxScheduleCanManage;}catch(_){foxScheduleCanManage=knownAdmin;}
 }
 function renderFoxScheduleReview_(){
   const root=document.getElementById('foxScheduleReview');if(!root)return;root.hidden=!foxSchedulePreview.length;
