@@ -131,7 +131,7 @@ const FOX_RECEIPT_HEADERS = {
     'ID графика','Месяц','Статус','Image URL','Создано','Обновлено','Обновил пользователь'
   ],
   foxScheduleShifts: [
-    'ID графика','Дата','Employee ID','Имя сотрудника','Исходное значение','Рабочая смена','Начало','Конец','Создано','Обновлено'
+    'ID графика','Дата','Employee ID','Имя сотрудника','Исходное значение','Рабочая смена','Начало','Конец','Создано','Обновлено','Тип смены'
   ],
   tatooineUsers: [
     'Telegram User ID','Имя','Роль','Создано','Обновлено','Адрес развоза','Широта развоза','Долгота развоза'
@@ -3968,21 +3968,46 @@ function parseFoxScheduleShift_(rawValue) {
   const raw = String(rawValue == null ? '' : rawValue).trim();
   if (!raw || /^x$/i.test(raw)) return { rawValue:raw, isWorking:false, shiftStart:'', shiftEnd:'' };
   const range = raw.match(/^(\d{1,2})\s*[-–—]\s*(\d{1,2})$/);
-  if (range) return { rawValue:raw, isWorking:true, shiftStart:range[1], shiftEnd:range[2] };
-  if (/^\d{1,2}$/.test(raw)) return { rawValue:raw, isWorking:true, shiftStart:raw, shiftEnd:'' };
+  if (range) {
+    const shiftStart = normalizeFoxScheduleTime_(range[1]); const shiftEnd = normalizeFoxScheduleTime_(range[2]);
+    if (shiftStart && shiftEnd) return { rawValue:raw, isWorking:true, shiftStart:shiftStart, shiftEnd:shiftEnd };
+  }
+  if (/^\d{1,2}$/.test(raw)) {
+    const shiftStart = normalizeFoxScheduleTime_(raw);
+    if (shiftStart) return { rawValue:raw, isWorking:true, shiftStart:shiftStart, shiftEnd:'' };
+  }
   return { rawValue:raw, isWorking:false, shiftStart:'', shiftEnd:'' };
+}
+
+function normalizeFoxScheduleTime_(value) {
+  const hour = Number(value);
+  return Number.isInteger(hour) && hour >= 0 && hour <= 23 ? (hour < 10 ? '0' : '') + hour + ':00' : '';
+}
+
+function normalizeFoxScheduleShiftType_(value) {
+  const type = normalizeText_(value);
+  return type === 'preparation' || type.indexOf('заготов') >= 0 ? 'preparation' : 'regular';
+}
+
+function foxScheduleRows_(sh) {
+  if (!sh || sh.getLastRow() < 3) return [];
+  const width = Math.min(sh.getLastColumn(), FOX_RECEIPT_HEADERS.foxScheduleShifts.length);
+  return sh.getRange(3, 1, sh.getLastRow() - 2, width).getValues().map(function(row) {
+    while (row.length < FOX_RECEIPT_HEADERS.foxScheduleShifts.length) row.push('');
+    return row;
+  });
 }
 
 function listFoxScheduleWorkers_(date) {
   const targetDate = normalizeFoxScheduleDate_(date);
   const sh = foxScheduleSheet_('foxScheduleShifts', false);
   if (!sh || sh.getLastRow() < 3) return { date:targetDate, scheduleFound:false, items:[] };
-  const rows = sh.getRange(3, 1, sh.getLastRow() - 2, FOX_RECEIPT_HEADERS.foxScheduleShifts.length).getValues();
+  const rows = foxScheduleRows_(sh);
   const active = activeFoxScheduleIdForMonth_(targetDate.slice(0, 7));
   if (!active) return { date:targetDate, scheduleFound:false, items:[] };
   return { date:targetDate, scheduleFound:true, items:rows.filter(function(row) {
     return String(row[0]) === active && String(row[1]) === targetDate && truthy_(row[5]);
-  }).map(function(row) { return { employeeId:String(row[2] || ''), name:String(row[3] || ''), rawValue:String(row[4] || ''), shiftStart:String(row[6] || ''), shiftEnd:String(row[7] || '') }; }) };
+  }).map(function(row) { return { employeeId:String(row[2] || ''), name:String(row[3] || ''), rawValue:String(row[4] || ''), shiftStart:String(row[6] || ''), shiftEnd:String(row[7] || ''), shiftType:normalizeFoxScheduleShiftType_(row[10]) }; }) };
 }
 
 function getFoxMySchedule_(month, auth) {
@@ -3990,7 +4015,7 @@ function getFoxMySchedule_(month, auth) {
   const employee = tatooineUserRows_(tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, false)).filter(function(item) { return item.userId === String(auth && auth.userId || ''); })[0];
   if (!employee) return { month:month, matched:false, scheduleFound:Boolean(activeFoxScheduleIdForMonth_(month)), items:[] };
   const schedule = getFoxScheduleForMonth_(month);
-  return { month:month, matched:true, scheduleFound:schedule.active, items:schedule.rows.filter(function(row) { return row.employeeId === employee.userId; }).map(function(row) { return { date:row.date, rawValue:row.rawValue, isWorking:row.isWorking, shiftStart:row.shiftStart, shiftEnd:row.shiftEnd }; }) };
+  return { month:month, matched:true, scheduleFound:schedule.active, items:schedule.rows.filter(function(row) { return row.employeeId === employee.userId; }).map(function(row) { return { date:row.date, rawValue:row.rawValue, isWorking:row.isWorking, shiftStart:row.shiftStart, shiftEnd:row.shiftEnd, shiftType:row.shiftType }; }) };
 }
 
 function setFoxBanquetFinalAmount_(banquetId, rawAmount) {
@@ -4022,8 +4047,8 @@ function getFoxScheduleForMonth_(month) {
   const id = activeFoxScheduleIdForMonth_(month);
   if (!id) return { month:month, active:false, rows:[] };
   const sh = foxScheduleSheet_('foxScheduleShifts', false);
-  const rows = sh.getRange(3, 1, sh.getLastRow() - 2, FOX_RECEIPT_HEADERS.foxScheduleShifts.length).getValues().filter(function(row) { return String(row[0]) === id; });
-  return { id:id, month:month, active:true, rows:rows.map(function(row) { return { date:String(row[1]), employeeId:String(row[2]), name:String(row[3]), rawValue:String(row[4]), isWorking:truthy_(row[5]), shiftStart:String(row[6]), shiftEnd:String(row[7]) }; }) };
+  const rows = foxScheduleRows_(sh).filter(function(row) { return String(row[0]) === id; });
+  return { id:id, month:month, active:true, rows:rows.map(function(row) { return { date:String(row[1]), employeeId:String(row[2]), name:String(row[3]), rawValue:String(row[4]), isWorking:truthy_(row[5]), shiftStart:String(row[6]), shiftEnd:String(row[7]), shiftType:normalizeFoxScheduleShiftType_(row[10]) }; }) };
 }
 
 function saveFoxSchedule_(p, auth) {
@@ -4046,7 +4071,7 @@ function saveFoxSchedule_(p, auth) {
     const name = String(row.name || '').trim();
     const employees = tatooineUserRows_(tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, false));
     const matched = employees.filter(function(item) { return normalizeText_(item.name) === normalizeText_(name); });
-    return [id,date,String(row.employeeId || (matched.length === 1 ? matched[0].userId : '')),name,parsed.rawValue,isWorking ? 'YES' : 'NO',String(row.shiftStart || parsed.shiftStart || ''),String(row.shiftEnd || parsed.shiftEnd || ''),now,now];
+    return [id,date,String(row.employeeId || (matched.length === 1 ? matched[0].userId : '')),name,parsed.rawValue,isWorking ? 'YES' : 'NO',parsed.shiftStart,parsed.shiftEnd,now,now,normalizeFoxScheduleShiftType_(row.shiftType)];
   }).filter(function(row) { return row[3]; });
   if (!values.length) throw new Error('Не найдено сотрудников для сохранения.');
   scheduleSh.getRange(scheduleSh.getLastRow() + 1, 1, 1, FOX_RECEIPT_HEADERS.foxSchedules.length).setValues([[id,month,'ACTIVE',String(p.imageUrl || ''),now,now,auth.userId]]);
@@ -4064,13 +4089,16 @@ function recognizeFoxScheduleImage_(imageUrl, requestedMonth) {
   if (response.getResponseCode() < 200 || response.getResponseCode() >= 300) throw new Error('Изображение графика не загрузилось.');
   const blob = response.getBlob(); const bytes = blob.getBytes();
   if (!bytes || bytes.length < 100 || bytes.length > 12 * 1024 * 1024) throw new Error('Некорректный размер изображения графика.');
-  const schema = { type:'OBJECT', properties:{ month:{type:'STRING'}, rows:{type:'ARRAY',items:{type:'OBJECT',properties:{name:{type:'STRING'}, shifts:{type:'ARRAY',items:{type:'OBJECT',properties:{date:{type:'STRING'},raw_value:{type:'STRING'}},required:['date','raw_value']}}},required:['name','shifts']} } }, required:['month','rows'] };
+  const schema = { type:'OBJECT', properties:{ month:{type:'STRING'}, rows:{type:'ARRAY',items:{type:'OBJECT',properties:{name:{type:'STRING'}, section:{type:'STRING'}, shifts:{type:'ARRAY',items:{type:'OBJECT',properties:{date:{type:'STRING'},raw_value:{type:'STRING'}},required:['date','raw_value']}}},required:['name','section','shifts']} } }, required:['month','rows'] };
   const prompt = [
     'Распознай рабочий график сотрудников на изображении.',
     'График относится к месяцу ' + requestedMonth + '. Используй этот месяц для всех дат, даже если месяц или год на фото не видны.',
+    'Числа в верхней строке — дни месяца, например 28 означает ' + requestedMonth + '-28. Цифра в ячейке сотрудника (10, 11, 12, 13) — начало смены, а не количество часов.',
+    'Если блок подписан «ЗАГОТОВКА», верни section="preparation" для каждого сотрудника этого блока. Для основного графика верни section="regular". Не создавай разных сотрудников, если имя встречается в обоих блоках.',
+    'X и пустая ячейка означают отсутствие обычной смены. Текстовые специальные отметки вроде «Инв» сохраняй в raw_value, но не превращай в время.',
     'Верни месяц строго YYYY-MM и каждую видимую строку сотрудника.',
     'Каждая date строго YYYY-MM-DD. raw_value сохраняй буквально: пусто, X, число, диапазон или текст.',
-    'Не выдумывай даты, имена и ячейки. Если месяц/год не виден, верни пустую строку.',
+    'Не выдумывай имена, дни и ячейки. Месяц уже задан выше.',
     'Верни только JSON по схеме.'
   ].join('\n');
   const body = { contents:[{role:'user',parts:[{inlineData:{mimeType:blob.getContentType() || 'image/jpeg',data:Utilities.base64Encode(bytes)}},{text:prompt}]}], generationConfig:{responseMimeType:'application/json',responseSchema:schema,temperature:0,maxOutputTokens:12000} };
@@ -4086,7 +4114,7 @@ function recognizeFoxScheduleImage_(imageUrl, requestedMonth) {
     (person.shifts || []).forEach(function(shift) {
       const date = normalizeFoxScheduleDate_(shift.date); if (date.slice(0,7) !== month) return;
       const parsedShift = parseFoxScheduleShift_(shift.raw_value);
-      rows.push({date:date,name:name,employeeId:matches.length === 1 ? matches[0].userId : '',rawValue:parsedShift.rawValue,isWorking:parsedShift.isWorking,shiftStart:parsedShift.shiftStart,shiftEnd:parsedShift.shiftEnd,needsEmployeeMatch:matches.length !== 1});
+      rows.push({date:date,name:name,employeeId:matches.length === 1 ? matches[0].userId : '',rawValue:parsedShift.rawValue,isWorking:parsedShift.isWorking,shiftStart:parsedShift.shiftStart,shiftEnd:parsedShift.shiftEnd,shiftType:normalizeFoxScheduleShiftType_(person.section),needsEmployeeMatch:matches.length !== 1});
     });
   });
   return { month:month, rows:rows };

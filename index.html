@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.14.6 — SCHEDULE OCR MONTH</title>
+<title>FO'X App v15.14.7 — SCHEDULE SHIFT TYPES</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1488,7 +1488,7 @@ async function loadMySchedule_(){
   const month=banqMonthDate.getFullYear()+'-'+String(banqMonthDate.getMonth()+1).padStart(2,'0');
   if(!isStockApiConfigured()||myScheduleMonthLoaded===month)return;
   const card=document.getElementById('myScheduleCard');
-  try{const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxMySchedule',month:month},receiptAuthParams()));if(!res||!res.ok)throw new Error();const data=res.schedule||{};myScheduleMonthLoaded=month;card.hidden=false;if(!data.matched)card.textContent='Мои смены: профиль не сопоставлен с графиком.';else if(!data.scheduleFound)card.textContent='Мои смены: график на этот месяц не загружен.';else{const items=(data.items||[]).sort((a,b)=>a.date.localeCompare(b.date));myScheduleWorkingDates=new Set(items.filter(x=>x.isWorking).map(x=>x.date));card.innerHTML='<b>Мои смены</b><br>'+(items.map(x=>escapeHtml(x.date)+' — '+escapeHtml(x.isWorking?(x.rawValue||'смена'):'выходной')).join('<br>')||'Смены на этот месяц не указаны.');renderBanqCalendar();}}catch(_){card.hidden=true;}}
+  try{const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxMySchedule',month:month},receiptAuthParams()));if(!res||!res.ok)throw new Error();const data=res.schedule||{};myScheduleMonthLoaded=month;card.hidden=false;if(!data.matched)card.textContent='Мои смены: профиль не сопоставлен с графиком.';else if(!data.scheduleFound)card.textContent='Мои смены: график на этот месяц не загружен.';else{const items=(data.items||[]).sort((a,b)=>a.date.localeCompare(b.date));myScheduleWorkingDates=new Set(items.filter(x=>x.isWorking).map(x=>x.date));card.innerHTML='<b>Мои смены</b><br>'+(items.map(x=>escapeHtml(x.date)+' — '+escapeHtml(x.isWorking?formatFoxScheduleShift_(x):'выходной')).join('<br>')||'Смены на этот месяц не указаны.');renderBanqCalendar();}}catch(_){card.hidden=true;}}
 let foxScheduleCanManage=false,foxSchedulePreview=[];
 
 async function initFoxScheduleAdmin_(){
@@ -1505,7 +1505,7 @@ function setFoxScheduleStatus_(type,text){
 function renderFoxScheduleReview_(){
   const root=document.getElementById('foxScheduleReview');if(!root)return;root.hidden=!foxSchedulePreview.length;
   if(!foxSchedulePreview.length)return;
-  root.innerHTML='<div class="banq-comment"><b>Проверьте распознанный график</b></div>'+foxSchedulePreview.map((row,i)=>'<div class="form-grid"><div class="form-field"><input data-sr-name="'+i+'" value="'+escapeHtml(row.name)+'"></div><div class="form-field"><input data-sr-date="'+i+'" type="date" value="'+escapeHtml(row.date)+'"></div><div class="form-field"><input data-sr-value="'+i+'" value="'+escapeHtml(row.rawValue)+'"></div></div>').join('')+'<button class="save-btn" id="foxScheduleSave" type="button">Подтвердить график</button>';
+  root.innerHTML='<div class="banq-comment"><b>Проверьте распознанный график</b></div>'+foxSchedulePreview.map((row,i)=>'<div class="form-grid"><div class="form-field"><input data-sr-name="'+i+'" value="'+escapeHtml(row.name)+'"></div><div class="form-field"><input data-sr-date="'+i+'" type="date" value="'+escapeHtml(row.date)+'"></div><div class="form-field"><input data-sr-value="'+i+'" value="'+escapeHtml(row.rawValue)+'"></div><div class="form-field"><select data-sr-type="'+i+'"><option value="regular"'+(row.shiftType==='preparation'?'':' selected')+'>Обычная смена</option><option value="preparation"'+(row.shiftType==='preparation'?' selected':'')+'>Заготовка</option></select></div></div>').join('')+'<button class="save-btn" id="foxScheduleSave" type="button">Подтвердить график</button>';
   document.getElementById('foxScheduleSave').onclick=saveFoxSchedule_;
 }
 async function recognizeFoxSchedule_(){
@@ -1529,7 +1529,7 @@ async function recognizeFoxSchedule_(){
   }finally{button.disabled=false;button.textContent='Распознать график';}
 }
 async function saveFoxSchedule_(){
-  foxSchedulePreview.forEach((row,i)=>{row.name=document.querySelector('[data-sr-name="'+i+'"]').value.trim();row.date=document.querySelector('[data-sr-date="'+i+'"]').value;row.rawValue=document.querySelector('[data-sr-value="'+i+'"]').value;});
+  foxSchedulePreview.forEach((row,i)=>{row.name=document.querySelector('[data-sr-name="'+i+'"]').value.trim();row.date=document.querySelector('[data-sr-date="'+i+'"]').value;row.rawValue=document.querySelector('[data-sr-value="'+i+'"]').value;row.shiftType=document.querySelector('[data-sr-type="'+i+'"]').value;});
   const month=document.getElementById('foxScheduleMonth').value;if(!month)throw new Error('Проверьте месяц графика.');
   const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxScheduleSave',month:month,imageUrl:foxSchedulePreview[0]&&foxSchedulePreview[0].imageUrl||'',rowsJson:JSON.stringify(foxSchedulePreview)},receiptAuthParams()));if(!res||!res.ok)throw new Error(res&&res.error||'График не сохранён.');foxSchedulePreview=[];renderFoxScheduleReview_();banqScheduleWorkersByDate.clear();renderBanquets();setSyncStatus('ok','График сотрудников сохранён.');
 }
@@ -1546,8 +1546,12 @@ function renderBanqScheduleWorkers_(date){
   const data=banqScheduleWorkersByDate.get(date);
   if(!data) return '<div class="banq-comment">Загружаю сотрудников по графику…</div>';
   if(!data.scheduleFound) return '<div class="banq-comment">График сотрудников на этот месяц не загружен.</div>';
-  const names=(data.items||[]).map(x=>escapeHtml(x.name)+(x.rawValue?' · '+escapeHtml(x.rawValue):'')).join('<br>');
+  const names=(data.items||[]).map(x=>escapeHtml(x.name)+' — '+escapeHtml(formatFoxScheduleShift_(x))).join('<br>');
   return '<div class="banq-comment"><b>Сотрудники по графику</b><br>'+(names||'На эту дату смен нет.')+'</div>';
+}
+function formatFoxScheduleShift_(shift){
+  const time=shift&&shift.shiftStart?'с '+shift.shiftStart+(shift.shiftEnd?' до '+shift.shiftEnd:''):(shift&&shift.rawValue||'смена');
+  return (shift&&shift.shiftType==='preparation'?'Заготовка · ':'')+time;
 }
 
 function getTgUser(){
@@ -1882,7 +1886,7 @@ function renderBanqDay(){
   const items=banquets.filter(b=>b.date===selectedBanqDate).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
   loadBanqScheduleWorkers_(selectedBanqDate);
   const scheduleCard=document.getElementById('dayScheduleCard'),daySchedule=banqScheduleWorkersByDate.get(selectedBanqDate);
-  if(scheduleCard){scheduleCard.hidden=!daySchedule;if(daySchedule){const names=(daySchedule.items||[]).map(x=>escapeHtml(x.name)+(x.rawValue?' · '+escapeHtml(x.rawValue):'')).join('<br>');scheduleCard.innerHTML='<b>Работают в этот день</b><br>'+(daySchedule.scheduleFound?(names||'Смены не указаны.'):'График сотрудников на этот месяц не загружен.');}}
+  if(scheduleCard){scheduleCard.hidden=!daySchedule;if(daySchedule){const names=(daySchedule.items||[]).map(x=>escapeHtml(x.name)+' — '+escapeHtml(formatFoxScheduleShift_(x))).join('<br>');scheduleCard.innerHTML='<b>Работают в этот день</b><br>'+(daySchedule.scheduleFound?(names||'Смены не указаны.'):'График сотрудников на этот месяц не загружен.');}}
   loadBanqScheduleWorkers_(selectedBanqDate);
   document.getElementById('banqSelectedTitle').textContent=humanDate(selectedBanqDate);
   document.getElementById('banqSelectedCount').textContent=items.length+' '+pluralRu(items.length,'заказ','заказа','заказов');
