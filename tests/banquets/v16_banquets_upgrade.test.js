@@ -284,3 +284,10 @@ test('OCR графика показывает собственный стату�
   assert.match(frontendSource, /action:'foxScheduleRecognize'[^\n]*90000/);
   assert.match(frontendSource, /Gemini распознаёт график/);
 });
+
+test('OCR графика передаёт выбранный месяц и backend использует его при пустом месяце на фото', () => {
+  assert.match(frontendSource, /action:'foxScheduleRecognize',imageUrl:uploaded\.url,month:month/);
+  assert.match(stockSource, /recognizeFoxScheduleImage_\(e\.parameter\.imageUrl, e\.parameter\.month\)/);
+  assert.match(stockSource, /requestedMonth = normalizeFoxScheduleMonth_\(requestedMonth\)/);
+  assert.match(stockSource, /: requestedMonth;/);
+});

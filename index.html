@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.14.5 — SCHEDULE OCR FEEDBACK</title>
+<title>FO'X App v15.14.6 — SCHEDULE OCR MONTH</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1493,6 +1493,7 @@ let foxScheduleCanManage=false,foxSchedulePreview=[];
 
 async function initFoxScheduleAdmin_(){
   const root=document.getElementById('foxScheduleAdmin'),open=document.getElementById('foxScheduleOpen');if(!root||!open||!isStockApiConfigured())return;
+  const month=document.getElementById('foxScheduleMonth');if(month&&!month.value){const now=new Date();month.value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');}
   const knownAdmin=isBanqAdmin();
   open.hidden=!knownAdmin;root.hidden=true;
   try{const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxScheduleAccess'},receiptAuthParams()));foxScheduleCanManage=knownAdmin||Boolean(res&&res.ok&&res.canManage);open.hidden=!foxScheduleCanManage;}catch(_){foxScheduleCanManage=knownAdmin;}
@@ -1509,13 +1510,15 @@ function renderFoxScheduleReview_(){
 }
 async function recognizeFoxSchedule_(){
   const file=document.getElementById('foxScheduleImage').files[0];
+  const month=document.getElementById('foxScheduleMonth').value;
   const button=document.getElementById('foxScheduleRecognize');button.disabled=true;button.textContent='Распознаю…';
   try{
+    if(!month)throw new Error('Выберите месяц графика.');
     if(!file)throw new Error('Выберите изображение графика.');
     setFoxScheduleStatus_('','Загружаю изображение…');
     const uploaded=await uploadPhotoToCloudinary(file);
     setFoxScheduleStatus_('','Gemini распознаёт график… Это может занять до минуты.');
-    const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxScheduleRecognize',imageUrl:uploaded.url},receiptAuthParams()),90000);
+    const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxScheduleRecognize',imageUrl:uploaded.url,month:month},receiptAuthParams()),90000);
     if(!res||!res.ok)throw new Error(res&&res.error||'График не распознан.');
     document.getElementById('foxScheduleMonth').value=res.preview.month;
     foxSchedulePreview=(res.preview.rows||[]).map(row=>Object.assign({imageUrl:uploaded.url},row));

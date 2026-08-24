@@ -929,7 +929,7 @@ function doGet(e) {
 
     if (action === 'foxScheduleRecognize') {
       assertFoxScheduleManager_(auth);
-      return jsonpOutput_(callback, { ok:true, preview:recognizeFoxScheduleImage_(e.parameter.imageUrl) });
+      return jsonpOutput_(callback, { ok:true, preview:recognizeFoxScheduleImage_(e.parameter.imageUrl, e.parameter.month) });
     }
 
     // Небольшие команды банкетного резерва выполняются через JSONP,
@@ -4055,7 +4055,8 @@ function saveFoxSchedule_(p, auth) {
   return getFoxScheduleForMonth_(month);
 }
 
-function recognizeFoxScheduleImage_(imageUrl) {
+function recognizeFoxScheduleImage_(imageUrl, requestedMonth) {
+  requestedMonth = normalizeFoxScheduleMonth_(requestedMonth);
   const props = PropertiesService.getScriptProperties();
   const apiKey = props.getProperty('GEMINI_API_KEY');
   if (!apiKey) throw new Error('В Script Properties не задан GEMINI_API_KEY.');
@@ -4066,6 +4067,7 @@ function recognizeFoxScheduleImage_(imageUrl) {
   const schema = { type:'OBJECT', properties:{ month:{type:'STRING'}, rows:{type:'ARRAY',items:{type:'OBJECT',properties:{name:{type:'STRING'}, shifts:{type:'ARRAY',items:{type:'OBJECT',properties:{date:{type:'STRING'},raw_value:{type:'STRING'}},required:['date','raw_value']}}},required:['name','shifts']} } }, required:['month','rows'] };
   const prompt = [
     'Распознай рабочий график сотрудников на изображении.',
+    'График относится к месяцу ' + requestedMonth + '. Используй этот месяц для всех дат, даже если месяц или год на фото не видны.',
     'Верни месяц строго YYYY-MM и каждую видимую строку сотрудника.',
     'Каждая date строго YYYY-MM-DD. raw_value сохраняй буквально: пусто, X, число, диапазон или текст.',
     'Не выдумывай даты, имена и ячейки. Если месяц/год не виден, верни пустую строку.',
@@ -4073,7 +4075,8 @@ function recognizeFoxScheduleImage_(imageUrl) {
   ].join('\n');
   const body = { contents:[{role:'user',parts:[{inlineData:{mimeType:blob.getContentType() || 'image/jpeg',data:Utilities.base64Encode(bytes)}},{text:prompt}]}], generationConfig:{responseMimeType:'application/json',responseSchema:schema,temperature:0,maxOutputTokens:12000} };
   const parsed = parseGeminiJsonResult_(callGeminiGenerateContent_(apiKey, normalizeGeminiModel_(props.getProperty('GEMINI_MODEL') || FOX_RECEIPTS.defaultGeminiModel), body).text);
-  const month = normalizeFoxScheduleMonth_(parsed.month);
+  const parsedMonth = String(parsed.month || '').trim();
+  const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(parsedMonth) ? parsedMonth : requestedMonth;
   const employees = tatooineUserRows_(tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, false));
   const rows = [];
   (parsed.rows || []).forEach(function(person) {
