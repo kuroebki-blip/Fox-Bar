@@ -187,6 +187,25 @@ test('повторный OCR архивирует прошлый активны�
   assert.equal(rows.filter(row => row[16] !== 'YES').length, 1);
 });
 
+test('повторный OCR с изменённым количеством заменяет вклад банкета без дубля', () => {
+  const { context, reserveSheet } = makeRuntime();
+  seedBanquet(context, 'b-quantity');
+  context.saveBanquetReserve_('b-quantity', '2026-08-01', 'Количество', 'https://img/one', [matchedItem('Вино')], []);
+  context.saveBanquetReserve_('b-quantity', '2026-08-01', 'Количество', 'https://img/two', [{ ...matchedItem('Вино'), quantity: 5 }], []);
+  const active = reserveSheet.rows.filter(row => row[0] === 'b-quantity' && row[16] !== 'YES');
+  assert.equal(active.length, 1);
+  assert.deepEqual([active[0][9], active[0][11]], [5, 5]);
+});
+
+test('повторный OCR без удалённой позиции сразу снимает её вклад из резерва', () => {
+  const { context } = makeRuntime();
+  seedBanquet(context, 'b-remove-position');
+  context.saveBanquetReserve_('b-remove-position', '2026-08-01', 'Позиции', 'https://img/one', [matchedItem('Вино'), matchedItem('Просекко')], []);
+  context.saveBanquetReserve_('b-remove-position', '2026-08-01', 'Позиции', 'https://img/two', [matchedItem('Вино')], []);
+  const summary = context.getBanquetReserveSummaries_()['b-remove-position'];
+  assert.equal(summary.items.map(item => item.stockName).join(','), 'Вино');
+});
+
 test('смена статуса возвращает фактическое число строк и ошибка при нуле', () => {
   const { context } = makeRuntime();
   seedBanquet(context, 'b-status');
@@ -195,6 +214,40 @@ test('смена статуса возвращает фактическое чи
   const summary = context.setBanquetReserveStatus_('b-status');
   assert.equal(summary.changedCount, 1);
   assert.throws(() => context.setBanquetReserveStatus_('missing'));
+});
+
+test('сводка автоматически снимает вклад завершённого банкета из резерва', () => {
+  const { context, reserveSheet } = makeRuntime();
+  seedBanquet(context, 'b-finished');
+  context.saveBanquetReserve_('b-finished', '2026-08-01', 'Завершён', 'https://img/status', [matchedItem('Вино')], []);
+  context.updateBanquetStatus_('b-finished', 'Пройден');
+  context.getBanquetReserveSummaries_();
+  const row = reserveSheet.rows.find(item => item[0] === 'b-finished');
+  assert.equal(row[3], 'Выполнено');
+  assert.equal(context.getBanquetReserveSummaries_()['b-finished'].items[0].pending, 0);
+});
+
+test('завершение одного из двух банкетов сохраняет резерв второго на ту же позицию', () => {
+  const { context } = makeRuntime();
+  seedBanquet(context, 'b-current');
+  seedBanquet(context, 'b-finished');
+  context.saveBanquetReserve_('b-current', '2026-08-01', 'Текущий', 'https://img/current', [matchedItem('Просекко')], []);
+  context.saveBanquetReserve_('b-finished', '2026-08-01', 'Завершён', 'https://img/finished', [matchedItem('Просекко')], []);
+  context.updateBanquetStatus_('b-finished', 'Завершено');
+  const summaries = context.getBanquetReserveSummaries_();
+  assert.equal(summaries['b-current'].items[0].pending, 2);
+  assert.equal(summaries['b-finished'].items[0].pending, 0);
+});
+
+test('удалённый в источнике банкет архивируется при reconciliation', () => {
+  const { context, banquetSheet, reserveSheet } = makeRuntime();
+  seedBanquet(context, 'b-deleted');
+  context.saveBanquetReserve_('b-deleted', '2026-08-01', 'Удалён', 'https://img/deleted', [matchedItem()], []);
+  context.deleteBanquet_('b-deleted');
+  context.getBanquetReserveSummaries_();
+  const row = reserveSheet.rows.find(item => item[0] === 'b-deleted');
+  assert.equal(row[16], 'YES');
+  assert.equal(banquetSheet.rows[1][11], 'YES');
 });
 
 test('отправка заказа снимает только сопоставленную позицию из заказа', () => {

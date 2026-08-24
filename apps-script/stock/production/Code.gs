@@ -899,6 +899,11 @@ function doGet(e) {
       return jsonpOutput_(callback, { ok: true, summary: setBanquetReserveStatus_(e.parameter.banquetId, e.parameter.status) });
     }
 
+    if (action === 'banquetDelete') {
+      assertBanquetAdmin_(auth);
+      return jsonpOutput_(callback, { ok: true, summary: archiveBanquetReserve_(e.parameter.banquetId) });
+    }
+
     if (action === 'banquetOrder') {
       assertBanquetAdmin_(auth);
       return jsonpOutput_(callback, { ok: true, summary: setBanquetOrderSent_(e.parameter.banquetId, truthy_(e.parameter.sent)) });
@@ -4233,6 +4238,62 @@ function getCurrentBanquetStatus_(banquetId) {
   throw new Error('Активный банкет не найден: ' + banquetId);
 }
 
+/**
+ * Возвращает статус каждого не удалённого банкета из единственного источника
+ * истины — production-таблицы банкетов. Локальный лист резерва не является
+ * источником статуса: он лишь хранит OCR-позиции и историю закупки.
+ */
+function getCurrentBanquetStatuses_() {
+  const source = FOX_RECEIPTS.banquets;
+  const sh = SpreadsheetApp.openById(source.spreadsheetId).getSheetByName(source.sheet);
+  if (!sh) throw new Error('Не найден лист «' + source.sheet + '» с банкетами.');
+  const lastRow = sh.getLastRow();
+  if (lastRow < source.firstDataRow) return {};
+  const width = Math.max(source.cols.id, source.cols.status, source.cols.deleted);
+  const rows = sh.getRange(source.firstDataRow, 1, lastRow - source.firstDataRow + 1, width).getValues();
+  const statuses = {};
+  rows.forEach(function(row) {
+    const id = String(row[source.cols.id - 1] || '').trim();
+    if (!id || String(row[source.cols.deleted - 1] || '').trim().toUpperCase() === 'YES') return;
+    statuses[id] = normalizeBanquetStatusForReserve_(row[source.cols.status - 1]);
+  });
+  return statuses;
+}
+
+/**
+ * Исправляет накопившиеся локальные статусы резерва по текущим банкетам.
+ * Удалённый банкет архивируется; завершённый/отменённый больше не участвует
+ * в формуле J, потому что formula фильтрует только «Актуально».
+ */
+function reconcileBanquetReserveFromSource_() {
+  const sh = getSpreadsheet_().getSheetByName(FOX_RECEIPTS.sheets.banquetReserve);
+  if (!sh || sh.getLastRow() < 3) return { statusUpdated:0, archived:0 };
+  const statuses = getCurrentBanquetStatuses_();
+  const rows = sh.getRange(3, 1, sh.getLastRow() - 2, FOX_RECEIPT_HEADERS.banquetReserve.length).getValues();
+  const now = new Date();
+  let statusUpdated = 0;
+  let archived = 0;
+  rows.forEach(function(row, index) {
+    const rowNumber = index + 3;
+    const banquetId = String(row[0] || '').trim();
+    if (!banquetId || String(row[16] || '').toUpperCase() === 'YES') return;
+    const currentStatus = statuses[banquetId];
+    if (!currentStatus) {
+      sh.getRange(rowNumber, 17).setValue('YES');
+      sh.getRange(rowNumber, 16).setValue(now);
+      archived++;
+      return;
+    }
+    if (normalizeBanquetStatusForReserve_(row[3]) !== currentStatus) {
+      sh.getRange(rowNumber, 4).setValue(currentStatus);
+      sh.getRange(rowNumber, 16).setValue(now);
+      statusUpdated++;
+    }
+  });
+  if (statusUpdated || archived) SpreadsheetApp.flush();
+  return { statusUpdated:statusUpdated, archived:archived };
+}
+
 function setBanquetOrderSent_(banquetId, sent) {
   banquetId = requiredString_(banquetId, 'banquetId');
   const lock = LockService.getDocumentLock();
@@ -4313,6 +4374,9 @@ function archiveBanquetReserve_(banquetId) {
 }
 
 function getBanquetReserveSummaries_() {
+  // Автоматический reconciliation убирает уже зависшие старые резервы при
+  // следующем открытии банкетов, даже если прежний callback не дошёл.
+  reconcileBanquetReserveFromSource_();
   const sh = getSpreadsheet_().getSheetByName(FOX_RECEIPTS.sheets.banquetReserve);
   if (!sh || sh.getLastRow() < 3) return {};
   const rows = sh.getRange(3, 1, sh.getLastRow() - 2, FOX_RECEIPT_HEADERS.banquetReserve.length).getValues();

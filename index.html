@@ -1869,7 +1869,8 @@ function renderBanqDay(){
         if(isApiConfigured()){
           await postBanqForm({action:'delete',id:b.id});
           if(isStockApiConfigured()){
-            try{await postReceipt({action:'banquetDelete',banquetId:b.id});}catch(_){ }
+            const stockRes=await jsonp(STOCK_API_URL,Object.assign({action:'banquetDelete',banquetId:b.id},receiptAuthParams()));
+            if(!stockRes||!stockRes.ok) throw new Error(stockRes&&stockRes.error?stockRes.error:'Банкет удалён, но резерв не архивирован.');
           }
           await loadBanquets();
         }else{
