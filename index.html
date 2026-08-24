@@ -607,7 +607,7 @@ body.mode-cash-report #backBtn{display:inline-flex}
     <div>
       <div class="banq-title">Банкеты</div>
     </div>
-    <button class="banq-refresh" id="banqRefresh" type="button">Обновить</button>
+    <div class="banq-photo-tools"><button class="small-btn" id="foxScheduleOpen" type="button" hidden>График сотрудников</button><button class="banq-refresh" id="banqRefresh" type="button">Обновить</button></div>
   </div>
 
   <div class="sync-status" id="banqSyncStatus">Подключение к Google Sheets не настроено.</div>
@@ -1481,8 +1481,8 @@ const banqScheduleWorkersByDate=new Map();
 let foxScheduleCanManage=false,foxSchedulePreview=[];
 
 async function initFoxScheduleAdmin_(){
-  const root=document.getElementById('foxScheduleAdmin');if(!root||!isStockApiConfigured())return;
-  try{const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxScheduleAccess'},receiptAuthParams()));foxScheduleCanManage=Boolean(res&&res.ok&&res.canManage);root.hidden=!foxScheduleCanManage;}catch(_){root.hidden=true;}
+  const root=document.getElementById('foxScheduleAdmin'),open=document.getElementById('foxScheduleOpen');if(!root||!open||!isStockApiConfigured())return;
+  try{const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxScheduleAccess'},receiptAuthParams()));foxScheduleCanManage=Boolean(res&&res.ok&&res.canManage);open.hidden=!foxScheduleCanManage;root.hidden=true;}catch(_){open.hidden=true;root.hidden=true;}
 }
 function renderFoxScheduleReview_(){
   const root=document.getElementById('foxScheduleReview');if(!root)return;root.hidden=!foxSchedulePreview.length;
@@ -1502,6 +1502,8 @@ async function saveFoxSchedule_(){
 }
 const foxScheduleRecognizeButton=document.getElementById('foxScheduleRecognize');
 if(foxScheduleRecognizeButton)foxScheduleRecognizeButton.onclick=()=>recognizeFoxSchedule_().catch(err=>setSyncStatus('err',String(err&&err.message||err)));
+const foxScheduleOpenButton=document.getElementById('foxScheduleOpen');
+if(foxScheduleOpenButton)foxScheduleOpenButton.onclick=()=>{const root=document.getElementById('foxScheduleAdmin');if(root){root.hidden=false;root.scrollIntoView({behavior:'smooth',block:'start'});}};
 
 async function loadBanqScheduleWorkers_(date){
   if(!isStockApiConfigured()||banqScheduleWorkersByDate.has(date)) return;
