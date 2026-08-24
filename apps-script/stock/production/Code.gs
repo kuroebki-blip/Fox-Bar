@@ -904,6 +904,15 @@ function doGet(e) {
       return jsonpOutput_(callback, { ok:true, schedule:listFoxScheduleWorkers_(e.parameter.date) });
     }
 
+    if (action === 'foxMySchedule') {
+      return jsonpOutput_(callback, { ok:true, schedule:getFoxMySchedule_(e.parameter.month, auth) });
+    }
+
+    if (action === 'foxBanquetFinalAmount') {
+      assertFoxScheduleManager_(auth);
+      return jsonpOutput_(callback, { ok:true, banquet:setFoxBanquetFinalAmount_(e.parameter.banquetId, e.parameter.finalAmount) });
+    }
+
     if (action === 'foxScheduleAccess') {
       return jsonpOutput_(callback, { ok:true, canManage:foxScheduleCanManage_(auth) });
     }
@@ -3974,6 +3983,30 @@ function listFoxScheduleWorkers_(date) {
   return { date:targetDate, scheduleFound:true, items:rows.filter(function(row) {
     return String(row[0]) === active && String(row[1]) === targetDate && truthy_(row[5]);
   }).map(function(row) { return { employeeId:String(row[2] || ''), name:String(row[3] || ''), rawValue:String(row[4] || ''), shiftStart:String(row[6] || ''), shiftEnd:String(row[7] || '') }; }) };
+}
+
+function getFoxMySchedule_(month, auth) {
+  month = normalizeFoxScheduleMonth_(month);
+  const employee = tatooineUserRows_(tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, false)).filter(function(item) { return item.userId === String(auth && auth.userId || ''); })[0];
+  if (!employee) return { month:month, matched:false, scheduleFound:Boolean(activeFoxScheduleIdForMonth_(month)), items:[] };
+  const schedule = getFoxScheduleForMonth_(month);
+  return { month:month, matched:true, scheduleFound:schedule.active, items:schedule.rows.filter(function(row) { return row.employeeId === employee.userId; }).map(function(row) { return { date:row.date, rawValue:row.rawValue, isWorking:row.isWorking, shiftStart:row.shiftStart, shiftEnd:row.shiftEnd }; }) };
+}
+
+function setFoxBanquetFinalAmount_(banquetId, rawAmount) {
+  const id = requiredString_(banquetId, 'banquetId');
+  const amountText = String(rawAmount == null ? '' : rawAmount).trim();
+  const amount = amountText === '' ? '' : Number(amountText);
+  if (amount !== '' && (!isFinite(amount) || amount < 0)) throw new Error('Итоговая сумма должна быть неотрицательным числом.');
+  const source = FOX_RECEIPTS.banquets;
+  const sh = SpreadsheetApp.openById(source.spreadsheetId).getSheetByName(source.sheet);
+  if (!sh) throw new Error('Не найден лист банкетов.');
+  const lastColumn = sh.getLastColumn(); const headers = sh.getRange(1, 1, 1, lastColumn).getDisplayValues()[0];
+  let col = headers.map(String).indexOf('Итоговая сумма банкета') + 1;
+  if (!col) { col = lastColumn + 1; if (sh.getMaxColumns() < col) sh.insertColumnsAfter(sh.getMaxColumns(), col - sh.getMaxColumns()); sh.getRange(1, col).setValue('Итоговая сумма банкета'); }
+  const rows = sh.getRange(source.firstDataRow, 1, sh.getLastRow() - source.firstDataRow + 1, Math.max(source.cols.id, source.cols.deleted)).getValues();
+  for (let i=rows.length-1;i>=0;i--) if (String(rows[i][0]) === id && String(rows[i][source.cols.deleted-1] || '').toUpperCase() !== 'YES') { sh.getRange(i + source.firstDataRow, col).setValue(amount); return { id:id, finalAmount:amount === '' ? null : amount }; }
+  throw new Error('Банкет не найден.');
 }
 
 function activeFoxScheduleIdForMonth_(month) {

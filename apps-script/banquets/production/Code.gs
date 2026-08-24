@@ -22,6 +22,7 @@ const FOXBANQ = {
     317564157
   ],
   MEDIA_HEADER: 'Media JSON',
+  FINAL_AMOUNT_HEADER: 'Итоговая сумма банкета',
   HEADERS: [
     'ID',
     'Дата',
@@ -85,6 +86,8 @@ function doPost(e) {
       result = { ok: true, item: updateBanquetStatus_(p.id, p.status) };
     } else if (action === 'delete') {
       result = { ok: true, deleted: deleteBanquet_(p.id) };
+    } else if (action === 'updateFinalAmount') {
+      result = { ok: true, item: updateBanquetFinalAmount_(p.id, p.finalAmount) };
     } else {
       result = { ok: false, error: 'Unknown action: ' + action };
     }
@@ -113,6 +116,7 @@ function listBanquets_() {
   const sh = getSheet_();
   ensureHeaders_(sh);
   const mediaColumn = getMediaColumn_(sh);
+  const finalAmountColumn = getFinalAmountColumn_(sh, false);
 
   const lastRow = sh.getLastRow();
   if (lastRow < 2) return [];
@@ -121,7 +125,7 @@ function listBanquets_() {
 
   return rows
     .filter(r => String(r[0] || '').trim() && String(r[11] || '').trim() !== 'YES')
-    .map(r => banquetClientItem_(r, mediaColumn))
+    .map(function(r) { r.__finalAmountColumn = finalAmountColumn; return banquetClientItem_(r, mediaColumn); })
     .filter(x => x.date);
 }
 
@@ -229,6 +233,17 @@ function getMediaColumn_(sh) {
   return 0;
 }
 
+function getFinalAmountColumn_(sh, create) {
+  const width = sh.getLastColumn();
+  const headers = width ? sh.getRange(1, 1, 1, width).getDisplayValues()[0] : [];
+  for (let i = 0; i < headers.length; i++) if (String(headers[i] || '').trim() === FOXBANQ.FINAL_AMOUNT_HEADER) return i + 1;
+  if (!create) return 0;
+  const column = Math.max(width, FOXBANQ.HEADERS.length) + 1;
+  if (sh.getMaxColumns() < column) sh.insertColumnsAfter(sh.getMaxColumns(), column - sh.getMaxColumns());
+  sh.getRange(1, column).setValue(FOXBANQ.FINAL_AMOUNT_HEADER);
+  return column;
+}
+
 function parseMediaJson_(value) {
   if (Array.isArray(value)) return value;
   const raw = String(value || '').trim();
@@ -276,6 +291,8 @@ function mediaToJson_(media) {
 function banquetClientItem_(row, mediaColumn) {
   const media = mediaFromRow_(row, mediaColumn);
   const first = media[0] || { url:String(row[7] || '').trim(), publicId:String(row[6] || '').trim() };
+  const finalAmountColumn = row.__finalAmountColumn || 0;
+  const rawFinalAmount = finalAmountColumn ? row[finalAmountColumn - 1] : '';
   return {
     id: String(row[0] || ''),
     date: formatDateForClient_(row[1]),
@@ -288,7 +305,21 @@ function banquetClientItem_(row, mediaColumn) {
     photo: first.url,
     imageUrls: media.map(function(item) { return item.url; }),
     media: media
+    ,finalAmount: rawFinalAmount === '' || rawFinalAmount == null ? null : Number(rawFinalAmount)
   };
+}
+
+function updateBanquetFinalAmount_(id, value) {
+  return withBanquetLock_(function() {
+    const amount = String(value == null ? '' : value).trim() === '' ? '' : Number(value);
+    if (amount !== '' && (!isFinite(amount) || amount < 0)) throw new Error('Итоговая сумма должна быть неотрицательным числом.');
+    const sh = getSheet_(); const row = findActiveBanquetRowById_(sh, String(id || '').trim());
+    if (!row) throw new Error('Банкет не найден.');
+    sh.getRange(row, getFinalAmountColumn_(sh, true)).setValue(amount);
+    SpreadsheetApp.flush();
+    const values = sh.getRange(row, 1, 1, sh.getLastColumn()).getValues()[0]; values.__finalAmountColumn = getFinalAmountColumn_(sh, false);
+    return banquetClientItem_(values, getMediaColumn_(sh));
+  });
 }
 
 function normalizeBanquetStatus_(status) {

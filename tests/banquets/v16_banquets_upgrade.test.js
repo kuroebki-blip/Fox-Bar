@@ -267,3 +267,12 @@ test('график: пусто и X не являются сменой, числ
   assert.deepEqual(JSON.parse(JSON.stringify(context.parseFoxScheduleShift_('11-17'))), { rawValue:'11-17', isWorking:true, shiftStart:'11', shiftEnd:'17' });
   assert.equal(context.parseFoxScheduleShift_('Инв').isWorking, false);
 });
+
+test('итоговая сумма банкета хранится числом, допускает ноль и очистку', () => {
+  const { context } = makeRuntime();
+  seedBanquet(context, 'b-final');
+  assert.equal(context.setFoxBanquetFinalAmount_('b-final', '186450').finalAmount, 186450);
+  assert.equal(context.setFoxBanquetFinalAmount_('b-final', '0').finalAmount, 0);
+  assert.equal(context.setFoxBanquetFinalAmount_('b-final', '').finalAmount, null);
+  assert.throws(() => context.setFoxBanquetFinalAmount_('b-final', '-1'));
+});

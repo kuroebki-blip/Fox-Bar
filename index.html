@@ -206,6 +206,7 @@ body.mode-hub #backBtn{display:none}
 .cal-day:active{background:var(--surface-2)}
 .cal-day.muted{color:var(--muted-2)}
 .cal-day.today{border-color:var(--line-strong)}
+.cal-day.my-shift{border-color:var(--done);box-shadow:inset 0 0 0 1px rgba(95,191,143,.45);color:#CFE8DB}
 .cal-day.selected{background:var(--amber-soft);border-color:var(--amber-line);color:var(--amber)}
 .cal-day.has-banquet::after{content:"";position:absolute;left:50%;bottom:6px;transform:translateX(-50%);
   width:6px;height:6px;border-radius:50%;background:var(--amber)}
@@ -563,7 +564,7 @@ body.mode-cash-report #backBtn{display:inline-flex}
     </button>
     <button class="hub-card" data-open-section="banquets">
       <div class="hc-ico">🍽</div>
-      <div class="hc-title">Банкеты</div>
+      <div class="hc-title">Календарь</div>
     </button>
     <button class="hub-card" data-open-section="receipts">
       <div class="hc-ico">📦</div>
@@ -605,7 +606,7 @@ body.mode-cash-report #backBtn{display:inline-flex}
 <section class="app-screen" id="banquetsScreen">
   <div class="banq-top">
     <div>
-      <div class="banq-title">Банкеты</div>
+      <div class="banq-title">Календарь</div>
     </div>
     <div class="banq-photo-tools"><button class="small-btn" id="foxScheduleOpen" type="button" hidden>График сотрудников</button><button class="banq-refresh" id="banqRefresh" type="button">Обновить</button></div>
   </div>
@@ -624,6 +625,8 @@ body.mode-cash-report #backBtn{display:inline-flex}
     <button class="icon-btn" id="banqNext" type="button">›</button>
   </div>
   <div class="calendar" id="banqCalendar"></div>
+  <div class="banq-comment" id="myScheduleCard" hidden></div>
+  <div class="banq-comment" id="dayScheduleCard" hidden></div>
 
   <div class="day-card">
     <div class="day-head">
@@ -1478,6 +1481,14 @@ let banqReplaceIndex=-1;
 let banqGalleryUrls=[];
 let banqGalleryIndex=0;
 const banqScheduleWorkersByDate=new Map();
+let myScheduleMonthLoaded='';
+let myScheduleWorkingDates=new Set();
+
+async function loadMySchedule_(){
+  const month=banqMonthDate.getFullYear()+'-'+String(banqMonthDate.getMonth()+1).padStart(2,'0');
+  if(!isStockApiConfigured()||myScheduleMonthLoaded===month)return;
+  const card=document.getElementById('myScheduleCard');
+  try{const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxMySchedule',month:month},receiptAuthParams()));if(!res||!res.ok)throw new Error();const data=res.schedule||{};myScheduleMonthLoaded=month;card.hidden=false;if(!data.matched)card.textContent='Мои смены: профиль не сопоставлен с графиком.';else if(!data.scheduleFound)card.textContent='Мои смены: график на этот месяц не загружен.';else{const items=(data.items||[]).sort((a,b)=>a.date.localeCompare(b.date));myScheduleWorkingDates=new Set(items.filter(x=>x.isWorking).map(x=>x.date));card.innerHTML='<b>Мои смены</b><br>'+(items.map(x=>escapeHtml(x.date)+' — '+escapeHtml(x.isWorking?(x.rawValue||'смена'):'выходной')).join('<br>')||'Смены на этот месяц не указаны.');renderBanqCalendar();}}catch(_){card.hidden=true;}}
 let foxScheduleCanManage=false,foxSchedulePreview=[];
 
 async function initFoxScheduleAdmin_(){
@@ -1560,9 +1571,9 @@ function updateStorageWarning(){
   const warn=document.getElementById('banqStorageWarn');
   if(!warn) return;
   if(isApiConfigured()){
-    warn.textContent='Банкеты загружаются из общей базы. Фото хранятся в Cloudinary и видны всем пользователям Mini App.';
+    warn.textContent='Календарь загружается из общей базы. Фото хранятся в Cloudinary и видны всем пользователям Mini App.';
   }else{
-    warn.textContent='Общая база пока не подключена. Банкеты сохраняются только на этом устройстве и не видны другим пользователям.';
+    warn.textContent='Общая база пока не подключена. Календарь сохраняется только на этом устройстве и не виден другим пользователям.';
   }
 }
 
@@ -1642,6 +1653,7 @@ async function loadBanquets(){
       name:String(x.name||''),
       comment:String(x.comment||''),
       status:normalizeBanqStatus(x.status),
+      finalAmount:x.finalAmount==null||x.finalAmount===''?null:Number(x.finalAmount),
       photo:String(x.imageUrl||x.photo||''),
       fileId:String(x.fileId||''),
       imageUrls:(x.imageUrls||[]).map(String).filter(Boolean),
@@ -1804,6 +1816,7 @@ function renderBanqCalendar(){
   const cal=document.getElementById('banqCalendar');
   const monthTitle=document.getElementById('banqMonth');
   monthTitle.textContent=banqMonthDate.toLocaleDateString('ru-RU',{month:'long',year:'numeric'});
+  loadMySchedule_();
 
   const weekdays=['пн','вт','ср','чт','пт','сб','вс'];
   cal.innerHTML=weekdays.map(w=>'<div class="cal-wd">'+w+'</div>').join('');
@@ -1827,6 +1840,7 @@ function renderBanqCalendar(){
     if(d.getMonth()!==month) btn.classList.add('muted');
     if(iso===todayIso) btn.classList.add('today');
     if(iso===selectedBanqDate) btn.classList.add('selected');
+    if(myScheduleWorkingDates.has(iso)) btn.classList.add('my-shift');
     if(count>0){
       btn.classList.add('has-banquet');
       if(dayStatuses.size>1) btn.classList.add('has-mixed');
@@ -1846,6 +1860,9 @@ function renderBanqCalendar(){
 function renderBanqDay(){
   const list=document.getElementById('banqList');
   const items=banquets.filter(b=>b.date===selectedBanqDate).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  loadBanqScheduleWorkers_(selectedBanqDate);
+  const scheduleCard=document.getElementById('dayScheduleCard'),daySchedule=banqScheduleWorkersByDate.get(selectedBanqDate);
+  if(scheduleCard){scheduleCard.hidden=!daySchedule;if(daySchedule){const names=(daySchedule.items||[]).map(x=>escapeHtml(x.name)+(x.rawValue?' · '+escapeHtml(x.rawValue):'')).join('<br>');scheduleCard.innerHTML='<b>Работают в этот день</b><br>'+(daySchedule.scheduleFound?(names||'Смены не указаны.'):'График сотрудников на этот месяц не загружен.');}}
   loadBanqScheduleWorkers_(selectedBanqDate);
   document.getElementById('banqSelectedTitle').textContent=humanDate(selectedBanqDate);
   document.getElementById('banqSelectedCount').textContent=items.length+' '+pluralRu(items.length,'заказ','заказа','заказов');
@@ -1869,6 +1886,8 @@ function renderBanqDay(){
     const orderClass=reserve&&reserve.orderSent?' sent':'';
     const orderDisabled=(!hasMatchedReserve||meta.key!=='actual')?' disabled':'';
     const scanLabel=reserve&&reserve.recognized?'🔄 Пересчитать резерв':'✨ Распознать резерв';
+    const finalAmount=Number.isFinite(Number(b.finalAmount))?Number(b.finalAmount):null;
+    const finalAmountHtml=meta.key==='completed'?(finalAmount==null?'<div class="banq-comment">Итоговая сумма не указана.</div>':'<div class="banq-comment"><b>Итоговая сумма:</b> '+finalAmount.toLocaleString('ru-RU',{maximumFractionDigits:2})+' ₽</div>') : '';
     const adminActions=isBanqAdmin() ?
       '<div class="banq-actions">'+
         '<button class="small-btn status-actual '+(meta.key==='actual'?'active':'')+'" type="button" data-status="Актуально">● Актуальный</button>'+ 
@@ -1878,11 +1897,13 @@ function renderBanqDay(){
         '<button class="small-btn" type="button" data-edit-photos>🖼 Изменить фото</button>'+
         '<button class="small-btn order'+orderClass+'" type="button" data-order-sent'+orderDisabled+'>'+orderLabel+'</button>'+ 
         '<button class="small-btn danger" type="button" data-del="'+escapeHtml(b.id)+'">Удалить</button>'+ 
+        (meta.key==='completed'?'<button class="small-btn" type="button" data-final-amount>Итоговая сумма</button>':'')+
       '</div>' : '';
     card.innerHTML=
       '<div class="banq-item-head"><div class="banq-time">'+escapeHtml(b.time||'')+'</div><div class="banq-status '+meta.key+'">'+meta.label+'</div></div>'+ 
       '<div class="banq-name">'+safeName+'</div>'+ 
       (safeComment?'<div class="banq-comment">'+safeComment+'</div>':'')+
+      finalAmountHtml+
       renderBanqScheduleWorkers_(b.date)+
       renderBanqPhotoHtml(b)+renderBanqReserveHtml_(b)+adminActions;
 
@@ -1910,6 +1931,8 @@ function renderBanqDay(){
 
     const editPhotos=card.querySelector('[data-edit-photos]');
     if(editPhotos) editPhotos.onclick=()=>openBanqPhotoEditor_(b);
+    const finalAmountButton=card.querySelector('[data-final-amount]');
+    if(finalAmountButton) finalAmountButton.onclick=()=>updateBanqFinalAmount_(b);
 
     const del=card.querySelector('[data-del]');
     if(del){
@@ -1933,6 +1956,17 @@ function renderBanqDay(){
     list.appendChild(card);
     attachBanqImageFallbacks(card);
   });
+}
+
+async function updateBanqFinalAmount_(banquet){
+  if(!isBanqAdmin())return;
+  const current=banquet.finalAmount==null?'':String(banquet.finalAmount);
+  const raw=prompt('Итоговая сумма банкета, ₽. Оставьте пустым, чтобы очистить:',current);if(raw===null)return;
+  const normalized=raw.trim().replace(/\s/g,'').replace(',','.');
+  if(normalized!==''&&(!/^\d+(?:\.\d{1,2})?$/.test(normalized)||Number(normalized)<0)){alert('Введите неотрицательную сумму числом.');return;}
+  const result=await jsonp(STOCK_API_URL,Object.assign({action:'foxBanquetFinalAmount',banquetId:banquet.id,finalAmount:normalized},receiptAuthParams()));
+  if(!result||!result.ok)throw new Error(result&&result.error||'Итоговая сумма не сохранена.');
+  await loadBanquets();setSyncStatus('ok','Итоговая сумма сохранена.');
 }
 
 async function changeBanquetStatus(banquet,nextStatus){
