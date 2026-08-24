@@ -293,3 +293,9 @@ test('OCR графика передаёт выбранный месяц и backe
   assert.match(stockSource, /requestedMonth = normalizeFoxScheduleMonth_\(requestedMonth\)/);
   assert.match(stockSource, /: requestedMonth;/);
 });
+
+test('подтверждение графика показывает acknowledged saving/error state', () => {
+  assert.match(frontendSource, /foxScheduleSave'\)\.onclick=\(\)=>saveFoxSchedule_\(\)\.catch/);
+  assert.match(frontendSource, /setFoxScheduleStatus_\('','Сохраняю график…'\)/);
+  assert.match(frontendSource, /action:'foxScheduleSave'[\s\S]*?\),30000\)/);
+});

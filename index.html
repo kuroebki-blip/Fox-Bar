@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.14.7 — SCHEDULE SHIFT TYPES</title>
+<title>FO'X App v15.14.8 — SCHEDULE SAVE FEEDBACK</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1506,7 +1506,7 @@ function renderFoxScheduleReview_(){
   const root=document.getElementById('foxScheduleReview');if(!root)return;root.hidden=!foxSchedulePreview.length;
   if(!foxSchedulePreview.length)return;
   root.innerHTML='<div class="banq-comment"><b>Проверьте распознанный график</b></div>'+foxSchedulePreview.map((row,i)=>'<div class="form-grid"><div class="form-field"><input data-sr-name="'+i+'" value="'+escapeHtml(row.name)+'"></div><div class="form-field"><input data-sr-date="'+i+'" type="date" value="'+escapeHtml(row.date)+'"></div><div class="form-field"><input data-sr-value="'+i+'" value="'+escapeHtml(row.rawValue)+'"></div><div class="form-field"><select data-sr-type="'+i+'"><option value="regular"'+(row.shiftType==='preparation'?'':' selected')+'>Обычная смена</option><option value="preparation"'+(row.shiftType==='preparation'?' selected':'')+'>Заготовка</option></select></div></div>').join('')+'<button class="save-btn" id="foxScheduleSave" type="button">Подтвердить график</button>';
-  document.getElementById('foxScheduleSave').onclick=saveFoxSchedule_;
+  document.getElementById('foxScheduleSave').onclick=()=>saveFoxSchedule_().catch(err=>setFoxScheduleStatus_('err',String(err&&err.message||err)));
 }
 async function recognizeFoxSchedule_(){
   const file=document.getElementById('foxScheduleImage').files[0];
@@ -1529,9 +1529,16 @@ async function recognizeFoxSchedule_(){
   }finally{button.disabled=false;button.textContent='Распознать график';}
 }
 async function saveFoxSchedule_(){
-  foxSchedulePreview.forEach((row,i)=>{row.name=document.querySelector('[data-sr-name="'+i+'"]').value.trim();row.date=document.querySelector('[data-sr-date="'+i+'"]').value;row.rawValue=document.querySelector('[data-sr-value="'+i+'"]').value;row.shiftType=document.querySelector('[data-sr-type="'+i+'"]').value;});
-  const month=document.getElementById('foxScheduleMonth').value;if(!month)throw new Error('Проверьте месяц графика.');
-  const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxScheduleSave',month:month,imageUrl:foxSchedulePreview[0]&&foxSchedulePreview[0].imageUrl||'',rowsJson:JSON.stringify(foxSchedulePreview)},receiptAuthParams()));if(!res||!res.ok)throw new Error(res&&res.error||'График не сохранён.');foxSchedulePreview=[];renderFoxScheduleReview_();banqScheduleWorkersByDate.clear();renderBanquets();setSyncStatus('ok','График сотрудников сохранён.');
+  const button=document.getElementById('foxScheduleSave');if(button){button.disabled=true;button.textContent='Сохраняю…';}
+  try{
+    foxSchedulePreview.forEach((row,i)=>{row.name=document.querySelector('[data-sr-name="'+i+'"]').value.trim();row.date=document.querySelector('[data-sr-date="'+i+'"]').value;row.rawValue=document.querySelector('[data-sr-value="'+i+'"]').value;row.shiftType=document.querySelector('[data-sr-type="'+i+'"]').value;});
+    const month=document.getElementById('foxScheduleMonth').value;if(!month)throw new Error('Проверьте месяц графика.');
+    setFoxScheduleStatus_('','Сохраняю график…');
+    const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxScheduleSave',month:month,imageUrl:foxSchedulePreview[0]&&foxSchedulePreview[0].imageUrl||'',rowsJson:JSON.stringify(foxSchedulePreview)},receiptAuthParams()),30000);
+    if(!res||!res.ok)throw new Error(res&&res.error||'График не сохранён.');
+    foxSchedulePreview=[];renderFoxScheduleReview_();banqScheduleWorkersByDate.clear();renderBanquets();setFoxScheduleStatus_('ok','График сотрудников сохранён.');setSyncStatus('ok','График сотрудников сохранён.');
+  }catch(err){setFoxScheduleStatus_('err',String(err&&err.message||err));throw err;
+  }finally{if(button){button.disabled=false;button.textContent='Подтвердить график';}}
 }
 const foxScheduleRecognizeButton=document.getElementById('foxScheduleRecognize');
 if(foxScheduleRecognizeButton)foxScheduleRecognizeButton.onclick=()=>recognizeFoxSchedule_().catch(err=>setSyncStatus('err',String(err&&err.message||err)));
