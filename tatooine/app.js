@@ -13,6 +13,7 @@
   let pollingToken = 0;
   let cameraStream = null;
   let currentUser = null;
+  let currentUserRequest = null;
   let myRide = null;
   let rideAddressTargetUserId = '';
   let rideAddressSelectedSuggestion = null;
@@ -180,29 +181,10 @@
     cancel.hidden = !myRide || !myRide.needsRide;
   }
 
-  async function getMyRideData(timeoutMs) {
-    const data = await jsonp(Object.assign({ action: 'tatooineMyRide' }, authParams()), timeoutMs);
-    if (!data || !data.ok || !data.ride) throw new Error(data && data.error ? data.error : 'Не удалось загрузить развоз.');
-    return data.ride;
-  }
-
-  async function loadMyRide() {
-    setRideStatus('myRideStatus', 'Загружаю данные…');
-    try {
-      myRide = await getMyRideData();
-      renderMyRide();
-    } catch (error) {
-      myRide = null;
-      setRideStatus('myRideStatus', errorMessage(error, 'Не удалось загрузить развоз.'));
-      $('rideConfirm').hidden = true;
-      $('rideCancel').hidden = true;
-    }
-  }
-
   async function writeRide(params) {
     const data = await jsonp(Object.assign({}, params, authParams()));
     if (!data || !data.ok) throw new Error(data && data.error ? data.error : 'Не удалось сохранить заявку.');
-    return data.request || null;
+    return data;
   }
 
   async function setMyRideNeeded(needsRide) {
@@ -218,14 +200,9 @@
         if (needsRide) locallyRemovedRideEmployeeIds.delete(currentEmployeeId);
         else locallyRemovedRideEmployeeIds.add(currentEmployeeId);
       }
-      await writeRide({ action: 'tatooineSetMyRide', needsRide: needsRide ? 'true' : 'false' });
+      const data = await writeRide({ action: 'tatooineSetMyRide', needsRide: needsRide ? 'true' : 'false' });
       writeCompleted = true;
-      await loadMyRide();
-      if (can('rides.view_all')) await loadRideManager();
-      if (can('rides.optimize')) {
-        await loadRideRouteCalculation();
-        await loadRideOptimization().catch(() => {});
-      }
+      applyRideBootstrap(data.bootstrap);
       haptic('success');
     } catch (error) {
       // The backend may have completed a write while the JSONP response timed
@@ -329,27 +306,55 @@
     });
   }
 
-  async function getRideManagerItems(timeoutMs) {
-    const data = await jsonp(Object.assign({ action: 'tatooineRideToday' }, authParams()), timeoutMs);
-    if (!data || !data.ok) throw new Error(data && data.error ? data.error : 'Не удалось загрузить список.');
-    return Array.isArray(data.items) ? data.items : [];
+  function applyCurrentUser(user) {
+    currentUser = user || null;
+    const roleButton = $('openRoleManagement');
+    if (roleButton) roleButton.hidden = !can('roles.manage');
+    const settingsButton = $('openRideOriginSettings');
+    if (settingsButton) settingsButton.hidden = !can('rides.manage_origin');
   }
 
-  async function loadRideManager() {
-    if (!can('rides.view_all')) return;
-    setRideStatus('rideManagerStatus', 'Загружаю список…');
+  function applyRideBootstrap(view) {
+    if (!view || !view.user || !view.myRide) throw new Error('Сервер вернул неполные данные развоза.');
+    const previousCalculationId = rideRouteCalculation && rideRouteCalculation.id;
+    applyCurrentUser(view.user);
+    myRide = view.myRide;
+    rideRouteCalculation = view.routeCalculation || null;
+    rideOptimization = view.optimization || null;
+    if (!rideRouteCalculation || previousCalculationId !== rideRouteCalculation.id) rideRouteDetails = null;
+    renderMyRide();
+    if (can('rides.view_all')) renderRideManager(view.managerItems || []);
+    if (can('rides.manage_addresses')) {
+      setRideStatus('rideAddressStatus', '');
+      renderRideAddresses(view.addressItems || []);
+    }
+    renderRideRouteCalculation();
+    renderRideOptimization();
+  }
+
+  async function loadRideBootstrap() {
+    setRideStatus('myRideStatus', 'Загружаю данные…');
+    if (can('rides.view_all')) setRideStatus('rideManagerStatus', 'Загружаю список…');
+    if (can('rides.manage_addresses')) setRideStatus('rideAddressStatus', 'Загружаю сотрудников…');
     try {
-      const items = await getRideManagerItems();
-      renderRideManager(items);
-      return items;
+      const data = await jsonp(Object.assign({ action: 'tatooineRideBootstrap' }, authParams()));
+      if (!data || !data.ok || !data.bootstrap) throw new Error(data && data.error ? data.error : 'Не удалось загрузить развоз.');
+      applyRideBootstrap(data.bootstrap);
+      return data.bootstrap;
     } catch (error) {
-      // A failed refresh must never keep an old active list on screen. That
-      // would make a completed cancellation look as if it had not worked.
+      const message = errorMessage(error, 'Не удалось загрузить развоз.');
+      myRide = null;
+      $('rideConfirm').hidden = true;
+      $('rideCancel').hidden = true;
       todayRideEmployeeIds = new Set();
-      const list = $('rideTodayList');
-      if (list) list.replaceChildren();
-      setRideStatus('rideManagerStatus', errorMessage(error, 'Не удалось загрузить список.'));
-      return null;
+      const managerList = $('rideTodayList');
+      if (managerList) managerList.replaceChildren();
+      const addressList = $('rideEmployeeAddressList');
+      if (addressList) addressList.replaceChildren();
+      setRideStatus('myRideStatus', message);
+      if (can('rides.view_all')) setRideStatus('rideManagerStatus', message);
+      if (can('rides.manage_addresses')) setRideStatus('rideAddressStatus', message);
+      throw error;
     }
   }
 
@@ -373,6 +378,7 @@
   }
 
   const TATOOINE_RIDE_OPTIMIZE_TIMEOUT_MS = 45000;
+  const TATOOINE_RIDE_ROUTE_TIMEOUT_MS = 60000;
 
   function renderRideOptimization() {
     const button = $('rideOptimize'); const list = $('rideOptimizationList'); if (!button || !list) return;
@@ -383,7 +389,6 @@
     (result.cars || []).forEach(car => { const row=document.createElement('div'); row.className='ride-person'; const text=document.createElement('div'); const title=document.createElement('b'); title.textContent='Машина '+car.carId.replace('ride_car_','')+' · '+car.passengerCount+' сотрудника'; const detail=document.createElement('small'); detail.textContent=car.passengers.map(p=>p.dropoffPosition+'. '+p.employeeName+' — '+(p.extraDurationSeconds ? '+'+Math.round(p.extraDurationSeconds/60)+' мин' : 'без крюка')).join('\n')+'\n'+Math.round(car.routeDurationSeconds/60)+' мин · '+(car.routeDistanceMeters/1000).toFixed(1).replace('.',',')+' км\nМаксимальный крюк: '+(car.maxExtraDurationSeconds ? '+'+Math.round(car.maxExtraDurationSeconds/60)+' мин' : 'без крюка'); const actions=document.createElement('div'); actions.className='ride-person-actions'; const openMap=document.createElement('button'); openMap.className='ride-add'; openMap.type='button'; openMap.textContent='Открыть в Яндекс Картах'; openMap.addEventListener('click', () => openRideCarInYandexMaps(car, openMap)); const copyRoute=document.createElement('button'); copyRoute.type='button'; copyRoute.textContent='Скопировать маршрут'; copyRoute.addEventListener('click', () => copyRideCarRoute(car, copyRoute)); actions.append(openMap,copyRoute); text.append(title,detail); row.append(text,actions); list.appendChild(row); });
     (result.unresolvedParticipants || []).forEach(p=>{const row=document.createElement('div');row.className='ride-person';row.textContent='Не удалось автоматически распределить: '+p.employeeName+' — '+p.reason;list.appendChild(row);});
   }
-  async function loadRideOptimization() { if (!can('rides.optimize')) return; const data=await jsonp(Object.assign({action:'tatooineRideOptimization'},authParams())); if(!data||!data.ok)throw new Error(data&&data.error||'Не удалось загрузить машины.'); rideOptimization=data.optimization; renderRideOptimization(); }
   async function optimizeRide() {
     const button = $('rideOptimize');
     if (!button || button.disabled) return;
@@ -461,16 +466,6 @@
     finally { button.disabled = false; }
   }
 
-  async function loadRideRouteCalculation(calculationId) {
-    if (!can('rides.optimize')) return null;
-    const data = await jsonp(Object.assign({ action: 'tatooineRideRouteCalculation', calculationId: calculationId || '' }, authParams()));
-    if (!data || !data.ok) throw new Error(data && data.error ? data.error : 'Не удалось загрузить расчёт.');
-    rideRouteCalculation = data.calculation || null;
-    if (!rideRouteDetails || !rideRouteCalculation || !rideRouteDetails.calculation || rideRouteDetails.calculation.id !== rideRouteCalculation.id) rideRouteDetails = null;
-    renderRideRouteCalculation();
-    return rideRouteCalculation;
-  }
-
   async function calculateRideRoutes() {
     if (!can('rides.optimize')) return;
     const button = $('rideRouteCalculate');
@@ -478,13 +473,12 @@
     button.disabled = true;
     setRideStatus('rideRouteStatus', 'Подготавливаем адреса…');
     try {
-      await post({ action: 'tatooineCalculateRideRoutes', calculationId });
-      for (let attempt = 0; attempt < 30; attempt += 1) {
-        await sleep(700);
-        const calculation = await loadRideRouteCalculation(calculationId);
-        if (calculation && calculation.status !== 'PROCESSING') break;
-      }
-      if (!rideRouteCalculation || rideRouteCalculation.status === 'PROCESSING') throw new Error('Расчёт ещё выполняется. Обновите раздел через минуту.');
+      const data = await jsonp(Object.assign({ action: 'tatooineCalculateRideRoutes', calculationId }, authParams()), TATOOINE_RIDE_ROUTE_TIMEOUT_MS);
+      if (!data || !data.ok || !data.calculation) throw new Error(data && data.error ? data.error : 'Не удалось рассчитать маршруты.');
+      rideRouteCalculation = data.calculation;
+      rideRouteDetails = null;
+      rideOptimization = null;
+      renderRideRouteCalculation();
       if (rideRouteCalculation.status !== 'READY') return;
       haptic('success');
     } catch (error) {
@@ -513,18 +507,10 @@
         locallyRemovedRideEmployeeIds.add(String(employeeId));
         setRidePersonRemoving(employeeId, true);
       }
-      await writeRide({ action: 'tatooineSetEmployeeRide', targetUserId: employeeId, needsRide: needsRide ? 'true' : 'false' });
+      const data = await writeRide({ action: 'tatooineSetEmployeeRide', targetUserId: employeeId, needsRide: needsRide ? 'true' : 'false' });
       writeCompleted = true;
-      if (!needsRide) {
-        setRidePersonRemoved(employeeId);
-        await sleep(220);
-      }
-      await loadRideManager();
-      await loadRideAddresses();
-      if (can('rides.optimize')) {
-        await loadRideRouteCalculation();
-        await loadRideOptimization().catch(() => {});
-      }
+      if (!needsRide) setRidePersonRemoved(employeeId);
+      applyRideBootstrap(data.bootstrap);
       setRideStatus('rideManagerStatus', needsRide ? 'Сотрудник добавлен в развоз.' : 'Сотрудник убран из развоза.');
     } catch (error) {
       if (!needsRide && !writeCompleted) {
@@ -552,21 +538,6 @@
       list.appendChild(row);
     });
     if (!values.length) list.textContent = 'Сотрудники ещё не открывали приложение.';
-  }
-
-  async function loadRideAddresses() {
-    if (!can('rides.manage_addresses')) return;
-    setRideStatus('rideAddressStatus', 'Загружаю сотрудников…');
-    try {
-      const data = await jsonp(Object.assign({ action: 'tatooineRideEmployees' }, authParams()));
-      if (!data || !data.ok) throw new Error(data && data.error ? data.error : 'Не удалось загрузить сотрудников.');
-      setRideStatus('rideAddressStatus', '');
-      renderRideAddresses(data.items);
-      return Array.isArray(data.items) ? data.items : [];
-    } catch (error) {
-      setRideStatus('rideAddressStatus', errorMessage(error, 'Не удалось загрузить сотрудников.'));
-      return null;
-    }
   }
 
   function openRideAddressDialog(item) {
@@ -642,15 +613,14 @@
     try {
       const selected = rideAddressSelectedSuggestion && rideAddressSelectedSuggestion.text === $('rideAddressInput').value ? rideAddressSelectedSuggestion : null;
       await post({ action: 'tatooineSetEmployeeRideAddress', targetUserId: rideAddressTargetUserId, addressText: $('rideAddressInput').value, homeLatitude: selected ? selected.latitude : '', homeLongitude: selected ? selected.longitude : '', clearAddress: clearAddress ? 'true' : 'false' });
-      await sleep(300);
-      const employees = await loadRideAddresses();
-      const updated = employees && employees.find(item => String(item.id || '') === rideAddressTargetUserId);
+      const data = await jsonp(Object.assign({ action: 'tatooineRideBootstrap' }, authParams()));
+      if (!data || !data.ok || !data.bootstrap) throw new Error(data && data.error ? data.error : 'Адрес не сохранился. Повторите попытку.');
+      const updated = (data.bootstrap.addressItems || []).find(item => String(item.id || '') === rideAddressTargetUserId);
       const expectedAddress = clearAddress ? '' : $('rideAddressInput').value.trim().replace(/\s+/g, ' ');
       if (!updated || String(updated.address && updated.address.text || '') !== expectedAddress) {
         throw new Error('Адрес не сохранился. Повторите попытку.');
       }
-      await loadRideManager();
-      if (currentUser && String(currentUser.id) === rideAddressTargetUserId) await loadMyRide();
+      applyRideBootstrap(data.bootstrap);
       closeRideAddressDialog();
     } catch (error) {
       setRideStatus('rideAddressStatus', errorMessage(error, 'Не удалось сохранить адрес.'));
@@ -730,10 +700,11 @@
       const input = $('rideOriginInput').value;
       const selected = rideOriginSelectedSuggestion && rideOriginSelectedSuggestion.text === input ? rideOriginSelectedSuggestion : null;
       await post({ action: 'tatooineSetRideOrigin', addressText: input, latitude: selected ? selected.latitude : '', longitude: selected ? selected.longitude : '' });
-      await sleep(300);
       const updated = await loadRideOrigin();
       const expectedAddress = input.trim().replace(/\s+/g, ' ');
       if (!updated || String(updated.addressText || '') !== expectedAddress) throw new Error('Адрес не сохранился. Повторите попытку.');
+      rideOrigin = updated;
+      renderRideOrigin();
       closeRideOriginDialog();
       haptic('success');
     } catch (error) {
@@ -746,16 +717,7 @@
   async function openTaxi() {
     showScreen('taxi');
     if (!currentUser) await loadCurrentUser();
-    // Apps Script + Google Sheets is rate/queue sensitive in Telegram WebView.
-    // Loading independent ride widgets in parallel caused requests to time out
-    // and left stale cards visible. Keep this small, lazy screen load ordered.
-    await loadMyRide();
-    await loadRideManager();
-    await loadRideAddresses();
-    if (can('rides.optimize')) {
-      await loadRideRouteCalculation();
-      await loadRideOptimization().catch(() => {});
-    }
+    await loadRideBootstrap();
   }
 
   function roleLabel(role) {
@@ -810,23 +772,22 @@
 
   async function loadCurrentUser() {
     if (!apiConfigured() || !TG || !TG.initData) return;
-    try {
-      const data = await jsonp(Object.assign({ action: 'currentUser' }, authParams()));
-      if (!data || !data.ok || !data.user) throw new Error(data && data.error ? data.error : 'Нет доступа.');
-      currentUser = data.user;
-      const roleButton = $('openRoleManagement');
-      if (roleButton) roleButton.hidden = !can('roles.manage');
-      const settingsButton = $('openRideOriginSettings');
-      if (settingsButton) settingsButton.hidden = !can('rides.manage_origin');
-    } catch (_) {
-      currentUser = null;
-      const card = $('roleManagement');
-      if (card) card.hidden = true;
-      const roleButton = $('openRoleManagement');
-      if (roleButton) roleButton.hidden = true;
-      const settingsButton = $('openRideOriginSettings');
-      if (settingsButton) settingsButton.hidden = true;
-    }
+    if (currentUserRequest) return currentUserRequest;
+    currentUserRequest = (async () => {
+      try {
+        const data = await jsonp(Object.assign({ action: 'currentUser' }, authParams()));
+        if (!data || !data.ok || !data.user) throw new Error(data && data.error ? data.error : 'Нет доступа.');
+        applyCurrentUser(data.user);
+        return currentUser;
+      } catch (_) {
+        applyCurrentUser(null);
+        const card = $('roleManagement');
+        if (card) card.hidden = true;
+        return null;
+      }
+    })();
+    try { return await currentUserRequest; }
+    finally { currentUserRequest = null; }
   }
 
   function jsonp(params, timeoutMs = 35000) {

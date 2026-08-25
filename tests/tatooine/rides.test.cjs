@@ -107,9 +107,8 @@ test('manager remove refreshes the current route calculation so Matrix and optim
   const handler = frontend.slice(start, end);
   assert.match(handler, /action: 'tatooineSetEmployeeRide'/);
   assert.match(handler, /await writeRide\(\{ action: 'tatooineSetEmployeeRide'/);
-  assert.match(handler, /await loadRideManager\(\)/);
-  assert.match(handler, /await loadRideRouteCalculation\(\)/);
-  assert.match(handler, /await loadRideOptimization\(\)\.catch/);
+  assert.match(handler, /applyRideBootstrap\(data\.bootstrap\)/);
+  assert.match(backend, /bootstrap: getTatooineRideBootstrap_\(auth\)/);
   assert.match(backend, /const existing = findLatestTatooineRideRequest_\(rows, result\.request\.employeeId, result\.request\.rideDate\)/);
 });
 
@@ -147,8 +146,8 @@ test('ride writes use the acknowledged JSONP channel instead of an opaque POST o
   assert.match(frontend, /await writeRide\(\{ action: 'tatooineSetMyRide'/);
   assert.match(frontend, /await writeRide\(\{ action: 'tatooineSetEmployeeRide'/);
   assert.doesNotMatch(frontend, /TATOOINE_RIDE_WRITE_VERIFY_ATTEMPTS/);
-  assert.match(backend, /if \(action === 'tatooineSetMyRide'\) \{\s*return jsonpOutput_\(callback, \{ ok: true, request: setTatooineMyRide_/);
-  assert.match(backend, /if \(action === 'tatooineSetEmployeeRide'\) \{\s*return jsonpOutput_\(callback, \{ ok: true, request: setTatooineEmployeeRide_/);
+  assert.match(backend, /if \(action === 'tatooineSetMyRide'\) \{\s*const request = setTatooineMyRide_/);
+  assert.match(backend, /if \(action === 'tatooineSetEmployeeRide'\) \{\s*const request = setTatooineEmployeeRide_/);
   assert.match(frontend, /setRideStatus\('rideManagerStatus', 'Сохраняю…'\)/);
 });
 
@@ -230,8 +229,12 @@ test('home addresses of other employees are protected by server-side permissions
   const handler = backend.slice(listStart, listEnd);
   assert.match(handler, /assertTatooineRideAddressAccess_/);
   assert.match(backend, /requireTatooinePermission_\(auth, 'rides\.view_all'\)/);
-  assert.match(frontend, /action: 'tatooineMyRide'/);
-  assert.equal(frontend.includes('action: \'tatooineRideEmployees\''), true);
+  assert.match(frontend, /action: 'tatooineRideBootstrap'/);
+  const bootstrapStart = backend.indexOf('function getTatooineRideBootstrap_');
+  const bootstrapEnd = backend.indexOf('function setTatooineEmployeeRole_', bootstrapStart);
+  const bootstrap = backend.slice(bootstrapStart, bootstrapEnd);
+  assert.match(bootstrap, /if \(hasTatooinePermission_\(user, 'rides\.manage_addresses'\)\)/);
+  assert.match(bootstrap, /result\.addressItems = users\.map/);
   assert.match(backend, /action === 'tatooineRideAddressSuggestions'/);
   assert.match(backend, /assertTatooineRideAddressAccess_\(getTatooineCurrentUser_\(auth, false\)\)/);
 });
@@ -249,25 +252,80 @@ test('ride data is loaded lazily when the user opens the ride section', () => {
   const taxiStart = frontend.indexOf('async function openTaxi()');
   const taxiEnd = frontend.indexOf('function roleLabel(', taxiStart);
   const taxiHandler = frontend.slice(taxiStart, taxiEnd);
-  assert.match(taxiHandler, /loadMyRide\(\)/);
-  assert.match(taxiHandler, /loadRideManager\(\)/);
+  assert.match(taxiHandler, /loadRideBootstrap\(\)/);
 });
 
-test('opening taxi serializes Apps Script ride reads so Telegram does not time out or show stale cards', () => {
+test('opening taxi uses one permission-aware ride bootstrap instead of five Apps Script reads', () => {
   const taxiStart = frontend.indexOf('async function openTaxi()');
   const taxiEnd = frontend.indexOf('function roleLabel(', taxiStart);
   const taxiHandler = frontend.slice(taxiStart, taxiEnd);
-  assert.doesNotMatch(taxiHandler, /Promise\.all/);
-  assert.match(taxiHandler, /await loadMyRide\(\);\n    await loadRideManager\(\);\n    await loadRideAddresses\(\);/);
-  assert.match(taxiHandler, /await loadRideRouteCalculation\(\);\n      await loadRideOptimization\(\)\.catch/);
+  assert.match(taxiHandler, /await loadRideBootstrap\(\)/);
+  assert.doesNotMatch(taxiHandler, /await loadMyRide\(\)/);
+  assert.doesNotMatch(taxiHandler, /await loadRideManager\(\)/);
+  assert.doesNotMatch(taxiHandler, /await loadRideAddresses\(\)/);
+  assert.doesNotMatch(taxiHandler, /await loadRideRouteCalculation\(\)/);
+  assert.doesNotMatch(taxiHandler, /await loadRideOptimization\(\)/);
+  assert.match(frontend, /action: 'tatooineRideBootstrap'/);
+  assert.match(backend, /if \(action === 'tatooineRideBootstrap'\)/);
+});
+
+test('ride writes return the refreshed ride view without a four-request refresh waterfall', () => {
+  const managerStart = frontend.indexOf('async function setEmployeeRideNeeded');
+  const managerEnd = frontend.indexOf('function renderRideAddresses', managerStart);
+  const handler = frontend.slice(managerStart, managerEnd);
+  assert.match(handler, /applyRideBootstrap\(data\.bootstrap\)/);
+  assert.doesNotMatch(handler, /await loadRideManager\(\)/);
+  assert.doesNotMatch(handler, /await loadRideAddresses\(\)/);
+  assert.doesNotMatch(handler, /await loadRideRouteCalculation\(\)/);
+  assert.doesNotMatch(handler, /await loadRideOptimization\(\)/);
+  assert.match(backend, /request: request, bootstrap: getTatooineRideBootstrap_\(auth\)/);
+});
+
+test('route calculation uses acknowledged JSONP and does not poll after a fixed sleep', () => {
+  const start = frontend.indexOf('async function calculateRideRoutes()');
+  const end = frontend.indexOf('async function openRideRouteDetails()', start);
+  const handler = frontend.slice(start, end);
+  assert.match(handler, /jsonp\(Object\.assign\(\{ action: 'tatooineCalculateRideRoutes'/);
+  assert.doesNotMatch(handler, /await post\(/);
+  assert.doesNotMatch(handler, /await sleep\(/);
+  assert.doesNotMatch(handler, /for \(let attempt/);
+  assert.match(backend, /if \(action === 'tatooineCalculateRideRoutes'\)/);
+});
+
+test('address writes keep personal data out of URLs and verify state without fixed sleeps or refresh waterfalls', () => {
+  const addressStart = frontend.indexOf('async function saveRideAddress');
+  const addressEnd = frontend.indexOf('function clearRideOriginSuggestions', addressStart);
+  const addressBody = frontend.slice(addressStart, addressEnd);
+  assert.match(addressBody, /await post\(\{ action: 'tatooineSetEmployeeRideAddress'/);
+  assert.match(addressBody, /action: 'tatooineRideBootstrap'/);
+  assert.match(addressBody, /applyRideBootstrap\(data\.bootstrap\)/);
+  assert.doesNotMatch(addressBody, /await sleep\(/);
+  assert.doesNotMatch(addressBody, /await loadRideAddresses\(/);
+  assert.doesNotMatch(addressBody, /await loadRideManager\(/);
+
+  const originStart = frontend.indexOf('async function saveRideOrigin');
+  const originEnd = frontend.indexOf('async function openTaxi', originStart);
+  const originBody = frontend.slice(originStart, originEnd);
+  assert.match(originBody, /await post\(\{ action: 'tatooineSetRideOrigin'/);
+  assert.doesNotMatch(originBody, /await sleep\(/);
+  assert.match(originBody, /await loadRideOrigin\(/);
+});
+
+test('an in-flight current-user request is shared with a fast ride-section open', () => {
+  assert.match(frontend, /let currentUserRequest = null;/);
+  const start = frontend.indexOf('async function loadCurrentUser');
+  const end = frontend.indexOf('function jsonp', start);
+  const body = frontend.slice(start, end);
+  assert.match(body, /if \(currentUserRequest\) return currentUserRequest;/);
+  assert.match(body, /finally \{ currentUserRequest = null; \}/);
 });
 
 test('a failed manager refresh clears stale active ride cards instead of preserving old data', () => {
-  const start = frontend.indexOf('async function loadRideManager()');
+  const start = frontend.indexOf('async function loadRideBootstrap()');
   const end = frontend.indexOf('function renderRideRouteCalculation', start);
   const handler = frontend.slice(start, end);
   assert.match(handler, /todayRideEmployeeIds = new Set\(\);/);
-  assert.match(handler, /list\.replaceChildren\(\);/);
+  assert.match(handler, /managerList\.replaceChildren\(\);/);
 });
 
 test('ride writes fail fast when another ride update holds the document lock', () => {

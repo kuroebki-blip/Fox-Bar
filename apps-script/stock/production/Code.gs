@@ -16,7 +16,7 @@
  */
 
 const FOX_RECEIPTS = {
-  version: 'v9.7.8 TATOOINE OPTIMIZE ACK',
+  version: 'v9.7.9 TATOOINE RIDE PERFORMANCE',
 
   stockSheets: [
     'Вино',
@@ -389,7 +389,7 @@ function optimizeTatooineRideMatrix_(input) {
   const evaluate=function(order){let from='origin', dur=0, dist=0, passengers=[]; for(let i=0;i<order.length;i++){const e=edges[from+'>'+order[i].pointId]; if(!e||e.status!=='ok'||!Number.isFinite(e.durationSeconds))return null; dur+=e.durationSeconds; dist+=e.distanceMeters; const d=direct[order[i].pointId]; const extra=dur-d.durationSeconds, ratio=extra/d.durationSeconds; if(extra>config.maxExtraMinutes*60||ratio>config.maxExtraRatio)return null; passengers.push(Object.assign({},order[i],{dropoffPosition:i+1,directDurationSeconds:d.durationSeconds,directDistanceMeters:d.distanceMeters,sharedDurationSeconds:dur,extraDurationSeconds:extra,extraRatio:ratio})); from=order[i].pointId;} return {passengers:passengers,routeDurationSeconds:dur,routeDistanceMeters:dist,totalPassengerExtraDurationSeconds:passengers.reduce(function(s,p){return s+p.extraDurationSeconds;},0),maxExtraDurationSeconds:Math.max.apply(null,passengers.map(function(p){return p.extraDurationSeconds;})),maxExtraRatio:Math.max.apply(null,passengers.map(function(p){return p.extraRatio;}))};};
   const groups=[]; for(let size=1;size<=config.maxPassengersPerCar;size++){const choose=function(start,items){if(items.length===size){let best=null; permutations(items).forEach(function(order){const candidate=evaluate(order); if(candidate&&(!best||compareCandidate_(candidate,best)<0))best=candidate;}); if(best)groups.push(best); return;} for(let i=start;i<valid.length;i++)choose(i+1,items.concat(valid[i]));}; choose(0,[]);}
   const better=function(a,b){if(!b)return true; const aa=[a.cars.length,a.vehicle,a.extra,a.maxExtra,a.distance,a.key],bb=[b.cars.length,b.vehicle,b.extra,b.maxExtra,b.distance,b.key]; for(let i=0;i<aa.length;i++){if(aa[i]!==bb[i])return aa[i]<bb[i];}return false;}; const maskFor=function(g){return g.passengers.reduce(function(m,p){return m|(1<<valid.findIndex(function(x){return x.pointId===p.pointId;}));},0);}; const candidates=groups.map(function(g){return {g:g,mask:maskFor(g)};}); let solution;
-  if(valid.length<=config.exactParticipantLimit){const full=(1<<valid.length)-1,memo={}; const solve=function(mask){if(mask===full)return {cars:[],vehicle:0,extra:0,maxExtra:0,distance:0,key:''}; if(memo[mask])return memo[mask]; let best=null; candidates.forEach(function(c){if((c.mask&mask)!==0)return; const rest=solve(mask|c.mask); const x={cars:[c.g].concat(rest.cars),vehicle:c.g.routeDurationSeconds+rest.vehicle,extra:c.g.totalPassengerExtraDurationSeconds+rest.extra,maxExtra:Math.max(c.g.maxExtraDurationSeconds,rest.maxExtra),distance:c.g.routeDistanceMeters+rest.distance,key:c.g.passengers.map(function(p){return p.employeeId;}).join(',')+'|'+rest.key}; if(better(x,best))best=x;}); return memo[mask]=best;}; solution=solve(0);} else {let used={}; const cars=[]; candidates.sort(function(a,b){return compareCandidate_(a.g,b.g);}).forEach(function(c){if(c.g.passengers.every(function(p){return !used[p.pointId];})){c.g.passengers.forEach(function(p){used[p.pointId]=true;});cars.push(c.g);}}); solution={cars:cars,vehicle:cars.reduce(function(s,c){return s+c.routeDurationSeconds;},0),extra:cars.reduce(function(s,c){return s+c.totalPassengerExtraDurationSeconds;},0),maxExtra:Math.max.apply(null,cars.map(function(c){return c.maxExtraDurationSeconds;})),distance:cars.reduce(function(s,c){return s+c.routeDistanceMeters;},0)};}
+  if(valid.length<=config.exactParticipantLimit){const full=(1<<valid.length)-1,memo={},candidatesByBit=valid.map(function(){return [];}); candidates.forEach(function(c){for(let bit=0;bit<valid.length;bit++){if(c.mask&(1<<bit))candidatesByBit[bit].push(c);}}); const solve=function(mask){if(mask===full)return {cars:[],vehicle:0,extra:0,maxExtra:0,distance:0,key:''}; if(memo[mask])return memo[mask]; let firstOpen=0; while(mask&(1<<firstOpen))firstOpen++; let best=null; candidatesByBit[firstOpen].forEach(function(c){if((c.mask&mask)!==0)return; const rest=solve(mask|c.mask); const x={cars:[c.g].concat(rest.cars),vehicle:c.g.routeDurationSeconds+rest.vehicle,extra:c.g.totalPassengerExtraDurationSeconds+rest.extra,maxExtra:Math.max(c.g.maxExtraDurationSeconds,rest.maxExtra),distance:c.g.routeDistanceMeters+rest.distance,key:c.g.passengers.map(function(p){return p.employeeId;}).join(',')+'|'+rest.key}; if(better(x,best))best=x;}); return memo[mask]=best;}; solution=solve(0);} else {let used={}; const cars=[]; candidates.sort(function(a,b){return compareCandidate_(a.g,b.g);}).forEach(function(c){if(c.g.passengers.every(function(p){return !used[p.pointId];})){c.g.passengers.forEach(function(p){used[p.pointId]=true;});cars.push(c.g);}}); solution={cars:cars,vehicle:cars.reduce(function(s,c){return s+c.routeDurationSeconds;},0),extra:cars.reduce(function(s,c){return s+c.totalPassengerExtraDurationSeconds;},0),maxExtra:Math.max.apply(null,cars.map(function(c){return c.maxExtraDurationSeconds;})),distance:cars.reduce(function(s,c){return s+c.routeDistanceMeters;},0)};}
   const cars=(solution&&solution.cars||[]).map(function(c,i){return Object.assign({carId:'ride_car_'+(i+1),passengerCount:c.passengers.length,dropoffOrder:c.passengers.map(function(p){return p.pointId;})},c);}).sort(function(a,b){return b.passengerCount-a.passengerCount||a.routeDurationSeconds-b.routeDurationSeconds||a.dropoffOrder[0].localeCompare(b.dropoffOrder[0]);}); const count=cars.reduce(function(s,c){s[c.passengerCount]=(s[c.passengerCount]||0)+1;return s;},{}); const extras=cars.reduce(function(a,c){return a.concat(c.passengers);},[]).map(function(p){return p.extraDurationSeconds;}); return {optimizerVersion:'ride_optimizer_v1',optimizationMode:valid.length<=config.exactParticipantLimit?'exact':'heuristic',generatedAt:new Date().toISOString(),participantCount:participants.length,carCount:cars.length,cars:cars,unresolvedParticipants:unresolved,summary:{participantCount:participants.length,carCount:cars.length,averagePassengersPerCar:cars.length?valid.length/cars.length:0,singlePassengerCars:count[1]||0,twoPassengerCars:count[2]||0,threePassengerCars:count[3]||0,avoidedIndividualCars:valid.length-cars.length,maxExtraDurationSeconds:extras.length?Math.max.apply(null,extras):0,maxExtraRatio:cars.length?Math.max.apply(null,cars.map(function(c){return c.maxExtraRatio;})):0,averageExtraDurationSeconds:extras.length?extras.reduce(function(s,x){return s+x;},0)/extras.length:0,candidateGroupCount:groups.length,optimizationDurationMs:Date.now()-started}};
 }
 function compareCandidate_(a,b){const aa=[a.routeDurationSeconds,a.totalPassengerExtraDurationSeconds,a.maxExtraDurationSeconds,a.routeDistanceMeters,a.passengers.map(function(p){return p.employeeId;}).join(',')],bb=[b.routeDurationSeconds,b.totalPassengerExtraDurationSeconds,b.maxExtraDurationSeconds,b.routeDistanceMeters,b.passengers.map(function(p){return p.employeeId;}).join(',')];for(let i=0;i<aa.length;i++){if(aa[i]!==bb[i])return aa[i]<bb[i]?-1:1;}return 0;}
@@ -806,6 +806,10 @@ function doGet(e) {
       return jsonpOutput_(callback, { ok: true, user: getTatooineCurrentUser_(auth, false) });
     }
 
+    if (action === 'tatooineRideBootstrap') {
+      return jsonpOutput_(callback, { ok: true, bootstrap: getTatooineRideBootstrap_(auth) });
+    }
+
     if (action === 'tatooineEmployees') {
       requireTatooinePermission_(auth, 'roles.view');
       return jsonpOutput_(callback, { ok: true, items: listTatooineEmployees_(auth), roles: Object.keys(TATOOINE_RBAC.roles) });
@@ -824,11 +828,17 @@ function doGet(e) {
     // ride reads. A no-cors POST is opaque to Telegram WebView and cannot tell
     // the user whether Apps Script accepted or rejected a sensitive action.
     if (action === 'tatooineSetMyRide') {
-      return jsonpOutput_(callback, { ok: true, request: setTatooineMyRide_(e.parameter, auth) });
+      const request = setTatooineMyRide_(e.parameter, auth);
+      return jsonpOutput_(callback, { ok: true, request: request, bootstrap: getTatooineRideBootstrap_(auth) });
     }
 
     if (action === 'tatooineSetEmployeeRide') {
-      return jsonpOutput_(callback, { ok: true, request: setTatooineEmployeeRide_(e.parameter, auth) });
+      const request = setTatooineEmployeeRide_(e.parameter, auth);
+      return jsonpOutput_(callback, { ok: true, request: request, bootstrap: getTatooineRideBootstrap_(auth) });
+    }
+
+    if (action === 'tatooineCalculateRideRoutes') {
+      return jsonpOutput_(callback, { ok: true, calculation: calculateTatooineRideRoutes_(e.parameter, auth) });
     }
 
     if (action === 'tatooineRideRouteCalculation') {
@@ -2753,7 +2763,7 @@ function telegramRouteConfig_(value) {
 
 function assertTelegramActionAllowed_(action, auth) {
   if (!auth || auth.venue !== 'tatooine') return;
-  const allowed = ['status', 'cashReportScan', 'cashReportScanImages', 'cashReportSend', 'currentUser', 'tatooineEmployees', 'tatooineSetRole', 'tatooineMyRide', 'tatooineRideToday', 'tatooineRideRouteCalculation', 'tatooineRideRouteDetails', 'tatooineRideOptimization', 'tatooineCalculateRideRoutes', 'tatooineOptimizeRide', 'tatooineRideEmployees', 'tatooineRideAddressSuggestions', 'tatooineRideOriginSuggestions', 'tatooineRideOrigin', 'tatooineSetMyRide', 'tatooineSetEmployeeRide', 'tatooineSetEmployeeRideAddress', 'tatooineSetRideOrigin'];
+  const allowed = ['status', 'cashReportScan', 'cashReportScanImages', 'cashReportSend', 'currentUser', 'tatooineEmployees', 'tatooineSetRole', 'tatooineRideBootstrap', 'tatooineMyRide', 'tatooineRideToday', 'tatooineRideRouteCalculation', 'tatooineRideRouteDetails', 'tatooineRideOptimization', 'tatooineCalculateRideRoutes', 'tatooineOptimizeRide', 'tatooineRideEmployees', 'tatooineRideAddressSuggestions', 'tatooineRideOriginSuggestions', 'tatooineRideOrigin', 'tatooineSetMyRide', 'tatooineSetEmployeeRide', 'tatooineSetEmployeeRideAddress', 'tatooineSetRideOrigin'];
   if (allowed.indexOf(String(action || '')) < 0) {
     throw new Error('Недоступное действие Tatooine.');
   }
@@ -2857,10 +2867,8 @@ function publicTatooineUser_(row, auth, role) {
   return { id: String((row && row.userId) || auth.userId), name: String((row && row.name) || auth.userName), role: resolvedRole, permissions: tatooinePermissionsForRole_(resolvedRole) };
 }
 
-function getTatooineCurrentUser_(auth, register) {
+function getTatooineCurrentUserFromRows_(auth, sh, rows, register) {
   if (!auth || auth.venue !== 'tatooine' || !auth.userId) throw new Error('Нет доступа.');
-  const sh = tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, Boolean(register));
-  const rows = tatooineUserRows_(sh);
   const existing = rows.filter(function(item) { return item.userId === String(auth.userId); })[0] || null;
   const hasSuperadmin = rows.some(function(item) { return item.role === 'superadmin'; });
   const bootstrapRole = !existing ? tatooineBootstrapRole_(auth.userId, hasSuperadmin) : '';
@@ -2868,8 +2876,15 @@ function getTatooineCurrentUser_(auth, register) {
   if ((register || sh) && sh && !existing) {
     const now = new Date();
     sh.getRange(sh.getLastRow() + 1, 1, 1, FOX_RECEIPT_HEADERS.tatooineUsers.length).setValues([[auth.userId, auth.userName, user.role, now, now, '', '', '']]);
+    rows.push({ row: sh.getLastRow(), userId: String(auth.userId), name: String(auth.userName), role: user.role, createdAt: now, updatedAt: now, homeAddressText: '', homeLatitude: '', homeLongitude: '' });
   }
   return user;
+}
+
+function getTatooineCurrentUser_(auth, register) {
+  const sh = tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, Boolean(register));
+  const rows = tatooineUserRows_(sh);
+  return getTatooineCurrentUserFromRows_(auth, sh, rows, register);
 }
 
 function listTatooineEmployees_(auth) {
@@ -2906,11 +2921,12 @@ function assertTatooineSelfRideRequestOpen_() {
   if (now > deadline) throw new Error('Приём заявок на развоз сегодня уже закрыт.');
 }
 
-function tatooineRideRequestRows_(sh) {
-  if (!sh || sh.getLastRow() < 3) return [];
-  return sh.getRange(3, 1, sh.getLastRow() - 2, FOX_RECEIPT_HEADERS.tatooineRideRequests.length).getValues().map(function(row, index) {
+const TATOOINE_RIDE_CURRENT_SHIFT_SCAN_ROWS = 500;
+
+function mapTatooineRideRequestRows_(values, firstRow) {
+  return values.map(function(row, index) {
     return {
-      row: index + 3,
+      row: index + firstRow,
       id: String(row[0] || ''),
       employeeId: String(row[1] || ''),
       rideDate: normalizeTatooineRideDate_(row[2]),
@@ -2925,6 +2941,15 @@ function tatooineRideRequestRows_(sh) {
   }).filter(function(item) { return item.employeeId && item.rideDate; });
 }
 
+function tatooineRideRequestRowsForShift_(sh, rideDate) {
+  if (!sh || sh.getLastRow() < 3) return [];
+  const day = normalizeTatooineRideDate_(rideDate);
+  const rowCount = Math.min(TATOOINE_RIDE_CURRENT_SHIFT_SCAN_ROWS, sh.getLastRow() - 2);
+  const firstRow = sh.getLastRow() - rowCount + 1;
+  return mapTatooineRideRequestRows_(sh.getRange(firstRow, 1, rowCount, FOX_RECEIPT_HEADERS.tatooineRideRequests.length).getValues(), firstRow)
+    .filter(function(item) { return item.rideDate === day; });
+}
+
 function tatooineRideRequestValues_(request) {
   return [[request.id, request.employeeId, request.rideDate, request.needsRide ? 'YES' : 'NO', request.createdAt, request.updatedAt, request.confirmedAt, request.cancelledAt, request.createdByUserId, request.updatedByUserId]];
 }
@@ -2936,7 +2961,7 @@ function tatooineRideRequestSheet_() {
 function deduplicateTatooineRideRequestsForDate_(rideDate) {
   const day = normalizeTatooineRideDate_(rideDate || getCurrentRideShiftKey_());
   const sh = tatooineRideRequestSheet_();
-  const rows = tatooineRideRequestRows_(sh);
+  const rows = tatooineRideRequestRowsForShift_(sh, day);
   const latest = latestTatooineRideRequestsForDate_(rows, day);
   const keepRows = {};
   latest.forEach(function(item) { keepRows[item.row] = true; });
@@ -2973,14 +2998,15 @@ function getTatooineMyRide_(auth) {
   const employee = findTatooineRideEmployee_(user.id);
   if (!employee) throw new Error('Сотрудник не найден.');
   const rideDate = getCurrentRideShiftKey_();
-  const request = activeTatooineRideRequests_(tatooineRideRequestRows_(tatooineRideRequestSheet_()), rideDate).filter(function(item) { return item.employeeId === user.id; })[0] || null;
+  const request = activeTatooineRideRequests_(tatooineRideRequestRowsForShift_(tatooineRideRequestSheet_(), rideDate), rideDate).filter(function(item) { return item.employeeId === user.id; })[0] || null;
   return { rideDate: rideDate, address: tatooinePublicHomeAddress_(employee), needsRide: Boolean(request), request: request ? { confirmedAt: request.confirmedAt, cancelledAt: request.cancelledAt } : null };
 }
 
 function saveTatooineRideRequest_(employeeId, needsRide, actorUserId) {
   const sh = tatooineRideRequestSheet_();
-  const rows = tatooineRideRequestRows_(sh);
-  const result = upsertTatooineRideRequest_(rows, employeeId, getCurrentRideShiftKey_(), needsRide, actorUserId, new Date());
+  const rideDate = getCurrentRideShiftKey_();
+  const rows = tatooineRideRequestRowsForShift_(sh, rideDate);
+  const result = upsertTatooineRideRequest_(rows, employeeId, rideDate, needsRide, actorUserId, new Date());
   const existing = findLatestTatooineRideRequest_(rows, result.request.employeeId, result.request.rideDate);
   if (existing) sh.getRange(existing.row, 1, 1, FOX_RECEIPT_HEADERS.tatooineRideRequests.length).setValues(tatooineRideRequestValues_(result.request));
   else sh.getRange(sh.getLastRow() + 1, 1, 1, FOX_RECEIPT_HEADERS.tatooineRideRequests.length).setValues(tatooineRideRequestValues_(result.request));
@@ -3021,7 +3047,8 @@ function listTatooineTodayRides_(auth) {
   const employees = tatooineUserRows_(tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, true));
   const byId = {};
   employees.forEach(function(item) { byId[item.userId] = item; });
-  return activeTatooineRideRequests_(tatooineRideRequestRows_(tatooineRideRequestSheet_()), getCurrentRideShiftKey_()).map(function(request) {
+  const rideDate = getCurrentRideShiftKey_();
+  return activeTatooineRideRequests_(tatooineRideRequestRowsForShift_(tatooineRideRequestSheet_(), rideDate), rideDate).map(function(request) {
     const employee = byId[request.employeeId];
     if (!employee || !employee.homeAddressText) return null;
     return { employeeId: employee.userId, name: employee.name, address: tatooinePublicHomeAddress_(employee), requestedByEmployee: request.createdByUserId === employee.userId, updatedByUserId: request.updatedByUserId, confirmedAt: request.confirmedAt };
@@ -3098,16 +3125,31 @@ function setTatooineEmployeeRideAddress_(p, auth) {
 }
 
 function tatooineRouteSheet_(name) { return tatooineRbacSheet_(name, true); }
-function tatooineRouteCalculationRows_() {
+const TATOOINE_RIDE_CURRENT_CALCULATION_SCAN_ROWS = 100;
+function mapTatooineRouteCalculationRow_(r, row) { return { row: row, id: String(r[0] || ''), rideDate: normalizeTatooineRideDate_(r[1]), status: String(r[2] || ''), provider: String(r[3] || ''), employeeCount: Number(r[7] || 0), pointCount: Number(r[8] || 0), edgeCount: Number(r[9] || 0), fingerprint: String(r[10] || ''), originName: String(r[11] || ''), originAddress: String(r[12] || ''), originLatitude: r[13], originLongitude: r[14], requestedAt: r[15], completedAt: r[16], durationMs: Number(r[17] || 0), errorType: String(r[18] || ''), error: String(r[19] || '') }; }
+function tatooineRouteCalculationRowsForShift_(rideDate, calculationId) {
   const sh = tatooineRouteSheet_(FOX_RECEIPTS.sheets.tatooineRouteCalculations);
   if (sh.getLastRow() < 3) return [];
-  return sh.getRange(3, 1, sh.getLastRow() - 2, FOX_RECEIPT_HEADERS.tatooineRouteCalculations.length).getValues().map(function(r, i) { return { row: i + 3, id: String(r[0] || ''), rideDate: normalizeTatooineRideDate_(r[1]), status: String(r[2] || ''), provider: String(r[3] || ''), employeeCount: Number(r[7] || 0), pointCount: Number(r[8] || 0), edgeCount: Number(r[9] || 0), fingerprint: String(r[10] || ''), originName: String(r[11] || ''), originAddress: String(r[12] || ''), originLatitude: r[13], originLongitude: r[14], requestedAt: r[15], completedAt: r[16], durationMs: Number(r[17] || 0), errorType: String(r[18] || ''), error: String(r[19] || '') }; }).filter(function(x) { return x.id; });
+  const id = String(calculationId || '');
+  if (id) {
+    return sh.getRange(3, 1, sh.getLastRow() - 2, 1).createTextFinder(id).matchEntireCell(true).findAll().map(function(match) {
+      const row = match.getRow();
+      return mapTatooineRouteCalculationRow_(sh.getRange(row, 1, 1, FOX_RECEIPT_HEADERS.tatooineRouteCalculations.length).getValues()[0], row);
+    }).filter(function(item) { return item.id === id; });
+  }
+  const day = normalizeTatooineRideDate_(rideDate);
+  const rowCount = Math.min(TATOOINE_RIDE_CURRENT_CALCULATION_SCAN_ROWS, sh.getLastRow() - 2);
+  const firstRow = sh.getLastRow() - rowCount + 1;
+  return sh.getRange(firstRow, 1, rowCount, FOX_RECEIPT_HEADERS.tatooineRouteCalculations.length).getValues().map(function(r, i) {
+    return mapTatooineRouteCalculationRow_(r, firstRow + i);
+  }).filter(function(item) { return item.id && item.rideDate === day; });
 }
 function saveTatooineRouteCalculation_(c) {
   const sh = tatooineRouteSheet_(FOX_RECEIPTS.sheets.tatooineRouteCalculations);
-  const rows = tatooineRouteCalculationRows_(); const existing = rows.filter(function(x) { return x.id === c.id; })[0];
+  const existing = c.row ? c : tatooineRouteCalculationRowsForShift_('', c.id)[0];
   const values = [[c.id,c.rideDate,c.status,'geoapify','drive','balanced','approximated',c.employeeCount,c.pointCount,c.edgeCount,c.fingerprint,c.originName,c.originAddress,c.originLatitude,c.originLongitude,c.requestedAt,c.completedAt,c.durationMs,c.errorType,c.error]];
-  if (existing) sh.getRange(existing.row, 1, 1, values[0].length).setValues(values); else sh.getRange(sh.getLastRow() + 1, 1, 1, values[0].length).setValues(values);
+  if (existing) { c.row = existing.row; sh.getRange(existing.row, 1, 1, values[0].length).setValues(values); }
+  else { c.row = sh.getLastRow() + 1; sh.getRange(c.row, 1, 1, values[0].length).setValues(values); }
 }
 function geocodeTatooineRideAddress_(text) { return getTatooineRideAddressSuggestions_(text)[0] || null; }
 function prepareTatooineRouteInput_() {
@@ -3117,7 +3159,8 @@ function prepareTatooineRouteInput_() {
   }
   if (!origin.addressText || !isTatooineRouteCoordinatePairValid_(origin.latitude, origin.longitude)) issues.push({ name: 'Точка начала', reason: 'Адрес или координаты не указаны.' });
   const users = tatooineUserRows_(tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, true)); const byId = {}; users.forEach(function(item) { byId[item.userId] = item; });
-  const employees = activeTatooineRideRequests_(tatooineRideRequestRows_(tatooineRideRequestSheet_()), getCurrentRideShiftKey_()).map(function(request) { const employee = byId[request.employeeId]; return employee ? { employeeId: employee.userId, name: employee.name, address: tatooinePublicHomeAddress_(employee) } : { employeeId: request.employeeId, name: 'Сотрудник', address: { text: '', latitude: '', longitude: '' } }; });
+  const rideDate = getCurrentRideShiftKey_();
+  const employees = activeTatooineRideRequests_(tatooineRideRequestRowsForShift_(tatooineRideRequestSheet_(), rideDate), rideDate).map(function(request) { const employee = byId[request.employeeId]; return employee ? { employeeId: employee.userId, name: employee.name, address: tatooinePublicHomeAddress_(employee) } : { employeeId: request.employeeId, name: 'Сотрудник', address: { text: '', latitude: '', longitude: '' } }; });
   employees.forEach(function(item) {
     if (!item.address.text) { issues.push({ name: item.name, reason: 'Адрес развоза не указан.' }); return; }
     if (!isTatooineRouteCoordinatePairValid_(item.address.latitude, item.address.longitude)) {
@@ -3153,7 +3196,23 @@ function calculateTatooineRideRoutes_(p, auth) {
   finally { c.completedAt = new Date(); c.durationMs = c.completedAt.getTime() - started.getTime(); saveTatooineRouteCalculation_(c); }
   return c;
 }
-function getTatooineRideRouteCalculation_(p, auth) { requireTatooinePermission_(auth, 'rides.optimize'); const shiftKey = getCurrentRideShiftKey_(); const id = String(p.calculationId || ''); const rows = tatooineRouteCalculationRows_().filter(function(x) { return x.rideDate === shiftKey && (!id || x.id === id); }); const c = rows[rows.length - 1] || null; if (!c) return null; const activeIds = activeTatooineRideRequests_(tatooineRideRequestRows_(tatooineRideRequestSheet_()), shiftKey).map(function(x){return x.employeeId;}).sort().join('|'); const participantSheet = tatooineRouteSheet_(FOX_RECEIPTS.sheets.tatooineRouteParticipants); const calculatedIds = participantSheet.getLastRow() < 3 ? '' : participantSheet.getRange(3,1,participantSheet.getLastRow()-2,3).getValues().filter(function(r){return String(r[0])===c.id;}).map(function(r){return String(r[2]);}).sort().join('|'); return { id:c.id,rideShiftKey:shiftKey,status:c.status,employeeCount:c.employeeCount,pointCount:c.pointCount,edgeCount:c.edgeCount,originName:c.originName,originAddress:c.originAddress,originLatitude:c.originLatitude,originLongitude:c.originLongitude,requestedAt:c.requestedAt,completedAt:c.completedAt,durationMs:c.durationMs,error:c.error,errorType:c.errorType,isCurrent:activeIds === calculatedIds }; }
+function getTatooineRideRouteCalculationFromState_(p, auth, shiftKey, requestRows, knownUser) {
+  const user = knownUser || requireTatooinePermission_(auth, 'rides.optimize');
+  if (!hasTatooinePermission_(user, 'rides.optimize')) throw new Error('Нет доступа.');
+  const id = String(p && p.calculationId || '');
+  const rows = tatooineRouteCalculationRowsForShift_(shiftKey, id).filter(function(item) { return item.rideDate === shiftKey; });
+  const c = rows[rows.length - 1] || null;
+  if (!c) return null;
+  const activeIds = activeTatooineRideRequests_(requestRows, shiftKey).map(function(item) { return item.employeeId; }).sort().join('|');
+  const participantRows = tatooineRouteRowsForCalculation_(FOX_RECEIPTS.sheets.tatooineRouteParticipants, c.id, 3);
+  const calculatedIds = participantRows.rows.map(function(row) { return String(row[2]); }).sort().join('|');
+  return { id:c.id,rideShiftKey:shiftKey,status:c.status,employeeCount:c.employeeCount,pointCount:c.pointCount,edgeCount:c.edgeCount,originName:c.originName,originAddress:c.originAddress,originLatitude:c.originLatitude,originLongitude:c.originLongitude,requestedAt:c.requestedAt,completedAt:c.completedAt,durationMs:c.durationMs,error:c.error,errorType:c.errorType,isCurrent:activeIds === calculatedIds };
+}
+function getTatooineRideRouteCalculation_(p, auth, knownUser) {
+  const shiftKey = getCurrentRideShiftKey_();
+  const requestRows = tatooineRideRequestRowsForShift_(tatooineRideRequestSheet_(), shiftKey);
+  return getTatooineRideRouteCalculationFromState_(p || {}, auth, shiftKey, requestRows, knownUser);
+}
 function tatooineRouteRowsForCalculation_(sheetName, calculationId, columnCount) {
   const sh = tatooineRouteSheet_(sheetName);
   const matches = sh.createTextFinder(String(calculationId)).matchEntireCell(true).findAll();
@@ -3165,10 +3224,11 @@ function tatooineRouteRowsForCalculation_(sheetName, calculationId, columnCount)
     .filter(function(row) { return String(row[0]) === String(calculationId); });
   return { rows: rows, sheetRowCount: Math.max(0, sh.getLastRow() - 2), readRowCount: lastRow - firstRow + 1 };
 }
-function getTatooineRideRouteDetails_(p, auth, diagnostics, knownCalculation) {
-  requireTatooinePermission_(auth, 'rides.optimize');
+function getTatooineRideRouteDetails_(p, auth, diagnostics, knownCalculation, knownUser) {
+  const user = knownUser || requireTatooinePermission_(auth, 'rides.optimize');
+  if (!hasTatooinePermission_(user, 'rides.optimize')) throw new Error('Нет доступа.');
   const id = requiredString_(p.calculationId, 'calculationId');
-  const c = knownCalculation && String(knownCalculation.id) === id ? knownCalculation : tatooineRouteCalculationRows_().filter(function(x) { return x.id === id; })[0];
+  const c = knownCalculation && String(knownCalculation.id) === id ? knownCalculation : tatooineRouteCalculationRowsForShift_('', id)[0];
   if (!c) throw new Error('Расчёт не найден.');
   const startedAt = Date.now();
   const participantRows = tatooineRouteRowsForCalculation_(FOX_RECEIPTS.sheets.tatooineRouteParticipants, id, 7);
@@ -3185,20 +3245,39 @@ function getTatooineRideRouteDetails_(p, auth, diagnostics, knownCalculation) {
     diagnostics.edgesRowsRead = edgeRows.readRowCount;
   }
   return {
-    calculation: knownCalculation || getTatooineRideRouteCalculation_({ calculationId: id }, auth),
+    calculation: knownCalculation || getTatooineRideRouteCalculation_({ calculationId: id }, auth, user),
     participants: participantRows.rows.map(function(r) { return { pointId:r[1], employeeId:r[2], name:r[3], address:r[4], latitude:r[5], longitude:r[6] }; }),
     edges: edgeRows.rows.map(function(r) { return { fromId:r[1], toId:r[2], distanceMeters:r[3]===''?null:Number(r[3]), durationSeconds:r[4]===''?null:Number(r[4]), status:r[5] }; })
   };
 }
 
-function tatooineOptimizationRows_() { const sh=tatooineRouteSheet_(FOX_RECEIPTS.sheets.tatooineRideOptimizations); return sh.getLastRow()<3?[]:sh.getRange(3,1,sh.getLastRow()-2,FOX_RECEIPT_HEADERS.tatooineRideOptimizations.length).getValues().map(function(r,i){return {row:i+3,id:String(r[0]||''),routeCalculationId:String(r[1]||''),rideDate:normalizeTatooineRideDate_(r[2]),resultJson:String(r[10]||'')};}).filter(function(x){return x.id;}); }
-function getTatooineRideOptimization_(auth) { requireTatooinePermission_(auth,'rides.optimize'); const current=getTatooineRideRouteCalculation_({},auth); if(!current)return {state:'not_calculated'}; if(current.status!=='READY'||current.isCurrent===false)return {state:'stale',routeCalculationId:current.id}; const rows=tatooineOptimizationRows_().filter(function(x){return x.routeCalculationId===current.id;}); if(!rows.length)return {state:'not_calculated',routeCalculationId:current.id}; try{return {state:'ready',result:JSON.parse(rows[rows.length-1].resultJson)};}catch(_){return {state:'error'};} }
+function getTatooineOptimizationRowForCalculation_(calculationId) {
+  const sh = tatooineRouteSheet_(FOX_RECEIPTS.sheets.tatooineRideOptimizations);
+  if (sh.getLastRow() < 3) return null;
+  const matches = sh.getRange(3, 2, sh.getLastRow() - 2, 1).createTextFinder(String(calculationId)).matchEntireCell(true).findAll();
+  if (!matches.length) return null;
+  const row = matches.map(function(match) { return match.getRow(); }).sort(function(a, b) { return a - b; }).pop();
+  const values = sh.getRange(row, 1, 1, FOX_RECEIPT_HEADERS.tatooineRideOptimizations.length).getValues()[0];
+  return { row:row,id:String(values[0]||''),routeCalculationId:String(values[1]||''),rideDate:normalizeTatooineRideDate_(values[2]),resultJson:String(values[10]||'') };
+}
+function getTatooineRideOptimizationFromCalculation_(current) {
+  if (!current) return { state: 'not_calculated' };
+  if (current.status !== 'READY' || current.isCurrent === false) return { state:'stale', routeCalculationId:current.id };
+  const row = getTatooineOptimizationRowForCalculation_(current.id);
+  if (!row) return { state:'not_calculated', routeCalculationId:current.id };
+  try { return { state:'ready', result:JSON.parse(row.resultJson) }; }
+  catch (_) { return { state:'error' }; }
+}
+function getTatooineRideOptimization_(auth) {
+  const user = requireTatooinePermission_(auth, 'rides.optimize');
+  return getTatooineRideOptimizationFromCalculation_(getTatooineRideRouteCalculation_({}, auth, user));
+}
 function optimizeTatooineRide_(auth, options) {
-  requireTatooinePermission_(auth, 'rides.optimize');
+  const user = requireTatooinePermission_(auth, 'rides.optimize');
   const startedAt = Date.now();
   const timings = { authMs: Number(options && options.authMs) || 0 };
   let mark = Date.now();
-  const current = getTatooineRideRouteCalculation_({}, auth);
+  const current = getTatooineRideRouteCalculation_({}, auth, user);
   timings.currentCalculationLookupMs = Date.now() - mark;
   mark = Date.now();
   if (!current || current.status !== 'READY') throw new Error('Сначала рассчитайте маршруты.');
@@ -3206,7 +3285,7 @@ function optimizeTatooineRide_(auth, options) {
   timings.currentStateValidationMs = Date.now() - mark;
   mark = Date.now();
   const operational = {};
-  const details = getTatooineRideRouteDetails_({ calculationId: current.id }, auth, operational, current);
+  const details = getTatooineRideRouteDetails_({ calculationId: current.id }, auth, operational, current, user);
   timings.routeDetailsTotalMs = Date.now() - mark;
   const participants = (details.participants || []).map(function(p) { return { employeeId: p.employeeId, employeeName: p.name, pointId: p.pointId }; });
   const matrix = { edges: details.edges || [] };
@@ -3242,6 +3321,71 @@ function optimizeTatooineRide_(auth, options) {
   timings.totalMs = Date.now() - startedAt;
   result.diagnostics = diagnostics;
   console.log(JSON.stringify({ event: 'tatooine_ride_optimization', diagnostics: diagnostics }));
+  return result;
+}
+
+function getTatooineRideBootstrap_(auth) {
+  const startedAt = Date.now();
+  const timings = {};
+  let mark = Date.now();
+  const userSheet = tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, true);
+  const users = tatooineUserRows_(userSheet);
+  const user = getTatooineCurrentUserFromRows_(auth, userSheet, users, true);
+  const byId = {};
+  users.forEach(function(item) { byId[item.userId] = item; });
+  timings.userDirectoryMs = Date.now() - mark;
+
+  mark = Date.now();
+  const shiftKey = getCurrentRideShiftKey_();
+  const requestSheet = tatooineRideRequestSheet_();
+  const requestRows = tatooineRideRequestRowsForShift_(requestSheet, shiftKey);
+  const activeRequests = activeTatooineRideRequests_(requestRows, shiftKey);
+  timings.currentRideRequestsMs = Date.now() - mark;
+
+  const employee = byId[user.id] || null;
+  if (!employee) throw new Error('Сотрудник не найден.');
+  const ownRequest = activeRequests.filter(function(item) { return item.employeeId === user.id; })[0] || null;
+  const result = {
+    user: user,
+    rideShiftKey: shiftKey,
+    myRide: { rideDate:shiftKey,address:tatooinePublicHomeAddress_(employee),needsRide:Boolean(ownRequest),request:ownRequest ? { confirmedAt:ownRequest.confirmedAt,cancelledAt:ownRequest.cancelledAt } : null },
+    managerItems: null,
+    addressItems: null,
+    routeCalculation: null,
+    optimization: null
+  };
+
+  if (hasTatooinePermission_(user, 'rides.view_all')) {
+    result.managerItems = activeRequests.map(function(request) {
+      const item = byId[request.employeeId];
+      if (!item || !item.homeAddressText) return null;
+      return { employeeId:item.userId,name:item.name,address:tatooinePublicHomeAddress_(item),requestedByEmployee:request.createdByUserId === item.userId,updatedByUserId:request.updatedByUserId,confirmedAt:request.confirmedAt };
+    }).filter(Boolean);
+  }
+  if (hasTatooinePermission_(user, 'rides.manage_addresses')) {
+    result.addressItems = users.map(function(item) { return { id:item.userId,name:item.name,address:tatooinePublicHomeAddress_(item) }; });
+  }
+  if (hasTatooinePermission_(user, 'rides.optimize')) {
+    mark = Date.now();
+    result.routeCalculation = getTatooineRideRouteCalculationFromState_({}, auth, shiftKey, requestRows, user);
+    timings.routeCalculationMs = Date.now() - mark;
+    mark = Date.now();
+    result.optimization = getTatooineRideOptimizationFromCalculation_(result.routeCalculation);
+    timings.optimizationMs = Date.now() - mark;
+  }
+
+  timings.totalMs = Date.now() - startedAt;
+  const diagnostics = {
+    event: 'tatooine_ride_bootstrap',
+    role: user.role,
+    userSheetRowCount: Math.max(0, userSheet.getLastRow() - 2),
+    rideRequestSheetRowCount: Math.max(0, requestSheet.getLastRow() - 2),
+    rideRequestRowsRead: requestRows.length,
+    activeRideCount: activeRequests.length,
+    payloadBytes: JSON.stringify(result).length,
+    timings: timings
+  };
+  console.log(JSON.stringify(diagnostics));
   return result;
 }
 
