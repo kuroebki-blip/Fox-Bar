@@ -1,6 +1,6 @@
 # FO’X — состояние проекта
 
-Актуально на 22 августа 2026 года.
+Актуально на 27 августа 2026 года.
 
 ## Архитектура
 
@@ -16,9 +16,9 @@
 
 | Компонент | Версия | Статус | Основание |
 | --- | --- | --- | --- |
-| FO’X frontend | `v15.14.4` | опубликован в `main` | commit `c3c3b49` |
+| FO’X frontend | `v15.14.9 CASH GEMINI RESILIENCE` | опубликован из `main` | commit `87a4978`; GitHub Pages подтверждает отображаемую версию |
 | Tatooine frontend | `v1.8.3 TAXI PARALLEL LOAD` | опубликован в `main`; GitHub Pages обновляется из `main` | релиз параллельной загрузки раздела «Такси» |
-| Scanner/cash Apps Script | `v9.6.3 TATOOINE RIDE ORIGIN`, Apps Script version 33 | deployment обновлён и проверен `ping` | commit релиза будет добавлен после публикации; URL deployment сохранён |
+| Scanner/cash Apps Script | `v9.8.0 CASH GEMINI RESILIENCE`, Apps Script version 48 | deployment обновлён и проверен `ping` | прежний Web App URL и deployment ID сохранены; живой OCR-тест остаётся отдельным пунктом |
 | Banquets Apps Script | неизвестно | требует подтверждения пользователя и проверки deployment | исходника production нет в `main` |
 | Google Sheets | неизвестно | требует подтверждения пользователя | таблицы и Script Properties не хранятся в Git |
 
@@ -41,8 +41,8 @@ Tatooine `v1.8.3` устраняет Apps Script waterfall в разделе «�
 ## Проверка
 
 - Автоматические тесты RBAC-релиза: 36/36; lint и syntax-check прошли по commit `227fe73`.
-- Публичные GitHub Pages версии FO’X `v15.14.4` и Tatooine `v1.8.3` публикуются из `main`; живой Telegram-тест остаётся отдельным пунктом.
-- Публичный backend после обновления deployment version 33 ответил на `ping`.
+- Публичные GitHub Pages версии FO’X `v15.14.9` и Tatooine публикуются из `main`; живой Telegram-тест остаётся отдельным пунктом.
+- Публичный scanner/cash backend после обновления deployment version 48 ответил на `ping` как `v9.8.0 CASH GEMINI RESILIENCE`.
 - Живой пользовательский тест точности OCR и отправки в Telegram для текущего montage-релиза не подтверждён.
 - Живой тест банкетов и формул Google Sheets после текущего frontend-релиза не подтверждён.
 
