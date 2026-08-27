@@ -1,5 +1,5 @@
 /**
- * FO’X — документы, чеки, банкетный резерв и кассовый отчёт v9.6.2
+ * FO’X — документы, чеки, банкетный резерв и кассовый отчёт v9.8.0
  *
  * Назначение:
  * 1. Принимает облегчённые JPEG-страницы для быстрого распознавания.
@@ -16,7 +16,7 @@
  */
 
 const FOX_RECEIPTS = {
-  version: 'v9.7.9 TATOOINE RIDE PERFORMANCE',
+  version: 'v9.8.0 CASH GEMINI RESILIENCE',
 
   stockSheets: [
     'Вино',
@@ -82,6 +82,13 @@ const FOX_RECEIPTS = {
 
   messageDocumentType: 'Счёт на оплату',
   defaultGeminiModel: 'gemini-3.1-flash-lite',
+  geminiCashRetry: {
+    maxAttempts: 5,
+    fallbackMaxAttempts: 2,
+    baseDelayMs: 1000,
+    maxDelayMs: 8000,
+    maxRetryAfterMs: 15000
+  },
   maxPdfBytes: 15 * 1024 * 1024,
   maxAuthAgeSeconds: 24 * 60 * 60
 };
@@ -1483,7 +1490,13 @@ function scanCashReport_(p, auth) {
   updateJob_(jobId, { status: 'PROCESSING', step: 'Передаю PDF напрямую в Gemini без сохранения', progress: 0.18, error: '' });
   SpreadsheetApp.flush();
 
-  const raw = recognizeCashReportWithGemini_(pdfBase64, pagesCount, auth && auth.venue);
+  let raw;
+  try {
+    raw = recognizeCashReportWithGemini_(pdfBase64, pagesCount, auth && auth.venue, jobId);
+  } catch (error) {
+    logGeminiAttempt_('cash_report_failed', { category:String(error && error.geminiCategory || 'response'), status:Number(error && error.geminiStatus) || 0, model:String(error && error.geminiModel || ''), message:errorText_(error) });
+    throw new Error(cashReportGeminiUserError_(error));
+  }
   const result = sanitizeCashReportResult_(raw, pagesCount);
   result.jobId = jobId;
 
@@ -1506,7 +1519,13 @@ function scanCashReportImages_(p, auth) {
   createCashReportJob_(jobId, auth, pagesCount);
   updateJob_(jobId, { status:'PROCESSING', step:'Распознаю фотографии кассового отчёта напрямую', progress:0.18, error:'' });
   SpreadsheetApp.flush();
-  const raw = recognizeCashReportWithGemini_(images, pagesCount, auth && auth.venue);
+  let raw;
+  try {
+    raw = recognizeCashReportWithGemini_(images, pagesCount, auth && auth.venue, jobId);
+  } catch (error) {
+    logGeminiAttempt_('cash_report_failed', { category:String(error && error.geminiCategory || 'response'), status:Number(error && error.geminiStatus) || 0, model:String(error && error.geminiModel || ''), message:errorText_(error) });
+    throw new Error(cashReportGeminiUserError_(error));
+  }
   const result = sanitizeCashReportResult_(raw, pagesCount);
   result.jobId = jobId;
   updateJob_(jobId, { status:'DONE', step:'Проверь суммы и сверку терминалов', progress:1, resultJson:JSON.stringify(result), pdfFileId:'', pdfUrl:'', error:'' });
@@ -1538,7 +1557,7 @@ function failCashReportJob_(jobId, message) {
   updateJob_(jobId, { status: 'ERROR', step: 'Ошибка распознавания кассового отчёта', progress: 1, error: message });
 }
 
-function recognizeCashReportWithGemini_(pdfBase64, pagesCount, venue) {
+function recognizeCashReportWithGemini_(pdfBase64, pagesCount, venue, jobId) {
   const props = PropertiesService.getScriptProperties();
   const apiKey = props.getProperty('GEMINI_API_KEY');
   if (!apiKey) throw new Error('В Script Properties не задан GEMINI_API_KEY.');
@@ -1700,18 +1719,18 @@ function recognizeCashReportWithGemini_(pdfBase64, pagesCount, venue) {
   const body = { contents: [{ role: 'user', parts: parts }], generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0.1, maxOutputTokens: 4096 } };
   let primary;
   try {
-    primary = parseGeminiJsonResult_(callGeminiGenerateContent_(apiKey, model, body).text);
+    primary = parseGeminiJsonResult_(callCashReportGemini_(apiKey, model, body, jobId, 'основной анализ').text);
   } catch (firstError) {
     if (!/INVALID_ARGUMENT|invalid argument|HTTP 400/i.test(errorText_(firstError))) throw firstError;
     const fallback = { contents: [{ role: 'user', parts: parts }], generationConfig: { responseMimeType: 'application/json', temperature: 0.1, maxOutputTokens: 4096 } };
-    primary = parseGeminiJsonResult_(callGeminiGenerateContent_(apiKey, model, fallback).text);
+    primary = parseGeminiJsonResult_(callCashReportGemini_(apiKey, model, fallback, jobId, 'совместимый JSON-ответ').text);
   }
 
   // Узкая повторная проверка длинного отчёта iiko запускается только при конфликте даты
   // или если сумма извлечённых платёжных строк не сходится с итогом раздела.
   if (iikoCoreNeedsVerification_(primary) || !isIikoReport041_(primary.iiko_report_code)) {
     try {
-      const verifiedIiko = recognizeIikoCoreWithGemini_(apiKey, model, mediaParts, venue);
+      const verifiedIiko = recognizeIikoCoreWithGemini_(apiKey, model, mediaParts, venue, jobId);
       primary = replaceIiko041Core_(primary, verifiedIiko);
     } catch (verifyIikoError) {
       primary.notes = [String(primary.notes || '').trim(), 'Повторная проверка iiko: ' + errorText_(verifyIikoError)].filter(Boolean).join(' | ');
@@ -1722,7 +1741,7 @@ function recognizeCashReportWithGemini_(pdfBase64, pagesCount, venue) {
   // выполняем один узкий повторный запрос только по банковским слипам.
   if (terminalSlipsNeedVerification_(primary)) {
     try {
-      const verified = recognizeTerminalSlipsWithGemini_(apiKey, model, mediaParts, venue);
+      const verified = recognizeTerminalSlipsWithGemini_(apiKey, model, mediaParts, venue, jobId);
       const chosen = chooseBetterTerminalSlipSet_(primary.terminal_slips, verified.terminal_slips, number_(primary.bank_cards));
       if (chosen && chosen.length) primary.terminal_slips = chosen;
     } catch (verifyError) {
@@ -1800,7 +1819,7 @@ function chooseBetterTerminalSlipSet_(first, second, bankCards) {
   return a.slips;
 }
 
-function recognizeTerminalSlipsWithGemini_(apiKey, model, mediaParts, venue) {
+function recognizeTerminalSlipsWithGemini_(apiKey, model, mediaParts, venue, jobId) {
   const isTatooine = normalizeTelegramVenue_(venue) === 'tatooine';
   const prompt = [
     'Распознай ТОЛЬКО маленькие банковские терминальные сводные чеки на всех переданных фотографиях кассового отчёта.',
@@ -1852,11 +1871,11 @@ function recognizeTerminalSlipsWithGemini_(apiKey, model, mediaParts, venue) {
   const parts = mediaParts.concat([{text:prompt}]);
   const body = {contents:[{role:'user',parts:parts}],generationConfig:{responseMimeType:'application/json',responseSchema:schema,temperature:0.1,maxOutputTokens:2048}};
   try {
-    return parseGeminiJsonResult_(callGeminiGenerateContent_(apiKey, model, body).text);
+    return parseGeminiJsonResult_(callCashReportGemini_(apiKey, model, body, jobId, 'проверка терминальных слипов').text);
   } catch (firstError) {
     if (!/INVALID_ARGUMENT|invalid argument|HTTP 400/i.test(errorText_(firstError))) throw firstError;
     const fallback = {contents:[{role:'user',parts:parts}],generationConfig:{responseMimeType:'application/json',temperature:0.1,maxOutputTokens:2048}};
-    return parseGeminiJsonResult_(callGeminiGenerateContent_(apiKey, model, fallback).text);
+    return parseGeminiJsonResult_(callCashReportGemini_(apiKey, model, fallback, jobId, 'совместимый JSON терминальных слипов').text);
   }
 }
 
@@ -1986,7 +2005,7 @@ function replaceIiko041Core_(primary, verified) {
   return primary;
 }
 
-function recognizeIikoCoreWithGemini_(apiKey, model, mediaParts, venue) {
+function recognizeIikoCoreWithGemini_(apiKey, model, mediaParts, venue, jobId) {
   const isTatooine = normalizeTelegramVenue_(venue) === 'tatooine';
   const prompt = [
     isTatooine
@@ -2030,11 +2049,11 @@ function recognizeIikoCoreWithGemini_(apiKey, model, mediaParts, venue) {
   const parts = mediaParts.concat([{text:prompt}]);
   const body = {contents:[{role:'user',parts:parts}],generationConfig:{responseMimeType:'application/json',responseSchema:schema,temperature:0.1,maxOutputTokens:3072}};
   try {
-    return parseGeminiJsonResult_(callGeminiGenerateContent_(apiKey, model, body).text);
+    return parseGeminiJsonResult_(callCashReportGemini_(apiKey, model, body, jobId, 'проверка отчёта iiko').text);
   } catch (firstError) {
     if (!/INVALID_ARGUMENT|invalid argument|HTTP 400/i.test(errorText_(firstError))) throw firstError;
     const fallback = {contents:[{role:'user',parts:parts}],generationConfig:{responseMimeType:'application/json',temperature:0.1,maxOutputTokens:3072}};
-    return parseGeminiJsonResult_(callGeminiGenerateContent_(apiKey, model, fallback).text);
+    return parseGeminiJsonResult_(callCashReportGemini_(apiKey, model, fallback, jobId, 'совместимый JSON отчёта iiko').text);
   }
 }
 
@@ -2448,27 +2467,167 @@ function buildGeminiResponseSchema_() {
   };
 }
 
-function callGeminiGenerateContent_(apiKey, model, body) {
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent';
-  const response = UrlFetchApp.fetch(url, {
-    method: 'post',
-    headers: {'x-goog-api-key': apiKey},
-    contentType: 'application/json',
-    payload: JSON.stringify(body),
-    muteHttpExceptions: true
-  });
-  const status = response.getResponseCode();
-  const raw = response.getContentText();
-  const data = parseJsonSafe_(raw);
-  if (status < 200 || status >= 300) {
-    const err = data && data.error ? data.error : {};
-    const details = err.details ? ' details=' + JSON.stringify(err.details).slice(0, 1200) : '';
-    throw new Error('Gemini API HTTP ' + status + ' ' + (err.status || '') + ': ' + (err.message || raw.slice(0, 800)) + details);
+function isGeminiRetryableHttpStatus_(status) {
+  return [429, 500, 502, 503, 504].indexOf(Number(status)) >= 0;
+}
+
+function geminiRetryAfterMs_(headers) {
+  headers = headers || {};
+  const key = Object.keys(headers).find(function(name) { return String(name).toLowerCase() === 'retry-after'; });
+  if (!key) return 0;
+  const value = String(headers[key] || '').trim();
+  if (!value) return 0;
+  if (/^\d+(?:\.\d+)?$/.test(value)) return Math.max(0, Math.round(Number(value) * 1000));
+  const parsed = Date.parse(value);
+  return isNaN(parsed) ? 0 : Math.max(0, parsed - Date.now());
+}
+
+function geminiRetryDelayMs_(retryNumber, retryAfterMs, random) {
+  const settings = FOX_RECEIPTS.geminiCashRetry;
+  const retry = Math.max(1, Number(retryNumber) || 1);
+  const exponential = Math.min(settings.maxDelayMs, settings.baseDelayMs * Math.pow(2, retry - 1));
+  const retryAfter = Math.min(settings.maxRetryAfterMs, Math.max(0, Number(retryAfterMs) || 0));
+  const jitter = Math.floor((typeof random === 'function' ? random() : Math.random()) * 250);
+  return Math.max(exponential, retryAfter) + jitter;
+}
+
+function geminiErrorCategory_(status, network) {
+  if (network) return 'network';
+  if (isGeminiRetryableHttpStatus_(status)) return 'temporary';
+  if ([401, 403].indexOf(Number(status)) >= 0) return 'configuration';
+  if ([400, 404, 422].indexOf(Number(status)) >= 0) return 'request';
+  return 'response';
+}
+
+function geminiRequestError_(info) {
+  info = info || {};
+  const status = Number(info.status) || 0;
+  const category = geminiErrorCategory_(status, Boolean(info.network));
+  const message = info.network
+    ? 'Gemini API network error: ' + String(info.message || 'network unavailable')
+    : 'Gemini API HTTP ' + status + ' ' + String(info.errorStatus || '') + ': ' + String(info.message || 'empty error response');
+  const error = new Error(message);
+  error.geminiCategory = category;
+  error.geminiRetryable = category === 'temporary' || category === 'network';
+  error.geminiStatus = status;
+  error.geminiModel = String(info.model || '');
+  return error;
+}
+
+function cashReportGeminiUserError_(error) {
+  const category = String(error && (error.geminiCategory || error.category) || 'response');
+  if (category === 'temporary') return 'Не удалось обработать отчёт. Сервис распознавания временно недоступен. Попробуйте ещё раз.';
+  if (category === 'network') return 'Не удалось связаться с сервисом распознавания. Проверьте соединение и попробуйте ещё раз.';
+  if (category === 'configuration') return 'Сервис распознавания настроен некорректно. Обратитесь к администратору.';
+  if (category === 'request') return 'Не удалось обработать отчёт. Проверьте фотографии и попробуйте ещё раз.';
+  return 'Не удалось обработать отчёт. Попробуйте ещё раз.';
+}
+
+function logGeminiAttempt_(event, details) {
+  const safe = Object.assign({ event: event, service: 'gemini' }, details || {});
+  delete safe.apiKey;
+  delete safe.payload;
+  delete safe.response;
+  console.log(JSON.stringify(safe));
+}
+
+function updateCashReportGeminiRetryStatus_(jobId, details) {
+  if (!jobId) return;
+  details = details || {};
+  const step = details.fallback
+    ? 'Сервис распознавания временно занят. Пробуем резервную модель…'
+    : 'Сервис распознавания временно занят. Повторная попытка ' + details.nextAttempt + ' из ' + details.maxAttempts + '…';
+  try {
+    updateJob_(jobId, { status:'PROCESSING', step:step, progress:0.2, error:'' });
+  } catch (error) {
+    logGeminiAttempt_('cash_report_retry_status_failed', { category:'internal', message:errorText_(error) });
   }
-  const parts = data && data.candidates && data.candidates[0] && data.candidates[0].content ? data.candidates[0].content.parts || [] : [];
-  const text = parts.map(function(part){ return part.text || ''; }).join('').trim();
-  if (!text) throw new Error('Gemini не вернул текст результата. Ответ: ' + raw.slice(0, 800));
-  return { text: text, data: data };
+}
+
+function configuredCashReportFallbackModel_(primaryModel) {
+  const fallback = normalizeGeminiModel_(PropertiesService.getScriptProperties().getProperty('GEMINI_CASH_FALLBACK_MODEL') || '');
+  return fallback && fallback !== String(primaryModel || '') ? fallback : '';
+}
+
+function callCashReportGemini_(apiKey, primaryModel, body, jobId, phase) {
+  const settings = FOX_RECEIPTS.geminiCashRetry;
+  const started = Date.now();
+  let fallbackUsed = false;
+  try {
+    try {
+      return callGeminiGenerateContent_(apiKey, primaryModel, body, {
+        maxAttempts: settings.maxAttempts,
+        operation: 'cash_report',
+        phase: phase,
+        onRetry: function(details) { updateCashReportGeminiRetryStatus_(jobId, details); }
+      });
+    } catch (primaryError) {
+      const fallbackModel = configuredCashReportFallbackModel_(primaryModel);
+      if (!primaryError || !primaryError.geminiRetryable || !fallbackModel) throw primaryError;
+      fallbackUsed = true;
+      updateCashReportGeminiRetryStatus_(jobId, { fallback:true });
+      logGeminiAttempt_('cash_report_fallback_started', { primaryModel:String(primaryModel), fallbackModel:fallbackModel, phase:String(phase || ''), status:primaryError.geminiStatus || 0 });
+      return callGeminiGenerateContent_(apiKey, fallbackModel, body, {
+        maxAttempts: settings.fallbackMaxAttempts,
+        operation: 'cash_report',
+        phase: phase,
+        fallback: true,
+        onRetry: function(details) { updateCashReportGeminiRetryStatus_(jobId, details); }
+      });
+    }
+  } finally {
+    logGeminiAttempt_('cash_report_gemini_finished', { phase:String(phase || ''), fallbackUsed:fallbackUsed, totalMs:Date.now() - started });
+  }
+}
+
+function callGeminiGenerateContent_(apiKey, model, body, options) {
+  options = options || {};
+  const maxAttempts = Math.max(1, Number(options.maxAttempts) || 1);
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent';
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const started = Date.now();
+    let response;
+    try {
+      response = UrlFetchApp.fetch(url, {
+        method: 'post',
+        headers: {'x-goog-api-key': apiKey},
+        contentType: 'application/json',
+        payload: JSON.stringify(body),
+        muteHttpExceptions: true
+      });
+    } catch (networkError) {
+      const error = geminiRequestError_({ network:true, model:model, message:errorText_(networkError) });
+      const durationMs = Date.now() - started;
+      logGeminiAttempt_('gemini_attempt', { model:String(model), attempt:attempt, maxAttempts:maxAttempts, category:error.geminiCategory, status:0, durationMs:durationMs, operation:options.operation || '', fallback:Boolean(options.fallback) });
+      if (attempt >= maxAttempts) throw error;
+      const delayMs = geminiRetryDelayMs_(attempt, 0);
+      if (typeof options.onRetry === 'function') options.onRetry({ nextAttempt:attempt + 1, maxAttempts:maxAttempts, delayMs:delayMs, category:error.geminiCategory, status:0, fallback:Boolean(options.fallback) });
+      Utilities.sleep(delayMs);
+      continue;
+    }
+
+    const status = response.getResponseCode();
+    const raw = response.getContentText();
+    const data = parseJsonSafe_(raw);
+    const durationMs = Date.now() - started;
+    if (status >= 200 && status < 300) {
+      const parts = data && data.candidates && data.candidates[0] && data.candidates[0].content ? data.candidates[0].content.parts || [] : [];
+      const text = parts.map(function(part){ return part.text || ''; }).join('').trim();
+      if (!text) throw new Error('Gemini не вернул текст результата. Ответ: ' + raw.slice(0, 800));
+      logGeminiAttempt_('gemini_attempt', { model:String(model), attempt:attempt, maxAttempts:maxAttempts, category:'success', status:status, durationMs:durationMs, operation:options.operation || '', fallback:Boolean(options.fallback) });
+      return { text: text, data: data, meta:{ model:String(model), attempt:attempt, durationMs:durationMs, fallback:Boolean(options.fallback) } };
+    }
+
+    const err = data && data.error ? data.error : {};
+    const error = geminiRequestError_({ status:status, errorStatus:err.status, message:err.message || raw.slice(0, 800), model:model });
+    const retryAfterMs = geminiRetryAfterMs_(response.getHeaders ? response.getHeaders() : {});
+    logGeminiAttempt_('gemini_attempt', { model:String(model), attempt:attempt, maxAttempts:maxAttempts, category:error.geminiCategory, status:status, durationMs:durationMs, retryAfterMs:retryAfterMs, operation:options.operation || '', fallback:Boolean(options.fallback) });
+    if (!error.geminiRetryable || attempt >= maxAttempts) throw error;
+    const delayMs = geminiRetryDelayMs_(attempt, retryAfterMs);
+    if (typeof options.onRetry === 'function') options.onRetry({ nextAttempt:attempt + 1, maxAttempts:maxAttempts, delayMs:delayMs, category:error.geminiCategory, status:status, fallback:Boolean(options.fallback) });
+    Utilities.sleep(delayMs);
+  }
+  throw new Error('Gemini не выполнил запрос.');
 }
 
 function parseGeminiJsonResult_(text) {

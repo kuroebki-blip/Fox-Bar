@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.14.8 — SCHEDULE SAVE FEEDBACK</title>
+<title>FO'X App v15.14.9 — CASH GEMINI RESILIENCE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -882,6 +882,7 @@ body.mode-cash-report #backBtn{display:inline-flex}
     <div class="cash-actions">
       <button class="cash-danger" id="cashReportReset" type="button">Очистить</button>
       <button class="cash-primary" id="cashReportRecognize" type="button" disabled>Распознать кассовый отчёт</button>
+      <button class="cash-primary" id="cashReportRetry" type="button" hidden>Повторить</button>
     </div>
     <div class="cash-summary" id="cashReportPageSummary">Фотографий пока нет.</div>
   </div>
@@ -3328,6 +3329,8 @@ let cashReportResult=null;
 let cashReportTerminalSlips=[];
 let cashReportPrepayments=[];
 let cashReportPollingToken=0;
+let cashReportRecognitionInFlight=false;
+const CASH_REPORT_RECOGNITION_MAX_WAIT_MS=45000;
 
 function openCashReportSection(){
   if(!isStockApiConfigured()){
@@ -3344,6 +3347,16 @@ function setCashReportStatus(type,text,progress){
   el.innerHTML=(showText?escapeHtml(text||''):'')+'<div class="cash-progress"><i id="cashReportProgress"></i></div>';
   const p=document.getElementById('cashReportProgress');if(p)p.style.width=Math.round(value*100)+'%';
 }
+function setCashReportRetryVisible_(visible){
+  const retry=document.getElementById('cashReportRetry');
+  if(retry)retry.hidden=!visible;
+}
+function cashReportUserErrorMessage_(error){
+  const text=String(error&&error.message?error.message:error||'');
+  if(/Сервис распознавания временно недоступен|Gemini API HTTP\s+(?:429|500|502|503|504)|UNAVAILABLE|RESOURCE_EXHAUSTED/i.test(text))return 'Не удалось обработать отчёт. Сервис распознавания временно недоступен. Попробуйте ещё раз.';
+  if(/network|failed to fetch|соединени|интернет|не удалось передать/i.test(text))return 'Не удалось передать отчёт. Проверьте соединение и нажмите «Повторить».';
+  return text||'Не удалось обработать отчёт. Попробуйте ещё раз.';
+}
 async function appendCashReportFiles(files){
   files=Array.from(files||[]).filter(file=>String(file.type||'').startsWith('image/'));
   if(!files.length)return;
@@ -3356,7 +3369,7 @@ async function appendCashReportFiles(files){
   }catch(err){setCashReportStatus('err',String(err&&err.message?err.message:err),0);}
 }
 function renderCashReportPages(){
-  const root=document.getElementById('cashReportPages');const summary=document.getElementById('cashReportPageSummary');const btn=document.getElementById('cashReportRecognize');
+  const root=document.getElementById('cashReportPages');const summary=document.getElementById('cashReportPageSummary');const btn=document.getElementById('cashReportRecognize');const retry=document.getElementById('cashReportRetry');
   if(!root)return;root.innerHTML='';
   cashReportPages.forEach((p,i)=>{
     const card=document.createElement('div');card.className='cash-page';
@@ -3368,7 +3381,8 @@ function renderCashReportPages(){
     root.appendChild(card);
   });
   if(summary)summary.textContent=cashReportPages.length?('Фотографий: '+cashReportPages.length+'. Можно распознавать.'):'Фотографий пока нет.';
-  if(btn)btn.disabled=!cashReportPages.length;
+  if(btn)btn.disabled=!cashReportPages.length||cashReportRecognitionInFlight;
+  if(retry)retry.disabled=!cashReportPages.length||cashReportRecognitionInFlight;
 }
 function moveCashReportPage(index,delta){const to=index+delta;if(to<0||to>=cashReportPages.length)return;const p=cashReportPages[index];cashReportPages[index]=cashReportPages[to];cashReportPages[to]=p;invalidateCashReportRecognition_();renderCashReportPages();hap('sel');}
 async function rotateCashReportPage(index){
@@ -3385,6 +3399,7 @@ function invalidateCashReportRecognition_(){
   cashReportPollingToken++;
   cashReportPdfBlob=null;cashReportJobId='';cashReportResult=null;
   const card=document.getElementById('cashReportResultCard');if(card)card.hidden=true;
+  setCashReportRetryVisible_(false);
   resetCashReportSendButton_();
 }
 function resetCashReport(){
@@ -3399,10 +3414,13 @@ async function buildCashReportPdf(){
   const blob=new Blob([doc.output('arraybuffer')],{type:'application/pdf'});await assertReceiptPdfBlob(blob);return blob;
 }
 async function startCashReportRecognition(){
+  if(cashReportRecognitionInFlight)return;
   if(!isStockApiConfigured()){setCashReportStatus('warn','Backend сканера не подключён.',0);return;}
   if(!cashReportPages.length){setCashReportStatus('warn','Добавь хотя бы одно фото.',0);return;}
   try{assertOcrPageCount_(cashReportPages.length);}catch(err){setCashReportStatus('warn',String(err.message||err),0);return;}
-  const btn=document.getElementById('cashReportRecognize');btn.disabled=true;
+  const btn=document.getElementById('cashReportRecognize');const retry=document.getElementById('cashReportRetry');
+  cashReportRecognitionInFlight=true;
+  btn.disabled=true;if(retry)retry.disabled=true;setCashReportRetryVisible_(false);
   try{
     const pagesSnapshot=cashReportPages.map(page=>Object.assign({},page));
     invalidateCashReportRecognition_();
@@ -3412,13 +3430,13 @@ async function startCashReportRecognition(){
     const activeJobId=cashReportJobId;
     document.getElementById('cashReportResultCard').hidden=true;resetCashReportSendButton_();
     setCashReportStatus('', 'Передаю фотографии напрямую в Gemini без PDF…',.15);
-    postReceipt({action:'cashReportScanImages',jobId:activeJobId,pagesCount:pagesSnapshot.length,imagesJson:JSON.stringify(images)}).catch(()=>{});
-    const status=await pollCashReportJob(activeJobId,['DONE','ERROR'],210000);
+    await postReceipt({action:'cashReportScanImages',jobId:activeJobId,pagesCount:pagesSnapshot.length,imagesJson:JSON.stringify(images)});
+    const status=await pollCashReportJob(activeJobId,['DONE','ERROR'],CASH_REPORT_RECOGNITION_MAX_WAIT_MS);
     if(status.status==='ERROR')throw new Error(status.error||'Ошибка распознавания');
     if(cashReportJobId!==activeJobId)throw new Error('Операция отменена.');
     cashReportResult=status.result||{};renderCashReportResult(cashReportResult);setCashReportStatus('ok','Отчёт распознан. Проверь суммы и сверку терминалов.',1);hap('ok');
-  }catch(err){setCashReportStatus('err',String(err&&err.message?err.message:err),1);}
-  finally{btn.disabled=!cashReportPages.length;}
+  }catch(err){setCashReportStatus('err',cashReportUserErrorMessage_(err),1);setCashReportRetryVisible_(cashReportPages.length>0);}
+  finally{cashReportRecognitionInFlight=false;btn.disabled=!cashReportPages.length;if(retry)retry.disabled=!cashReportPages.length;}
 }
 async function pollCashReportJob(jobId,finalStatuses,maxMs){
   const token=++cashReportPollingToken;const started=Date.now();let notFound=0;
@@ -3426,7 +3444,7 @@ async function pollCashReportJob(jobId,finalStatuses,maxMs){
     if(token!==cashReportPollingToken)throw new Error('Операция отменена.');
     try{
       const res=await jsonp(STOCK_API_URL,Object.assign({action:'status',jobId},receiptAuthParams()));
-      if(res&&res.ok){setCashReportStatus(res.status==='ERROR'||res.status==='SEND_ERROR'?'err':'',res.step||'Обработка…',Number(res.progress)||.2);if(finalStatuses.includes(res.status))return res;}
+      if(res&&res.ok){const retrying=res.status==='PROCESSING'&&/Сервис распознавания временно занят|Повторная попытка|резервную модель/i.test(String(res.step||''));setCashReportStatus(res.status==='ERROR'||res.status==='SEND_ERROR'?'err':(retrying?'warn':''),res.step||'Обработка…',Number(res.progress)||.2);if(finalStatuses.includes(res.status))return res;}
       else{notFound++;if(notFound>12&&res&&res.error&&!String(res.error).includes('не найден'))throw new Error(res.error);}
     }catch(err){if(Date.now()-started>30000&&!String(err&&err.message||err).includes('timeout'))throw err;}
     await new Promise(resolve=>setTimeout(resolve,2200));
@@ -3539,6 +3557,7 @@ const cashCameraFallback=document.getElementById('cashReportCameraFallback');if(
 const cashGallery=document.getElementById('cashReportGallery');if(cashGallery)cashGallery.addEventListener('change',async()=>{const files=Array.from(cashGallery.files||[]);cashGallery.value='';await appendCashReportFiles(files);});
 document.getElementById('cashReportReset').addEventListener('click',()=>{if(cashReportPages.length&&!confirm('Удалить фотографии кассового отчёта?'))return;resetCashReport();});
 document.getElementById('cashReportRecognize').addEventListener('click',startCashReportRecognition);
+const cashReportRetry=document.getElementById('cashReportRetry');if(cashReportRetry)cashReportRetry.addEventListener('click',startCashReportRecognition);
 document.getElementById('cashReportAddSlip').addEventListener('click',addCashTerminalSlip);
 document.getElementById('cashReportAddPrepayment').addEventListener('click',addCashPrepayment);
 document.getElementById('cashReportSend').addEventListener('click',sendCashReportToTelegram);
