@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.15.1 — SCHEDULE SAVE FAST</title>
+<title>FO'X App v15.15.2 — SCHEDULE SAVE RELIABLE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1540,8 +1540,32 @@ function renderFoxScheduleReview_(){
   root.innerHTML='<div class="banq-comment"><b>Распознанный график</b><br>Нажмите на сотрудника, чтобы увидеть дни его смен.</div><div class="fox-schedule-review">'+groups.map(function(group){
     return '<details class="fox-schedule-review-item"><summary><span>'+escapeHtml(group.name)+'</span><span class="fox-schedule-review-count">'+group.rows.length+' '+(group.rows.length===1?'смена':'смены')+'</span></summary><div class="fox-schedule-review-days">'+group.rows.map(function(row){const item=formatFoxScheduleReviewDay_(row);return '<div class="fox-schedule-review-day"><b>'+escapeHtml(item.weekday)+'</b><span>'+escapeHtml(item.shift)+'</span></div>';}).join('')+'</div></details>';
   }).join('')+'</div><button class="save-btn" id="foxScheduleSave" type="button">Подтвердить график</button>';
-  document.getElementById('foxScheduleSave').onclick=()=>saveFoxSchedule_().catch(err=>setFoxScheduleStatus_('err',String(err&&err.message||err)));
+  document.getElementById('foxScheduleSave').onclick=()=>saveFoxSchedule_().catch(()=>{});
 }
+function foxScheduleSaveRows_(){
+  // The image URL is stored once with the schedule. Repeating it in every
+  // row can make the JSONP URL too long before it reaches Apps Script.
+  return foxSchedulePreview.map(function(row){
+    return {
+      date:String(row.date||''),
+      employeeId:String(row.employeeId||''),
+      name:String(row.name||''),
+      rawValue:String(row.rawValue||''),
+      shiftType:String(row.shiftType||'')
+    };
+  });
+}
+function foxScheduleSaveChunks_(rows,maxEncodedBytes=1400){
+  const chunks=[];let chunk=[];
+  rows.forEach(function(row){
+    const candidate=chunk.concat([row]);
+    if(chunk.length&&encodeURIComponent(JSON.stringify(candidate)).length>maxEncodedBytes){chunks.push(chunk);chunk=[row];}
+    else chunk=candidate;
+  });
+  if(chunk.length)chunks.push(chunk);
+  return chunks;
+}
+function foxScheduleSaveId_(){return 'fox_schedule_'+Date.now()+'_'+Math.floor(Math.random()*1000000);}
 async function recognizeFoxSchedule_(){
   const file=document.getElementById('foxScheduleImage').files[0];
   const month=document.getElementById('foxScheduleMonth').value;
@@ -1569,10 +1593,20 @@ async function saveFoxSchedule_(){
   try{
     const month=document.getElementById('foxScheduleMonth').value;if(!month)throw new Error('Проверьте месяц графика.');
     setFoxScheduleStatus_('','Сохраняю график…');
-    const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxScheduleSave',month:month,imageUrl:foxSchedulePreview[0]&&foxSchedulePreview[0].imageUrl||'',rowsJson:JSON.stringify(foxSchedulePreview)},receiptAuthParams()),30000);
+    const rows=foxScheduleSaveRows_();
+    const chunks=foxScheduleSaveChunks_(rows),saveId=foxScheduleSaveId_();
+    for(let index=0;index<chunks.length;index++){
+      if(chunks.length>1)setFoxScheduleStatus_('','Передаю график: '+(index+1)+' из '+chunks.length+'…');
+      const staged=await jsonp(STOCK_API_URL,Object.assign({action:'foxScheduleSaveChunk',saveId:saveId,chunkIndex:String(index),chunkCount:String(chunks.length),rowsJson:JSON.stringify(chunks[index])},receiptAuthParams()),30000);
+      if(!staged||!staged.ok)throw new Error(staged&&staged.error||'Не удалось передать график.');
+    }
+    setFoxScheduleStatus_('','Сохраняю график…');
+    const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxScheduleSaveCommit',saveId:saveId,month:month,imageUrl:foxSchedulePreview[0]&&foxSchedulePreview[0].imageUrl||''},receiptAuthParams()),30000);
     if(!res||!res.ok)throw new Error(res&&res.error||'График не сохранён.');
     const savedRows=Number(res.schedule&&res.schedule.savedRows||0);foxSchedulePreview=[];renderFoxScheduleReview_();banqScheduleWorkersByDate.clear();renderBanquets();setFoxScheduleStatus_('ok','График сохранён'+(savedRows?' · '+savedRows+' смен':'')+'.');setSyncStatus('ok','График сотрудников сохранён.');
-  }catch(err){setFoxScheduleStatus_('err',String(err&&err.message||err));throw err;
+  }catch(err){
+    const message=String(err&&err.message||err);
+    setFoxScheduleStatus_('err',message==='jsonp error'?'Не удалось передать график. Проверьте соединение и повторите попытку.':message);throw err;
   }finally{foxScheduleSaveInFlight=false;if(button){button.disabled=false;button.textContent='Подтвердить график';}}
 }
 const foxScheduleRecognizeButton=document.getElementById('foxScheduleRecognize');

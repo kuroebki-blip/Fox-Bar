@@ -16,7 +16,7 @@
  */
 
 const FOX_RECEIPTS = {
-  version: 'v9.9.1 SCHEDULE SAVE FAST',
+  version: 'v9.9.2 SCHEDULE SAVE RELIABLE',
 
   stockSheets: [
     'Вино',
@@ -945,6 +945,16 @@ function doGet(e) {
     if (action === 'foxScheduleActive') {
       assertFoxScheduleManager_(auth);
       return jsonpOutput_(callback, { ok:true, schedule:getFoxScheduleForMonth_(e.parameter.month) });
+    }
+
+    if (action === 'foxScheduleSaveChunk') {
+      assertFoxScheduleManager_(auth);
+      return jsonpOutput_(callback, { ok:true, chunk:stageFoxScheduleSaveChunk_(e.parameter, auth) });
+    }
+
+    if (action === 'foxScheduleSaveCommit') {
+      assertFoxScheduleManager_(auth);
+      return jsonpOutput_(callback, { ok:true, schedule:commitFoxScheduleSave_(e.parameter, auth) });
     }
 
     if (action === 'foxScheduleSave') {
@@ -4304,6 +4314,55 @@ function foxScheduleCanManage_(auth) {
 
 function assertFoxScheduleManager_(auth) {
   if (!foxScheduleCanManage_(auth)) throw new Error('Загружать и менять график могут только admin или superadmin.');
+}
+
+const FOX_SCHEDULE_SAVE_CHUNK_TTL_SECONDS = 10 * 60;
+function foxScheduleSaveId_(value) {
+  const id = String(value || '').trim();
+  if (!/^fox_schedule_[A-Za-z0-9_-]{8,100}$/.test(id)) throw new Error('Некорректный идентификатор сохранения графика.');
+  return id;
+}
+function foxScheduleSaveCacheKey_(auth, saveId, suffix) {
+  return 'foxScheduleSave:' + String(auth.userId || '').replace(/[^A-Za-z0-9_-]/g, '_') + ':' + saveId + ':' + suffix;
+}
+function foxScheduleSaveChunkNumber_(value, label) {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 0 || number > 1000) throw new Error('Некорректный ' + label + ' части графика.');
+  return number;
+}
+function stageFoxScheduleSaveChunk_(p, auth) {
+  const saveId = foxScheduleSaveId_(p.saveId);
+  const chunkIndex = foxScheduleSaveChunkNumber_(p.chunkIndex, 'номер');
+  const chunkCount = foxScheduleSaveChunkNumber_(p.chunkCount, 'количество');
+  if (!chunkCount || chunkIndex >= chunkCount) throw new Error('Некорректная последовательность частей графика.');
+  const rows = parseJsonSafe_(String(p.rowsJson || '[]'));
+  if (!Array.isArray(rows) || !rows.length) throw new Error('Пустая часть графика.');
+  const cache = CacheService.getScriptCache();
+  const metaKey = foxScheduleSaveCacheKey_(auth, saveId, 'meta');
+  const previous = parseJsonSafe_(String(cache.get(metaKey) || '{}'));
+  if (previous.chunkCount && Number(previous.chunkCount) !== chunkCount) throw new Error('Части графика относятся к разным сохранениям.');
+  cache.put(metaKey, JSON.stringify({ chunkCount:chunkCount }), FOX_SCHEDULE_SAVE_CHUNK_TTL_SECONDS);
+  cache.put(foxScheduleSaveCacheKey_(auth, saveId, 'chunk:' + chunkIndex), JSON.stringify(rows), FOX_SCHEDULE_SAVE_CHUNK_TTL_SECONDS);
+  return { saveId:saveId, chunkIndex:chunkIndex, chunkCount:chunkCount, rows:rows.length };
+}
+function commitFoxScheduleSave_(p, auth) {
+  const saveId = foxScheduleSaveId_(p.saveId);
+  const cache = CacheService.getScriptCache();
+  const metaKey = foxScheduleSaveCacheKey_(auth, saveId, 'meta');
+  const meta = parseJsonSafe_(String(cache.get(metaKey) || '{}'));
+  const chunkCount = foxScheduleSaveChunkNumber_(meta.chunkCount, 'количество');
+  if (!chunkCount) throw new Error('Данные графика устарели. Повторите подтверждение.');
+  const rows = [];
+  for (let index = 0; index < chunkCount; index++) {
+    const chunkKey = foxScheduleSaveCacheKey_(auth, saveId, 'chunk:' + index);
+    const chunk = parseJsonSafe_(String(cache.get(chunkKey) || ''));
+    if (!Array.isArray(chunk) || !chunk.length) throw new Error('Не все части графика получены. Повторите подтверждение.');
+    Array.prototype.push.apply(rows, chunk);
+  }
+  const schedule = saveFoxSchedule_(Object.assign({}, p, { rowsJson:JSON.stringify(rows) }), auth);
+  cache.remove(metaKey);
+  for (let index = 0; index < chunkCount; index++) cache.remove(foxScheduleSaveCacheKey_(auth, saveId, 'chunk:' + index));
+  return schedule;
 }
 
 function normalizeFoxScheduleMonth_(value) {

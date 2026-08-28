@@ -47,6 +47,7 @@ function makeContext({ banquetSheet, reserveSheet }) {
   const banquetSpreadsheet = makeSpreadsheet({ 'Банкеты': banquetSheet });
   const stockSpreadsheet = makeSpreadsheet({ 'Банкеты_Резерв': reserveSheet });
   const properties = { SPREADSHEET_ID: 'stock-sheet', GEMINI_MODEL: 'gemini-test' };
+  const cache = new Map();
   return vm.createContext({
     console,
     Date,
@@ -65,6 +66,7 @@ function makeContext({ banquetSheet, reserveSheet }) {
       flush: () => {}
     },
     PropertiesService: { getScriptProperties: () => ({ getProperty: key => properties[key] || '', getProperties: () => properties }) },
+    CacheService: { getScriptCache: () => ({ get: key => cache.get(key) || null, put: (key, value) => cache.set(key, value), remove: key => cache.delete(key) }) },
     LockService: { getDocumentLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },
     Utilities: { formatDate: () => '01.01.2026', base64Encode: () => '' },
     Session: { getScriptTimeZone: () => 'Europe/Moscow' },
@@ -298,10 +300,40 @@ test('OCR графика передаёт выбранный месяц и backe
 test('подтверждение графика показывает acknowledged saving/error state', () => {
   assert.match(frontendSource, /foxScheduleSave'\)\.onclick=\(\)=>saveFoxSchedule_\(\)\.catch/);
   assert.match(frontendSource, /setFoxScheduleStatus_\('','Сохраняю график…'\)/);
-  assert.match(frontendSource, /action:'foxScheduleSave'[\s\S]*?\),30000\)/);
+  assert.match(frontendSource, /action:'foxScheduleSaveChunk'[\s\S]*?\),30000\)/);
+  assert.match(frontendSource, /action:'foxScheduleSaveCommit'[\s\S]*?\),30000\)/);
   assert.match(frontendSource, /foxScheduleSaveInFlight/);
   assert.match(frontendSource, /res\.schedule&&res\.schedule\.savedRows/);
   assert.match(frontendSource, /savedRows/);
+});
+
+test('подтверждение графика не дублирует Cloudinary URL в JSONP payload каждой смены', () => {
+  const helperStart = frontendSource.indexOf('function foxScheduleSaveRows_');
+  const helperEnd = frontendSource.indexOf('async function recognizeFoxSchedule_', helperStart);
+  const helperSource = frontendSource.slice(helperStart, helperEnd);
+  assert.match(helperSource, /date:String\(row\.date\|\|''\)/);
+  assert.match(helperSource, /shiftType:String\(row\.shiftType\|\|''\)/);
+  assert.doesNotMatch(helperSource, /imageUrl/);
+  assert.match(frontendSource, /const rows=foxScheduleSaveRows_\(\);\s*const chunks=foxScheduleSaveChunks_\(rows\)/);
+  assert.match(frontendSource, /rowsJson:JSON\.stringify\(chunks\[index\]\)/);
+  assert.match(frontendSource, /function foxScheduleSaveChunks_/);
+  assert.match(frontendSource, /maxEncodedBytes=1400/);
+  assert.match(frontendSource, /foxScheduleSave'\)\.onclick=\(\)=>saveFoxSchedule_\(\)\.catch\(\(\)=>\{\}\)/);
+  assert.match(stockSource, /function stageFoxScheduleSaveChunk_/);
+  assert.match(stockSource, /function commitFoxScheduleSave_/);
+  assert.match(stockSource, /CacheService\.getScriptCache\(\)/);
+});
+
+test('части графика подтверждённо собираются на сервере до единственного сохранения', () => {
+  const { context } = makeRuntime();
+  const auth = { userId:'1036250074' };
+  const saveId = 'fox_schedule_12345678';
+  context.stageFoxScheduleSaveChunk_({ saveId, chunkIndex:'0', chunkCount:'2', rowsJson:'[{"name":"Иван","date":"2026-08-01","rawValue":"10"}]' }, auth);
+  context.stageFoxScheduleSaveChunk_({ saveId, chunkIndex:'1', chunkCount:'2', rowsJson:'[{"name":"Анна","date":"2026-08-02","rawValue":"11"}]' }, auth);
+  context.saveFoxSchedule_ = p => ({ savedRows:JSON.parse(p.rowsJson).length, rows:JSON.parse(p.rowsJson) });
+  const result = context.commitFoxScheduleSave_({ saveId, month:'2026-08', imageUrl:'https://example.test/schedule.jpg' }, auth);
+  assert.equal(result.savedRows, 2);
+  assert.deepEqual(result.rows.map(row => row.name), ['Иван','Анна']);
 });
 
 test('подтверждение графика не перечитывает весь месяц после записи, а review сгруппирован по сотрудникам', () => {
