@@ -48,6 +48,41 @@ test('only admin and superadmin can manage the ride origin', () => {
   assert.equal(rbac.tatooinePermissionsForRole_('superadmin').includes('rides.manage_origin'), true);
 });
 
+test('FO’X calendar capabilities are role permissions, not frontend admin IDs', () => {
+  const employee = rbac.tatooinePermissionsForRole_('employee');
+  const admin = rbac.tatooinePermissionsForRole_('admin');
+  assert.ok(employee.includes('schedules.view_self'));
+  assert.ok(employee.includes('schedules.view_team'));
+  assert.ok(employee.includes('banquets.view'));
+  assert.equal(employee.includes('schedules.manage'), false);
+  assert.equal(employee.includes('banquets.manage'), false);
+  assert.ok(admin.includes('schedules.manage'));
+  assert.ok(admin.includes('banquets.manage'));
+  assert.match(backend, /function requireFoxPermission_\(auth, permission\)/);
+  assert.match(backend, /requireFoxPermission_\(auth, 'schedules\.manage'\)/);
+  assert.match(backend, /action === 'foxCurrentUser'/);
+  assert.match(backend, /action === 'foxSetRole'/);
+  assert.match(backend, /action === 'foxSetEmployeeName'/);
+  assert.match(backend, /foxEmployeeAudit/);
+});
+
+test('FO’X banquet mutations use the shared permission backend, not a client admin ID list', () => {
+  const banquetsBackend = fs.readFileSync(path.join(__dirname, '../../apps-script/banquets/production/Code.gs'), 'utf8');
+  const foxFrontend = fs.readFileSync(path.join(__dirname, '../../index.html'), 'utf8');
+  assert.ok(rbac.tatooinePermissionsForRole_('admin').includes('banquets.manage'));
+  assert.ok(rbac.tatooinePermissionsForRole_('superadmin').includes('banquets.manage'));
+  assert.equal(rbac.tatooinePermissionsForRole_('manager').includes('banquets.manage'), false);
+  assert.match(backend, /action === 'foxBanquetSave'/);
+  assert.match(backend, /action === 'foxBanquetStatus'/);
+  assert.match(backend, /action === 'foxBanquetDelete'/);
+  assert.match(backend, /requireFoxPermission_\(auth, 'banquets\.manage'\)/);
+  assert.match(banquetsBackend, /Банкетный Web App больше не принимает операции записи/);
+  assert.match(banquetsBackend, /больше не отдаёт календарь/);
+  assert.doesNotMatch(banquetsBackend, /ADMIN_TELEGRAM_IDS/);
+  assert.doesNotMatch(foxFrontend, /ADMIN_TELEGRAM_IDS/);
+  assert.doesNotMatch(foxFrontend, /BANQ_API_URL/);
+});
+
 test('backend requirePermission rejects a request without permission', () => {
   rbac.setUser({ permissions: rbac.tatooinePermissionsForRole_('employee') });
   assert.throws(() => rbac.requireTatooinePermission_({}, 'roles.manage'), /Нет доступа/);

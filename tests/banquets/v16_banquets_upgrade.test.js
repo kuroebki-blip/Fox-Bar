@@ -113,6 +113,16 @@ test('повторный POST с тем же ID обновляет банкет 
   assert.equal(banquetSheet.rows[1][3], 'Обновлён');
 });
 
+test('резервный защищённый backend возвращает тот же активный банкет для календаря', () => {
+  const { context } = makeRuntime();
+  seedBanquet(context, 'b-calendar-fallback', 'Актуально', '2026-08-28');
+  const result = context.listFoxCalendarBanquets_();
+  assert.equal(result.mediaSupported, false);
+  assert.deepEqual(JSON.parse(JSON.stringify(result.items.map(item => ({ id:item.id, date:item.date, status:item.status })))), [
+    { id:'b-calendar-fallback', date:'2026-08-28', status:'Актуально' }
+  ]);
+});
+
 test('один банкет и два банкета на одну дату сохраняют отдельный резерв', () => {
   const { context, reserveSheet } = makeRuntime();
   seedBanquet(context, 'b-one');
@@ -277,6 +287,17 @@ test('график: X игнорируется, Инв хранится отде
   assert.equal(context.normalizeFoxScheduleShiftType_('regular'), 'regular');
 });
 
+test('график не сохраняет дубль одной смены сотрудника в одной секции', () => {
+  const { context } = makeRuntime();
+  const result = context.dedupeFoxScheduleRows_([
+    { name:'Иван', date:'2026-08-28', rawValue:'11', shiftType:'regular' },
+    { name:'Иван', date:'2026-08-28', rawValue:'11', shiftType:'regular' },
+    { name:'Иван', date:'2026-08-28', rawValue:'11', shiftType:'preparation' }
+  ]);
+  assert.equal(result.length, 2);
+  assert.deepEqual(JSON.parse(JSON.stringify(result.map(row => row.shiftType))), ['regular', 'preparation']);
+});
+
 test('график не теряет смену, если OCR вернул время с двоеточием, и сохраняет исходное время как источник истины', () => {
   const { context } = makeRuntime();
   assert.deepEqual(JSON.parse(JSON.stringify(context.parseFoxScheduleShift_('10:30'))), { rawValue:'10:30', isWorking:true, shiftStart:'10:30', shiftEnd:'' });
@@ -367,10 +388,13 @@ test('части графика подтверждённо собираются 
   assert.deepEqual(result.rows.map(row => row.name), ['Иван','Анна']);
 });
 
-test('загрузка банкетов делает две короткие попытки и сохраняет последнюю общую копию', () => {
+test('загрузка банкетов делает две короткие защищённые попытки и сохраняет последнюю общую копию', () => {
   assert.match(frontendSource, /async function loadSharedBanquetList_\(\)/);
   assert.match(frontendSource, /for\(let attempt=1;attempt<=2;attempt\+\+\)/);
-  assert.match(frontendSource, /jsonp\(BANQ_API_URL,\{action:'list'\},6000\)/);
+  assert.match(frontendSource, /action:'foxCalendarBanquets'/);
+  assert.match(frontendSource, /receiptAuthParams\(\)/);
+  assert.match(frontendSource, /jsonp\(STOCK_API_URL/);
+  assert.doesNotMatch(frontendSource, /BANQ_API_URL/);
   assert.match(frontendSource, /attempt<2/);
   assert.match(frontendSource, /Повторно подключаю общую базу/);
   assert.match(frontendSource, /let banquetsLoadPromise_=null/);
@@ -385,6 +409,20 @@ test('загрузка банкетов делает две короткие п�
   assert.match(loadSource, /последняя сохранённая копия на этом устройстве/);
 });
 
+test('календарь читает DTO только через авторизованный backend FO’X', () => {
+  assert.match(stockSource, /action === 'foxCalendarBanquets'/);
+  assert.match(stockSource, /function listFoxCalendarBanquets_\(\)/);
+  assert.match(stockSource, /source: 'stock-secure'/);
+  assert.match(stockSource, /requireFoxPermission_\(auth, 'banquets\.view'\)/);
+  const listStart = frontendSource.indexOf('async function loadSharedBanquetList_()');
+  const listEnd = frontendSource.indexOf('async function loadBanquets()', listStart);
+  const listSource = frontendSource.slice(listStart, listEnd);
+  assert.match(listSource, /action:'foxCalendarBanquets'/);
+  assert.match(listSource, /receiptAuthParams\(\)/);
+  assert.match(listSource, /jsonp\(STOCK_API_URL/);
+  assert.match(frontendSource, /Общая база и банкетный резерв подключены/);
+});
+
 test('подтверждение графика не перечитывает весь месяц после записи, а review сгруппирован по сотрудникам', () => {
   const saveStart = stockSource.indexOf('function saveFoxSchedule_');
   const saveEnd = stockSource.indexOf('function recognizeFoxScheduleImage_', saveStart);
@@ -396,6 +434,14 @@ test('подтверждение графика не перечитывает в
   assert.match(frontendSource, /function foxScheduleReviewGroups_/);
   assert.match(frontendSource, /<details class="fox-schedule-review-item">/);
   assert.match(frontendSource, /formatFoxScheduleReviewDay_/);
+});
+
+test('review графика позволяет исправить OCR-строку или добавить пропущенную смену до подтверждения', () => {
+  assert.match(frontendSource, /data-fox-schedule-field="rawValue"/);
+  assert.match(frontendSource, /data-fox-schedule-group/);
+  assert.match(frontendSource, /foxScheduleManualAdd/);
+  assert.match(frontendSource, /foxSchedulePreview\.push\(\{name:name,date:date,rawValue:rawValue/);
+  assert.match(frontendSource, /foxSchedulePreview\.splice\(index,1\)/);
 });
 
 test('сохранение графика инвалидирует кэш календаря и перечитывает только что сохранённую смену', () => {

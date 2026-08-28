@@ -7,7 +7,7 @@
  * Что делает backend:
  * - хранит банкеты в Google Sheets;
  * - отдаёт список банкетов для Mini App;
- * - принимает добавление/удаление банкетов от админов;
+ * - отдаёт список банкетов Mini App;
  * - обновляет статус существующего банкета без создания дублей.
  *
  * Заполни SPREADSHEET_ID.
@@ -16,11 +16,6 @@
 const FOXBANQ = {
   SPREADSHEET_ID: '1x5qWkEn05wN9gW6Oz7WKodbohBaTE9Hxh4WtJMDCj1U',
   SHEET_NAME: 'Банкеты',
-  ADMIN_TELEGRAM_IDS: [
-    1036250074,
-    315978242,
-    317564157
-  ],
   MEDIA_HEADER: 'Media JSON',
   FINAL_AMOUNT_HEADER: 'Итоговая сумма банкета',
   HEADERS: [
@@ -46,13 +41,13 @@ function doGet(e) {
   let result;
 
   try {
-    if (action === 'list') {
-      const items = listBanquets_();
-      result = { ok: true, items: items, mediaSupported: getMediaColumn_(getSheet_()) > 0 };
-    } else if (action === 'ping') {
+    if (action === 'ping') {
       result = { ok: true, ts: new Date().toISOString() };
     } else {
-      result = { ok: false, error: 'Unknown action: ' + action };
+      // Calendar reads are served by the Stock backend, which validates
+      // Telegram initData and checks banquets.view. Leaving this endpoint
+      // public would bypass the shared RBAC model.
+      result = { ok: false, error: 'Банкетный Web App больше не отдаёт календарь. Используйте защищённый backend FO’X.' };
     }
   } catch (err) {
     result = { ok: false, error: String(err && err.message ? err.message : err) };
@@ -75,22 +70,10 @@ function doPost(e) {
   let result;
 
   try {
-    const p = e.parameter || {};
-    const action = String(p.action || '');
-
-    assertAdmin_(p.telegramUserId);
-
-    if (action === 'save') {
-      result = { ok: true, item: saveBanquet_(p) };
-    } else if (action === 'updateStatus') {
-      result = { ok: true, item: updateBanquetStatus_(p.id, p.status) };
-    } else if (action === 'delete') {
-      result = { ok: true, deleted: deleteBanquet_(p.id) };
-    } else if (action === 'updateFinalAmount') {
-      result = { ok: true, item: updateBanquetFinalAmount_(p.id, p.finalAmount) };
-    } else {
-      result = { ok: false, error: 'Unknown action: ' + action };
-    }
+    // Этот Web App раньше доверял telegramUserId из формы, которое можно
+    // подменить. Все записи теперь проходят через FO’X Stock backend с
+    // проверенной Telegram-авторизацией и permission banquets.manage.
+    throw new Error('Банкетный Web App больше не принимает операции записи. Используйте защищённый backend FO’X.');
   } catch (err) {
     result = { ok: false, error: String(err && err.message ? err.message : err) };
   }
@@ -394,15 +377,6 @@ function withBanquetLock_(work) {
     return work();
   } finally {
     lock.releaseLock();
-  }
-}
-
-function assertAdmin_(telegramUserId) {
-  const id = String(telegramUserId || '').trim();
-  const admins = FOXBANQ.ADMIN_TELEGRAM_IDS.map(String);
-
-  if (!id || admins.indexOf(id) === -1) {
-    throw new Error('Нет прав администратора. Telegram user_id: ' + (id || 'unknown'));
   }
 }
 
