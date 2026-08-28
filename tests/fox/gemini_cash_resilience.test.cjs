@@ -69,6 +69,16 @@ test('Gemini retries only temporary HTTP statuses and uses bounded exponential b
   assert.ok(helpers.geminiRetryDelayMs_(4, 999999, noJitter) <= 15000);
 });
 
+test('document OCR has its own five-attempt retry policy and never exposes a raw 503 to the Mini App', () => {
+  assert.match(backend, /geminiDocumentRetry:\s*\{[\s\S]*?maxAttempts:\s*5/);
+  assert.match(backend, /function callReceiptGemini_/);
+  assert.match(backend, /operation:\s*'receipt_document'/);
+  assert.match(backend, /function receiptGeminiUserError_/);
+  assert.match(backend, /action === 'scan' \|\| action === 'scanImages'/);
+  assert.match(backend, /Сервис распознавания временно недоступен/);
+  assert.match(frontend, /saveReceiptDraft_\(\);[\s\S]*?Gemini API HTTP\|UNAVAILABLE/);
+});
+
 test('cash-report Gemini errors are safe for employees and preserve a retryable temporary state', () => {
   const helpers = loadGeminiRetryHelpers();
   assert.match(helpers.cashReportGeminiUserError_({ category: 'temporary' }), /временно недоступен/i);

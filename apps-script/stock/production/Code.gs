@@ -1,5 +1,5 @@
 /**
- * FO’X — документы, чеки, банкетный резерв и кассовый отчёт v9.8.0
+ * FO’X — документы, чеки, банкетный резерв и кассовый отчёт v9.9.0
  *
  * Назначение:
  * 1. Принимает облегчённые JPEG-страницы для быстрого распознавания.
@@ -16,7 +16,7 @@
  */
 
 const FOX_RECEIPTS = {
-  version: 'v9.8.0 CASH GEMINI RESILIENCE',
+  version: 'v9.9.0 DOCUMENT OCR RESILIENCE',
 
   stockSheets: [
     'Вино',
@@ -85,6 +85,14 @@ const FOX_RECEIPTS = {
   geminiCashRetry: {
     maxAttempts: 5,
     fallbackMaxAttempts: 2,
+    baseDelayMs: 1000,
+    maxDelayMs: 8000,
+    maxRetryAfterMs: 15000
+  },
+  // Документы и чеки используют ту же bounded retry-политику, но отдельную
+  // конфигурацию: это не связывает их будущие настройки с кассовым OCR.
+  geminiDocumentRetry: {
+    maxAttempts: 5,
     baseDelayMs: 1000,
     maxDelayMs: 8000,
     maxRetryAfterMs: 15000
@@ -1088,6 +1096,8 @@ function doPost(e) {
         try { failCashReportJob_(jobId, errorText_(err)); } catch (_) {}
       } else if (action === 'cashReportSend') {
         try { updateJob_(jobId, { status: 'SEND_ERROR', step: 'Не удалось отправить кассовый отчёт', progress: 1, error: errorText_(err) }); } catch (_) {}
+      } else if (action === 'scan' || action === 'scanImages') {
+        try { failJob_(jobId, receiptGeminiUserError_(err)); } catch (_) {}
       } else {
         try { recordActionError_(jobId, action, errorText_(err)); } catch (_) {}
       }
@@ -1114,7 +1124,7 @@ function scanReceipt_(p, auth) {
   SpreadsheetApp.flush();
 
   let parsed;
-  try { parsed = recognizePdfWithGemini_(pdfBase64, pagesCount, scanMode); }
+  try { parsed = recognizePdfWithGemini_(pdfBase64, pagesCount, scanMode, jobId); }
   catch (err) { try { file.setTrashed(true); } catch (_) {} throw err; }
 
   parsed = sanitizeRecognition_(parsed, pagesCount, scanMode);
@@ -1185,7 +1195,7 @@ function scanReceiptImages_(p, auth) {
   updateJob_(jobId, { status:'PROCESSING', step:scanMode === 'check' ? 'Распознаю изображения чека' : 'Распознаю изображения документов', progress:0.18, error:'' });
   SpreadsheetApp.flush();
 
-  let parsed = recognizePdfWithGemini_(images, pagesCount, scanMode);
+  let parsed = recognizePdfWithGemini_(images, pagesCount, scanMode, jobId);
   parsed = sanitizeRecognition_(parsed, pagesCount, scanMode);
   parsed.scanMode = scanMode;
   if (scanMode === 'document') parsed.supplierShort = shortSupplierName_(parsed.supplierFull, parsed.supplierShort);
@@ -2355,7 +2365,7 @@ function escapeTelegramHtml_(value) {
     .replace(/"/g, '&quot;');
 }
 
-function recognizePdfWithGemini_(pdfBase64, pagesCount, scanMode) {
+function recognizePdfWithGemini_(pdfBase64, pagesCount, scanMode, jobId) {
   const props = PropertiesService.getScriptProperties();
   const apiKey = props.getProperty('GEMINI_API_KEY');
   if (!apiKey) throw new Error('В Script Properties не задан GEMINI_API_KEY.');
@@ -2431,7 +2441,7 @@ function recognizePdfWithGemini_(pdfBase64, pagesCount, scanMode) {
   };
 
   try {
-    return parseGeminiJsonResult_(callGeminiGenerateContent_(apiKey, model, structuredBody).text);
+    return parseGeminiJsonResult_(callReceiptGemini_(apiKey, model, structuredBody, jobId, 'structured_schema').text);
   } catch (firstError) {
     // Совместимый резерв: некоторые проекты отклоняют сложную схему с INVALID_ARGUMENT.
     if (!/INVALID_ARGUMENT|invalid argument|HTTP 400/i.test(errorText_(firstError))) throw firstError;
@@ -2444,8 +2454,9 @@ function recognizePdfWithGemini_(pdfBase64, pagesCount, scanMode) {
       }
     };
     try {
-      return parseGeminiJsonResult_(callGeminiGenerateContent_(apiKey, model, fallbackBody).text);
+      return parseGeminiJsonResult_(callReceiptGemini_(apiKey, model, fallbackBody, jobId, 'json_fallback').text);
     } catch (fallbackError) {
+      if (fallbackError && fallbackError.geminiCategory) throw fallbackError;
       throw new Error(
         'Gemini отклонил запрос. Основная попытка: ' + errorText_(firstError) +
         ' | Резервная попытка: ' + errorText_(fallbackError)
@@ -2482,8 +2493,8 @@ function geminiRetryAfterMs_(headers) {
   return isNaN(parsed) ? 0 : Math.max(0, parsed - Date.now());
 }
 
-function geminiRetryDelayMs_(retryNumber, retryAfterMs, random) {
-  const settings = FOX_RECEIPTS.geminiCashRetry;
+function geminiRetryDelayMs_(retryNumber, retryAfterMs, random, settings) {
+  settings = settings || FOX_RECEIPTS.geminiCashRetry;
   const retry = Math.max(1, Number(retryNumber) || 1);
   const exponential = Math.min(settings.maxDelayMs, settings.baseDelayMs * Math.pow(2, retry - 1));
   const retryAfter = Math.min(settings.maxRetryAfterMs, Math.max(0, Number(retryAfterMs) || 0));
@@ -2523,6 +2534,18 @@ function cashReportGeminiUserError_(error) {
   return 'Не удалось обработать отчёт. Попробуйте ещё раз.';
 }
 
+function receiptGeminiUserError_(error) {
+  // Validation and local PDF/image errors are already written in plain Russian.
+  // Only hide technical provider details when the Gemini request itself failed.
+  if (!error || !error.geminiCategory) return errorText_(error);
+  const category = String(error.geminiCategory);
+  if (category === 'temporary') return 'Не удалось обработать документ. Сервис распознавания временно недоступен. Попробуйте ещё раз.';
+  if (category === 'network') return 'Не удалось связаться с сервисом распознавания. Проверьте соединение и попробуйте ещё раз.';
+  if (category === 'configuration') return 'Сервис распознавания настроен некорректно. Обратитесь к администратору.';
+  if (category === 'request') return 'Не удалось обработать документ. Проверьте фотографии и попробуйте ещё раз.';
+  return 'Не удалось обработать документ. Попробуйте ещё раз.';
+}
+
 function logGeminiAttempt_(event, details) {
   const safe = Object.assign({ event: event, service: 'gemini' }, details || {});
   delete safe.apiKey;
@@ -2541,6 +2564,33 @@ function updateCashReportGeminiRetryStatus_(jobId, details) {
     updateJob_(jobId, { status:'PROCESSING', step:step, progress:0.2, error:'' });
   } catch (error) {
     logGeminiAttempt_('cash_report_retry_status_failed', { category:'internal', message:errorText_(error) });
+  }
+}
+
+function updateReceiptGeminiRetryStatus_(jobId, details) {
+  if (!jobId) return;
+  details = details || {};
+  const step = 'Сервис распознавания временно занят. Повторная попытка ' + details.nextAttempt + ' из ' + details.maxAttempts + '…';
+  try {
+    updateJob_(jobId, { status:'PROCESSING', step:step, progress:0.2, error:'' });
+  } catch (error) {
+    logGeminiAttempt_('receipt_retry_status_failed', { category:'internal', message:errorText_(error) });
+  }
+}
+
+function callReceiptGemini_(apiKey, model, body, jobId, phase) {
+  const settings = FOX_RECEIPTS.geminiDocumentRetry;
+  const started = Date.now();
+  try {
+    return callGeminiGenerateContent_(apiKey, model, body, {
+      maxAttempts: settings.maxAttempts,
+      retrySettings: settings,
+      operation: 'receipt_document',
+      phase: phase,
+      onRetry: function(details) { updateReceiptGeminiRetryStatus_(jobId, details); }
+    });
+  } finally {
+    logGeminiAttempt_('receipt_document_gemini_finished', { phase:String(phase || ''), totalMs:Date.now() - started });
   }
 }
 
@@ -2583,6 +2633,7 @@ function callCashReportGemini_(apiKey, primaryModel, body, jobId, phase) {
 function callGeminiGenerateContent_(apiKey, model, body, options) {
   options = options || {};
   const maxAttempts = Math.max(1, Number(options.maxAttempts) || 1);
+  const retrySettings = options.retrySettings || FOX_RECEIPTS.geminiCashRetry;
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent';
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const started = Date.now();
@@ -2600,7 +2651,7 @@ function callGeminiGenerateContent_(apiKey, model, body, options) {
       const durationMs = Date.now() - started;
       logGeminiAttempt_('gemini_attempt', { model:String(model), attempt:attempt, maxAttempts:maxAttempts, category:error.geminiCategory, status:0, durationMs:durationMs, operation:options.operation || '', fallback:Boolean(options.fallback) });
       if (attempt >= maxAttempts) throw error;
-      const delayMs = geminiRetryDelayMs_(attempt, 0);
+      const delayMs = geminiRetryDelayMs_(attempt, 0, null, retrySettings);
       if (typeof options.onRetry === 'function') options.onRetry({ nextAttempt:attempt + 1, maxAttempts:maxAttempts, delayMs:delayMs, category:error.geminiCategory, status:0, fallback:Boolean(options.fallback) });
       Utilities.sleep(delayMs);
       continue;
@@ -2623,7 +2674,7 @@ function callGeminiGenerateContent_(apiKey, model, body, options) {
     const retryAfterMs = geminiRetryAfterMs_(response.getHeaders ? response.getHeaders() : {});
     logGeminiAttempt_('gemini_attempt', { model:String(model), attempt:attempt, maxAttempts:maxAttempts, category:error.geminiCategory, status:status, durationMs:durationMs, retryAfterMs:retryAfterMs, operation:options.operation || '', fallback:Boolean(options.fallback) });
     if (!error.geminiRetryable || attempt >= maxAttempts) throw error;
-    const delayMs = geminiRetryDelayMs_(attempt, retryAfterMs);
+    const delayMs = geminiRetryDelayMs_(attempt, retryAfterMs, null, retrySettings);
     if (typeof options.onRetry === 'function') options.onRetry({ nextAttempt:attempt + 1, maxAttempts:maxAttempts, delayMs:delayMs, category:error.geminiCategory, status:status, fallback:Boolean(options.fallback) });
     Utilities.sleep(delayMs);
   }

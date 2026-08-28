@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.14.9 — CASH GEMINI RESILIENCE</title>
+<title>FO'X App v15.15.0 — DOCUMENT OCR RESILIENCE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -849,6 +849,9 @@ body.mode-cash-report #backBtn{display:inline-flex}
       </div>
       <div class="receipt-actions">
         <button type="button" class="receipt-secondary" id="receiptSend">📨 Отправить PDF и сообщение в чат</button>
+      </div>
+      <div class="receipt-actions" id="receiptPdfRecoveryActions" hidden>
+        <button type="button" class="receipt-secondary" id="receiptRetryPdf">↻ Повторить подготовку PDF</button>
       </div>
       <div class="receipt-summary" id="receiptActionHint"></div>
     </div>
@@ -2449,6 +2452,12 @@ let receiptEditorPageIndex = -1;
 let receiptEditorSourceImage = null;
 let receiptEditorRect = null;
 let receiptEditorDrag = null;
+const RECEIPT_DRAFT_DB_NAME='fox_receipt_drafts_v1';
+const RECEIPT_DRAFT_STORE_NAME='drafts';
+const RECEIPT_DRAFT_KEY='current';
+let receiptDraftSaveChain=Promise.resolve();
+let receiptDraftRestoredNotice='';
+let receiptDraftRestored=false;
 
 // ===== SCANNER TESTABLE HELPERS START =====
 const RECEIPT_MAX_OCR_PAGES = 20;
@@ -2459,6 +2468,71 @@ const RECEIPT_MAX_OCR_TOTAL_BYTES = 12 * 1024 * 1024;
 
 function receiptJobIsActive_(currentJobId, expectedJobId){
   return Boolean(expectedJobId) && currentJobId===expectedJobId;
+}
+function receiptPageForDraft_(page){
+  return {id:page.id,name:page.name,width:page.width,height:page.height,orientation:page.orientation,cropped:Boolean(page.cropped),cropNote:page.cropNote||'',dataUrl:page.dataUrl};
+}
+function makeReceiptDraftSnapshot_(){
+  if(!receiptPages.length&&!receiptResult)return null;
+  return {version:1,savedAt:Date.now(),mode:getReceiptMode(),warehouse:document.getElementById('receiptWarehouse').value||'',jobId:receiptJobId||'',pages:receiptPages.map(receiptPageForDraft_),result:receiptResult,pdfUploadError:receiptPdfUploadError||''};
+}
+function openReceiptDraftDb_(){
+  return new Promise((resolve,reject)=>{
+    if(!window.indexedDB){reject(new Error('Локальное хранилище недоступно.'));return;}
+    const request=window.indexedDB.open(RECEIPT_DRAFT_DB_NAME,1);
+    request.onupgradeneeded=()=>{const db=request.result;if(!db.objectStoreNames.contains(RECEIPT_DRAFT_STORE_NAME))db.createObjectStore(RECEIPT_DRAFT_STORE_NAME);};
+    request.onsuccess=()=>resolve(request.result);
+    request.onerror=()=>reject(request.error||new Error('Не удалось открыть локальное хранилище.'));
+  });
+}
+function writeReceiptDraft_(snapshot){
+  return openReceiptDraftDb_().then(db=>new Promise((resolve,reject)=>{
+    const tx=db.transaction(RECEIPT_DRAFT_STORE_NAME,'readwrite');
+    tx.objectStore(RECEIPT_DRAFT_STORE_NAME).put(snapshot,RECEIPT_DRAFT_KEY);
+    tx.oncomplete=()=>{db.close();resolve();};
+    tx.onerror=()=>{db.close();reject(tx.error||new Error('Не удалось сохранить черновик.'));};
+    tx.onabort=()=>{db.close();reject(tx.error||new Error('Сохранение черновика отменено.'));};
+  }));
+}
+function deleteReceiptDraft_(){
+  return openReceiptDraftDb_().then(db=>new Promise((resolve,reject)=>{
+    const tx=db.transaction(RECEIPT_DRAFT_STORE_NAME,'readwrite');
+    tx.objectStore(RECEIPT_DRAFT_STORE_NAME).delete(RECEIPT_DRAFT_KEY);
+    tx.oncomplete=()=>{db.close();resolve();};
+    tx.onerror=()=>{db.close();reject(tx.error||new Error('Не удалось очистить черновик.'));};
+  }));
+}
+function readReceiptDraft_(){
+  return openReceiptDraftDb_().then(db=>new Promise((resolve,reject)=>{
+    const tx=db.transaction(RECEIPT_DRAFT_STORE_NAME,'readonly');
+    const request=tx.objectStore(RECEIPT_DRAFT_STORE_NAME).get(RECEIPT_DRAFT_KEY);
+    request.onsuccess=()=>{db.close();resolve(request.result||null);};
+    request.onerror=()=>{db.close();reject(request.error||new Error('Не удалось прочитать черновик.'));};
+  }));
+}
+function saveReceiptDraft_(){
+  const snapshot=makeReceiptDraftSnapshot_();
+  receiptDraftSaveChain=receiptDraftSaveChain.catch(()=>{}).then(()=>snapshot?writeReceiptDraft_(snapshot):deleteReceiptDraft_()).catch(error=>{console.warn('Receipt draft was not saved:',error);});
+  return receiptDraftSaveChain;
+}
+async function restoreReceiptDraft_(){
+  try{
+    const draft=await readReceiptDraft_();
+    if(!draft||draft.version!==1)return;
+    const pages=Array.isArray(draft.pages)?draft.pages.filter(page=>page&&page.dataUrl):[];
+    if(!pages.length&&!draft.result)return;
+    receiptPages=pages.map(page=>Object.assign({},page,{originalDataUrl:page.dataUrl}));
+    receiptJobId=String(draft.jobId||'');
+    receiptResult=draft.result||null;
+    receiptPdfUploadError=String(draft.pdfUploadError||'');
+    receiptDraftRestored=true;
+    if(draft.mode==='check'||draft.mode==='document')document.getElementById('receiptMode').value=draft.mode;
+    if(draft.warehouse)document.getElementById('receiptWarehouse').value=draft.warehouse;
+    updateReceiptModeUi(false);renderReceiptPages();
+    if(receiptResult)renderReceiptRecognition(receiptResult,{skipScroll:true});
+    updateReceiptPdfRecoveryUi_();
+    receiptDraftRestoredNotice='Черновик поставки восстановлен на этом устройстве. Фото и результат распознавания сохранены.';
+  }catch(error){console.warn('Receipt draft was not restored:',error);}
 }
 function base64DecodedBytes_(value){
   const clean=String(value||'').replace(/\s+/g,'');
@@ -2511,6 +2585,7 @@ function openReceiptsSection(){
     return;
   }
   if(!receiptCatalog.length) loadReceiptCatalog();
+  if(receiptDraftRestoredNotice)setReceiptStatus('ok',receiptDraftRestoredNotice,0);
 }
 function setReceiptStatus(type,text,progress){
   const el=document.getElementById('receiptStatus');
@@ -2575,6 +2650,7 @@ async function appendReceiptFiles(files, preparingText){
     for(const file of files) receiptPages.push(await imageFileToReceiptPage(file));
     document.getElementById('receiptResultCard').hidden=true;
     renderReceiptPages();
+    saveReceiptDraft_();
     setReceiptStatus('', 'Страницы готовы. Проверь порядок и нажми распознавание.',0);
   }catch(err){setReceiptStatus('err',String(err&&err.message?err.message:err),0);}
 }
@@ -2949,18 +3025,20 @@ document.getElementById('receiptReset').onclick=()=>{
 document.getElementById('receiptScan').onclick=startReceiptRecognition;
 document.getElementById('receiptConfirm').onclick=confirmReceiptStock;
 document.getElementById('receiptSend').onclick=sendReceiptToTelegram;
+document.getElementById('receiptRetryPdf').addEventListener('click',retryReceiptPdfUpload_);
 document.getElementById('receiptOpenPdf').onclick=()=>{
   const url=receiptResult&&receiptResult.pdfUrl;if(url){if(TG) TG.openLink(url);else window.open(url,'_blank');}
 };
 function resetReceiptScanner(){
   closeReceiptCamera();closeReceiptCropEditor();
   receiptPages=[];invalidateReceiptRecognition_();receiptReshootIndex=-1;
-  renderReceiptPages();updateReceiptModeUi(true);
+  renderReceiptPages();updateReceiptModeUi(true);saveReceiptDraft_();
 }
 function invalidateReceiptRecognition_(){
   receiptPollingToken++;
   receiptPdfBlob=null;receiptPdfUploadPromise=null;receiptPdfUploadError='';receiptJobId='';receiptResult=null;
   const card=document.getElementById('receiptResultCard');if(card)card.hidden=true;
+  saveReceiptDraft_();
 }
 async function imageFileToReceiptPage(file){
   const scan=await foxDocumentScanner.process(file,{title:'Проверь документ',confirm:'Использовать скан'});
@@ -3204,18 +3282,44 @@ async function uploadReceiptPdfForJob_(jobId,pagesSnapshot){
       if(status&&status.ok&&status.pdfFileId){
         receiptPdfBlob=pdfBlob;
         if(receiptResult&&receiptJobIsActive_(receiptJobId,jobId)){receiptResult.pdfFileId=status.pdfFileId;receiptResult.pdfUrl=status.pdfUrl||'';}
-        receiptPdfUploadError='';
+        receiptPdfUploadError='';saveReceiptDraft_();updateReceiptPdfRecoveryUi_();
         return status;
       }
       await new Promise(resolve=>setTimeout(resolve,1200));
     }
     throw new Error('PDF распознан, но не успел сохраниться для Telegram.');
-  }catch(err){if(receiptJobIsActive_(receiptJobId,jobId))receiptPdfUploadError=String(err&&err.message?err.message:err);throw err;}
+  }catch(err){if(receiptJobIsActive_(receiptJobId,jobId)){receiptPdfUploadError=String(err&&err.message?err.message:err);saveReceiptDraft_();updateReceiptPdfRecoveryUi_();}throw err;}
 }
 async function ensureReceiptPdfReady_(){
   if(!receiptPdfUploadPromise)throw new Error('PDF ещё не готов. Нажми распознавание заново.');
   try{return await receiptPdfUploadPromise;}
   catch(err){throw new Error('Не удалось подготовить PDF для Telegram: '+String(err&&err.message?err.message:err));}
+}
+function updateReceiptPdfRecoveryUi_(){
+  const actions=document.getElementById('receiptPdfRecoveryActions'),retry=document.getElementById('receiptRetryPdf'),hint=document.getElementById('receiptActionHint');
+  if(!actions||!retry)return;
+  const needsRetry=Boolean(receiptResult&&receiptPages.length&&!receiptResult.pdfUrl&&(receiptPdfUploadError||(receiptDraftRestored&&!receiptPdfUploadPromise)));
+  actions.hidden=!needsRetry;
+  retry.disabled=false;
+  if(needsRetry&&hint)hint.textContent='PDF пока не подготовился. Фото и распознанные позиции сохранены на этом устройстве — можно обновить приложение и повторить только подготовку PDF.';
+}
+async function retryReceiptPdfUpload_(){
+  if(!receiptJobId||!receiptPages.length||!receiptResult){setReceiptStatus('warn','Черновик неполный. Фото сохранены — нажми «Собрать PDF и распознать».',0);return;}
+  const retry=document.getElementById('receiptRetryPdf');retry.disabled=true;
+  try{
+    receiptPdfUploadError='';
+    const pagesSnapshot=receiptPages.map(page=>Object.assign({},page));
+    receiptPdfUploadPromise=uploadReceiptPdfForJob_(receiptJobId,pagesSnapshot);
+    saveReceiptDraft_();
+    setReceiptStatus('', 'Повторно подготавливаю PDF для Telegram…',.2);
+    await receiptPdfUploadPromise;
+    updateReceiptPdfRecoveryUi_();
+    setReceiptStatus('ok','PDF готов. Результат Gemini сохранён, повторное распознавание не требуется.',1);
+  }catch(error){
+    receiptPdfUploadError=String(error&&error.message?error.message:error);
+    saveReceiptDraft_();updateReceiptPdfRecoveryUi_();
+    setReceiptStatus('err','PDF пока не удалось подготовить. Фото и распознанные позиции сохранены — попробуй ещё раз позже.',1);
+  }finally{retry.disabled=false;}
 }
 async function startReceiptRecognition(){
   if(!isStockApiConfigured()){setReceiptStatus('warn','Сначала вставь STOCK_API_URL в index.html.',0);return;}
@@ -3225,6 +3329,7 @@ async function startReceiptRecognition(){
   try{
     const mode=getReceiptMode();
     const pagesSnapshot=receiptPages.map(page=>Object.assign({},page));
+    receiptDraftRestored=false;
     invalidateReceiptRecognition_();
     setReceiptStatus('', 'Подготавливаю облегчённые изображения для Gemini…', .06);
     const images=await buildOcrImagesPayload_(pagesSnapshot,(i,total)=>setReceiptStatus('', 'Подготавливаю страницу '+(i+1)+' из '+total+'…',.06+.08*(i/Math.max(1,total))));
@@ -3239,8 +3344,15 @@ async function startReceiptRecognition(){
     const status=await pollReceiptJob(activeJobId,['DONE','ERROR'],210000);if(status.status==='ERROR')throw new Error(status.error||'Ошибка распознавания');
     if(!receiptJobIsActive_(receiptJobId,activeJobId))throw new Error('Операция отменена.');
     receiptResult=status.result||{};receiptResult.pdfUrl=status.pdfUrl||receiptResult.pdfUrl||'';renderReceiptRecognition(receiptResult);
+    saveReceiptDraft_();updateReceiptPdfRecoveryUi_();
     setReceiptStatus('ok',mode==='check'?'Чек распознан. Проверь текст; PDF готовится параллельно.':'Документ распознан. Проверь позиции; PDF готовится параллельно.',1);hap('ok');
-  }catch(err){setReceiptStatus('err',String(err&&err.message?err.message:err),1);}
+  }catch(err){
+    saveReceiptDraft_();
+    const message=String(err&&err.message?err.message:err);
+    setReceiptStatus('err',/Gemini API HTTP|UNAVAILABLE|\b503\b/i.test(message)
+      ? 'Не удалось обработать документ. Сервис распознавания временно недоступен. Попробуйте ещё раз.'
+      : message,1);
+  }
   finally{btn.disabled=!receiptPages.length;}
 }
 async function pollReceiptJob(jobId,finalStatuses,maxMs){
@@ -3259,7 +3371,7 @@ function applyReceiptModeResult(mode){
   document.getElementById('receiptConfirm').textContent=isCheck?'📦 Внести выбранные товары в сток':'✅ Внести в сток';
   document.getElementById('receiptActionHint').textContent='PDF и сообщение можно отправить в чат сразу. Внесение распознанных товаров в сток — отдельное необязательное действие.';
 }
-function renderReceiptRecognition(r){
+function renderReceiptRecognition(r,options){
   const mode=r.scanMode==='check'?'check':'document';document.getElementById('receiptMode').value=mode;applyReceiptModeResult(mode);
   document.getElementById('receiptResultCard').hidden=false;document.getElementById('receiptDateText').value=r.documentDate||'';document.getElementById('receiptTotal').value=Number(r.totalAmount)||0;
   document.getElementById('receiptArrivalDate').value=r.receiptDate||r.documentDate||'';document.getElementById('receiptSupplierShort').value=r.supplierShort||'';document.getElementById('receiptSupplierFull').value=r.supplierFull||'';
@@ -3270,7 +3382,7 @@ function renderReceiptRecognition(r){
   ['receiptDateText','receiptSupplierShort','receiptWarehouse','receiptPaymentCard','receiptPurchaseChannel','receiptPurchaseSummary','receiptTotal'].forEach(id=>{const el=document.getElementById(id);el.oninput=refreshReceiptMessage;el.onchange=refreshReceiptMessage;});
   const confirmBtn=document.getElementById('receiptConfirm');confirmBtn.disabled=false;
   const sendBtn=document.getElementById('receiptSend');sendBtn.disabled=false;sendBtn.textContent='📨 Отправить PDF и сообщение в чат';
-  window.scrollTo({top:document.getElementById('receiptResultCard').offsetTop-70,behavior:'smooth'});
+  if(!options||!options.skipScroll)window.scrollTo({top:document.getElementById('receiptResultCard').offsetTop-70,behavior:'smooth'});
 }
 function stockOptionsHtml(selectedSheet,selectedName){let html='<option value="">— не выбрано —</option>';const groups={};receiptCatalog.forEach(x=>{(groups[x.sheet]||(groups[x.sheet]=[])).push(x);});Object.keys(groups).forEach(sheet=>{html+='<optgroup label="'+escapeHtml(sheet)+'">';groups[sheet].forEach(x=>{const key=catalogOptionKey(x.sheet,x.name);const sel=(x.sheet===selectedSheet&&x.name===selectedName)?' selected':'';html+='<option value="'+escapeHtml(key)+'"'+sel+'>'+escapeHtml(x.name)+'</option>';});html+='</optgroup>';});return html;}
 function renderReceiptItems(items){
@@ -3565,6 +3677,7 @@ document.getElementById('cashReportSend').addEventListener('click',sendCashRepor
 switchTab(DATA[0].id);
 refresh();
 setAppSection('hub');
+restoreReceiptDraft_();
 
 </script>
 </body>
