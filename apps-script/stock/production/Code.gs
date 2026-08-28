@@ -16,7 +16,7 @@
  */
 
 const FOX_RECEIPTS = {
-  version: 'v9.9.3 SCHEDULE STAGING RELIABLE',
+  version: 'v9.9.4 WEEKLY SCHEDULE RELIABLE',
 
   stockSheets: [
     'Вино',
@@ -4517,6 +4517,7 @@ function saveFoxSchedule_(p, auth) {
   scheduleSh.getRange(scheduleSh.getLastRow() + 1, 1, 1, FOX_RECEIPT_HEADERS.foxSchedules.length).setValues([[id,month,'ACTIVE',String(p.imageUrl || ''),now,now,auth.userId]]);
   shiftSh.getRange(shiftSh.getLastRow() + 1, 1, values.length, FOX_RECEIPT_HEADERS.foxScheduleShifts.length).setValues(values);
   SpreadsheetApp.flush();
+  if (activeFoxScheduleIdForMonth_(month) !== id) throw new Error('График не удалось активировать. Повторите подтверждение.');
   return { id:id, month:month, active:true, savedRows:values.length };
 }
 
@@ -4543,8 +4544,10 @@ function recognizeFoxScheduleImage_(imageUrl, requestedMonth) {
   ].join('\n');
   const body = { contents:[{role:'user',parts:[{inlineData:{mimeType:blob.getContentType() || 'image/jpeg',data:Utilities.base64Encode(bytes)}},{text:prompt}]}], generationConfig:{responseMimeType:'application/json',responseSchema:schema,temperature:0,maxOutputTokens:12000} };
   const parsed = parseGeminiJsonResult_(callGeminiGenerateContent_(apiKey, normalizeGeminiModel_(props.getProperty('GEMINI_MODEL') || FOX_RECEIPTS.defaultGeminiModel), body).text);
-  const parsedMonth = String(parsed.month || '').trim();
-  const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(parsedMonth) ? parsedMonth : requestedMonth;
+  // The admin-selected month is authoritative. A one-week image often has no
+  // reliable month/year marker, so letting OCR override it can save an otherwise
+  // valid schedule under a different calendar month.
+  const month = requestedMonth;
   const employees = tatooineUserRows_(tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, false));
   const rows = [];
   (parsed.rows || []).forEach(function(person) {

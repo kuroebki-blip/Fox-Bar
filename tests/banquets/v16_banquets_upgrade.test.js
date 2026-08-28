@@ -290,11 +290,13 @@ test('OCR графика показывает собственный стату�
   assert.match(frontendSource, /Gemini распознаёт график/);
 });
 
-test('OCR графика передаёт выбранный месяц и backend использует его при пустом месяце на фото', () => {
+test('OCR графика всегда сохраняет выбранный админом месяц, включая короткий недельный график', () => {
   assert.match(frontendSource, /action:'foxScheduleRecognize',imageUrl:uploaded\.url,month:month/);
   assert.match(stockSource, /recognizeFoxScheduleImage_\(e\.parameter\.imageUrl, e\.parameter\.month\)/);
   assert.match(stockSource, /requestedMonth = normalizeFoxScheduleMonth_\(requestedMonth\)/);
-  assert.match(stockSource, /: requestedMonth;/);
+  assert.match(stockSource, /const month = requestedMonth;/);
+  assert.doesNotMatch(stockSource, /const month = \^\\d\{4\}/);
+  assert.match(frontendSource, /foxScheduleMonth'\)\.value=month/);
 });
 
 test('подтверждение графика показывает acknowledged saving/error state', () => {
@@ -360,6 +362,7 @@ test('подтверждение графика не перечитывает в
   const saveEnd = stockSource.indexOf('function recognizeFoxScheduleImage_', saveStart);
   const saveSource = stockSource.slice(saveStart, saveEnd);
   assert.doesNotMatch(saveSource, /getFoxScheduleForMonth_\(month\)/);
+  assert.match(saveSource, /activeFoxScheduleIdForMonth_\(month\) !== id/);
   assert.match(saveSource, /savedRows:values\.length/);
   assert.match(saveSource, /const employees = tatooineUserRows_/);
   assert.match(frontendSource, /function foxScheduleReviewGroups_/);

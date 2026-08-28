@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.15.5 — SCHEDULE SAVE RELIABLE</title>
+<title>FO'X App v15.15.6 — WEEKLY SCHEDULE RELIABLE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1584,7 +1584,9 @@ async function recognizeFoxSchedule_(){
     setFoxScheduleStatus_('','Gemini распознаёт график… Это может занять до минуты.');
     const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxScheduleRecognize',imageUrl:uploaded.url,month:month},receiptAuthParams()),90000);
     if(!res||!res.ok)throw new Error(res&&res.error||'График не распознан.');
-    document.getElementById('foxScheduleMonth').value=res.preview.month;
+    // Keep the month selected by the manager. The backend treats it as the
+    // authoritative destination for short (for example weekly) schedules.
+    document.getElementById('foxScheduleMonth').value=month;
     foxSchedulePreview=(res.preview.rows||[]).map(row=>Object.assign({imageUrl:uploaded.url},row));
     if(!foxSchedulePreview.length)throw new Error('Gemini не нашёл строки смен. Проверьте, что на фото видны имена, даты и ячейки графика.');
     renderFoxScheduleReview_();setFoxScheduleStatus_('ok','График распознан. Нажмите на сотрудника, чтобы проверить его смены.');
