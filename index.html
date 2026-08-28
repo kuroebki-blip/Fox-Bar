@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.15.7 — SCHEDULE DISPLAY CONSISTENT</title>
+<title>FO'X App v15.15.8 — CALENDAR SHIFT LOAD FIX</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -205,9 +205,11 @@ body.mode-hub #backBtn{display:none}
   font-family:inherit;font-weight:600;cursor:pointer}
 .cal-day:active{background:var(--surface-2)}
 .cal-day.muted{color:var(--muted-2)}
-.cal-day.today{border-color:var(--line-strong)}
+.cal-day.today{border-color:#F4D58A;box-shadow:inset 0 0 0 1px rgba(244,213,138,.38);font-weight:800}
 .cal-day.my-shift{border-color:var(--done);box-shadow:inset 0 0 0 1px rgba(95,191,143,.45);color:#CFE8DB}
 .cal-day.selected{background:var(--amber-soft);border-color:var(--amber-line);color:var(--amber)}
+.cal-day.today.selected{border-color:#FFE0A0;box-shadow:0 0 0 2px rgba(244,181,74,.28),inset 0 0 0 1px rgba(255,224,160,.58);font-weight:800}
+.cal-day.today.my-shift{border-color:#A9E6C2;box-shadow:0 0 0 2px rgba(95,191,143,.22),inset 0 0 0 1px rgba(169,230,194,.48)}
 .cal-day.has-banquet::after{content:"";position:absolute;left:50%;bottom:6px;transform:translateX(-50%);
   width:6px;height:6px;border-radius:50%;background:var(--amber)}
 .cal-day .badge{position:absolute;right:4px;top:3px;min-width:16px;height:16px;border-radius:8px;background:var(--amber);
@@ -641,7 +643,6 @@ body.mode-cash-report #backBtn{display:inline-flex}
     <button class="icon-btn" id="banqNext" type="button">›</button>
   </div>
   <div class="calendar" id="banqCalendar"></div>
-  <div class="banq-comment" id="myScheduleCard" hidden></div>
   <div class="banq-comment" id="dayScheduleCard" hidden></div>
 
   <div class="day-card">
@@ -1513,8 +1514,7 @@ function invalidateBanqScheduleCache_(){
 async function loadMySchedule_(){
   const month=banqMonthDate.getFullYear()+'-'+String(banqMonthDate.getMonth()+1).padStart(2,'0');
   if(!isStockApiConfigured()||myScheduleMonthLoaded===month)return;
-  const card=document.getElementById('myScheduleCard');
-  try{const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxMySchedule',month:month},receiptAuthParams()));if(!res||!res.ok)throw new Error();const data=res.schedule||{};myScheduleMonthLoaded=month;card.hidden=false;if(!data.matched)card.textContent='Мои смены: профиль не сопоставлен с графиком.';else if(!data.scheduleFound)card.textContent='Мои смены: график на этот месяц не загружен.';else{const items=(data.items||[]).sort((a,b)=>a.date.localeCompare(b.date));myScheduleWorkingDates=new Set(items.filter(x=>x.isWorking).map(x=>x.date));card.innerHTML='<b>Мои смены</b><br>'+(items.map(x=>escapeHtml(x.date)+' — '+escapeHtml(x.isWorking?formatFoxScheduleShift_(x):'выходной')).join('<br>')||'Смены на этот месяц не указаны.');renderBanqCalendar();}}catch(_){card.hidden=true;}}
+  try{const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxMySchedule',month:month},receiptAuthParams()));if(!res||!res.ok)throw new Error();const data=res.schedule||{};myScheduleMonthLoaded=month;const items=(data.items||[]).sort((a,b)=>a.date.localeCompare(b.date));myScheduleWorkingDates=new Set(items.filter(x=>x.isWorking).map(x=>x.date));renderBanqCalendar();}catch(_){myScheduleWorkingDates.clear();}}
 let foxScheduleCanManage=false,foxSchedulePreview=[],foxScheduleSaveInFlight=false;
 
 async function initFoxScheduleAdmin_(){
@@ -2015,6 +2015,7 @@ function renderBanqCalendar(){
 function renderBanqDay(){
   const list=document.getElementById('banqList');
   const items=banquets.filter(b=>b.date===selectedBanqDate).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  loadBanqScheduleWorkers_(selectedBanqDate);
   const scheduleCard=document.getElementById('dayScheduleCard'),daySchedule=banqScheduleWorkersByDate.get(selectedBanqDate);
   if(scheduleCard){scheduleCard.hidden=false;scheduleCard.innerHTML=renderBanqScheduleWorkers_(daySchedule);}
   document.getElementById('banqSelectedTitle').textContent=humanDate(selectedBanqDate);

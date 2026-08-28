@@ -411,3 +411,12 @@ test('календарь показывает персонал и банкеты
   assert.doesNotMatch(daySource, /renderBanqScheduleWorkers_\(b\.date\)/);
   assert.match(frontendSource, /\.banq-spoiler\{/);
 });
+
+test('календарь загружает персонал выбранного дня, не выводит список моих смен и отдельно выделяет сегодня', () => {
+  const dayStart = frontendSource.indexOf('function renderBanqDay()');
+  const dayEnd = frontendSource.indexOf('function renderBanqPhotoHtml', dayStart);
+  const daySource = frontendSource.slice(dayStart, dayEnd);
+  assert.match(daySource, /loadBanqScheduleWorkers_\(selectedBanqDate\)/);
+  assert.doesNotMatch(frontendSource, /id="myScheduleCard"/);
+  assert.match(frontendSource, /\.cal-day\.today\.selected\{/);
+});

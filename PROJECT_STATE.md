@@ -16,7 +16,7 @@
 
 | Компонент | Версия | Статус | Основание |
 | --- | --- | --- | --- |
-| FO’X frontend | `v15.15.7 SCHEDULE DISPLAY CONSISTENT` | опубликован из `main` | исправляет отображение времени смен, обратный порядок имени и дубли блоков календаря |
+| FO’X frontend | `v15.15.8 CALENDAR SHIFT LOAD FIX` | готовится к публикации из `main` | скрывает личный список смен, выделяет сегодня и восстанавливает загрузку персонала выбранной даты |
 | Tatooine frontend | `v1.8.3 TAXI PARALLEL LOAD` | опубликован в `main`; GitHub Pages обновляется из `main` | релиз параллельной загрузки раздела «Такси» |
 | Scanner/cash Apps Script | `v9.9.6 SCHEDULE DISPLAY CONSISTENT`, Apps Script version 56 | deployment обновлён | прежний Web App URL и deployment ID сохранены; время из Sheets Date-ячейки нормализуется в `HH:MM` |
 | Banquets Apps Script | неизвестно | требует подтверждения пользователя и проверки deployment | исходника production нет в `main` |
