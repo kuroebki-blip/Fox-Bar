@@ -65,7 +65,7 @@ function makeContext({ banquetSheet, reserveSheet }) {
       getActive: () => stockSpreadsheet,
       flush: () => {}
     },
-    PropertiesService: { getScriptProperties: () => ({ getProperty: key => properties[key] || '', getProperties: () => properties }) },
+    PropertiesService: { getScriptProperties: () => ({ getProperty: key => properties[key] || '', getProperties: () => properties, setProperty: (key, value) => { properties[key] = value; }, deleteProperty: key => { delete properties[key]; } }) },
     CacheService: { getScriptCache: () => ({ get: key => cache.get(key) || null, put: (key, value) => cache.set(key, value), remove: key => cache.delete(key) }) },
     LockService: { getDocumentLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },
     Utilities: { formatDate: () => '01.01.2026', base64Encode: () => '' },
@@ -321,7 +321,8 @@ test('подтверждение графика не дублирует Cloudina
   assert.match(frontendSource, /foxScheduleSave'\)\.onclick=\(\)=>saveFoxSchedule_\(\)\.catch\(\(\)=>\{\}\)/);
   assert.match(stockSource, /function stageFoxScheduleSaveChunk_/);
   assert.match(stockSource, /function commitFoxScheduleSave_/);
-  assert.match(stockSource, /CacheService\.getScriptCache\(\)/);
+  assert.match(stockSource, /PropertiesService\.getScriptProperties\(\)/);
+  assert.match(stockSource, /FOX_SCHEDULE_SAVE_CHUNK_TTL_MS/);
 });
 
 test('части графика подтверждённо собираются на сервере до единственного сохранения', () => {
@@ -371,6 +372,8 @@ test('сохранение графика инвалидирует кэш кал
   const saveEnd = frontendSource.indexOf('const foxScheduleRecognizeButton', saveStart);
   const saveSource = frontendSource.slice(saveStart, saveEnd);
   assert.match(saveSource, /invalidateBanqScheduleCache_\(\)/);
+  assert.match(saveSource, /renderFoxScheduleReview_\(\)/);
+  assert.doesNotMatch(saveSource, /renderFoxScheduleReview\(\)/);
   assert.match(saveSource, /renderBanquets\(\)/);
   assert.match(frontendSource, /banqRefreshBtn\.onclick=\(\)=>\{ hap\('light'\); invalidateBanqScheduleCache_\(\); loadBanquets\(\); \}/);
 });

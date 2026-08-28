@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.15.4 — CALENDAR REFRESH RELIABLE</title>
+<title>FO'X App v15.15.5 — SCHEDULE SAVE RELIABLE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1615,7 +1615,7 @@ async function saveFoxSchedule_(){
     // schedule is read from the backend instead of being hidden by stale state.
     invalidateBanqScheduleCache_();
     foxSchedulePreview=[];
-    renderFoxScheduleReview();
+    renderFoxScheduleReview_();
     renderBanquets();
     setFoxScheduleStatus_('ok','График сохранён'+(savedRows?' · '+savedRows+' смен':'')+'.');
     setSyncStatus('ok','График сотрудников сохранён.');

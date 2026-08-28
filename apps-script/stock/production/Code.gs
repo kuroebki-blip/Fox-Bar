@@ -4316,13 +4316,16 @@ function assertFoxScheduleManager_(auth) {
   if (!foxScheduleCanManage_(auth)) throw new Error('Загружать и менять график могут только admin или superadmin.');
 }
 
-const FOX_SCHEDULE_SAVE_CHUNK_TTL_SECONDS = 10 * 60;
+// A schedule is sent in several JSONP requests. CacheService is deliberately
+// best-effort and may evict a chunk between staging and commit, so use Script
+// Properties for this short-lived hand-off instead.
+const FOX_SCHEDULE_SAVE_CHUNK_TTL_MS = 10 * 60 * 1000;
 function foxScheduleSaveId_(value) {
   const id = String(value || '').trim();
   if (!/^fox_schedule_[A-Za-z0-9_-]{8,100}$/.test(id)) throw new Error('Некорректный идентификатор сохранения графика.');
   return id;
 }
-function foxScheduleSaveCacheKey_(auth, saveId, suffix) {
+function foxScheduleSavePropertyKey_(auth, saveId, suffix) {
   return 'foxScheduleSave:' + String(auth.userId || '').replace(/[^A-Za-z0-9_-]/g, '_') + ':' + saveId + ':' + suffix;
 }
 function foxScheduleSaveChunkNumber_(value, label) {
@@ -4337,32 +4340,53 @@ function stageFoxScheduleSaveChunk_(p, auth) {
   if (!chunkCount || chunkIndex >= chunkCount) throw new Error('Некорректная последовательность частей графика.');
   const rows = parseJsonSafe_(String(p.rowsJson || '[]'));
   if (!Array.isArray(rows) || !rows.length) throw new Error('Пустая часть графика.');
-  const cache = CacheService.getScriptCache();
-  const metaKey = foxScheduleSaveCacheKey_(auth, saveId, 'meta');
-  const previous = parseJsonSafe_(String(cache.get(metaKey) || '{}'));
+  const properties = PropertiesService.getScriptProperties();
+  cleanupExpiredFoxScheduleSaveProperties_(properties, Date.now());
+  const metaKey = foxScheduleSavePropertyKey_(auth, saveId, 'meta');
+  const previous = parseJsonSafe_(String(properties.getProperty(metaKey) || '{}'));
+  const nowMs = Date.now();
+  if (previous.updatedAt && nowMs - Number(previous.updatedAt) > FOX_SCHEDULE_SAVE_CHUNK_TTL_MS) clearFoxScheduleSaveProperties_(properties, auth, saveId, Number(previous.chunkCount || 0));
   if (previous.chunkCount && Number(previous.chunkCount) !== chunkCount) throw new Error('Части графика относятся к разным сохранениям.');
-  cache.put(metaKey, JSON.stringify({ chunkCount:chunkCount }), FOX_SCHEDULE_SAVE_CHUNK_TTL_SECONDS);
-  cache.put(foxScheduleSaveCacheKey_(auth, saveId, 'chunk:' + chunkIndex), JSON.stringify(rows), FOX_SCHEDULE_SAVE_CHUNK_TTL_SECONDS);
+  properties.setProperty(metaKey, JSON.stringify({ chunkCount:chunkCount, updatedAt:nowMs }));
+  properties.setProperty(foxScheduleSavePropertyKey_(auth, saveId, 'chunk:' + chunkIndex), JSON.stringify(rows));
   return { saveId:saveId, chunkIndex:chunkIndex, chunkCount:chunkCount, rows:rows.length };
 }
 function commitFoxScheduleSave_(p, auth) {
   const saveId = foxScheduleSaveId_(p.saveId);
-  const cache = CacheService.getScriptCache();
-  const metaKey = foxScheduleSaveCacheKey_(auth, saveId, 'meta');
-  const meta = parseJsonSafe_(String(cache.get(metaKey) || '{}'));
+  const properties = PropertiesService.getScriptProperties();
+  const metaKey = foxScheduleSavePropertyKey_(auth, saveId, 'meta');
+  const meta = parseJsonSafe_(String(properties.getProperty(metaKey) || '{}'));
+  if (!meta.chunkCount || !meta.updatedAt || Date.now() - Number(meta.updatedAt) > FOX_SCHEDULE_SAVE_CHUNK_TTL_MS) {
+    clearFoxScheduleSaveProperties_(properties, auth, saveId, Number(meta.chunkCount || 0));
+    throw new Error('Данные графика устарели. Повторите подтверждение.');
+  }
   const chunkCount = foxScheduleSaveChunkNumber_(meta.chunkCount, 'количество');
-  if (!chunkCount) throw new Error('Данные графика устарели. Повторите подтверждение.');
   const rows = [];
   for (let index = 0; index < chunkCount; index++) {
-    const chunkKey = foxScheduleSaveCacheKey_(auth, saveId, 'chunk:' + index);
-    const chunk = parseJsonSafe_(String(cache.get(chunkKey) || ''));
+    const chunkKey = foxScheduleSavePropertyKey_(auth, saveId, 'chunk:' + index);
+    const chunk = parseJsonSafe_(String(properties.getProperty(chunkKey) || ''));
     if (!Array.isArray(chunk) || !chunk.length) throw new Error('Не все части графика получены. Повторите подтверждение.');
     Array.prototype.push.apply(rows, chunk);
   }
   const schedule = saveFoxSchedule_(Object.assign({}, p, { rowsJson:JSON.stringify(rows) }), auth);
-  cache.remove(metaKey);
-  for (let index = 0; index < chunkCount; index++) cache.remove(foxScheduleSaveCacheKey_(auth, saveId, 'chunk:' + index));
+  clearFoxScheduleSaveProperties_(properties, auth, saveId, chunkCount);
   return schedule;
+}
+function clearFoxScheduleSaveProperties_(properties, auth, saveId, chunkCount) {
+  const keys = [foxScheduleSavePropertyKey_(auth, saveId, 'meta')];
+  for (let index = 0; index < chunkCount; index++) keys.push(foxScheduleSavePropertyKey_(auth, saveId, 'chunk:' + index));
+  keys.forEach(function(key) { properties.deleteProperty(key); });
+}
+function cleanupExpiredFoxScheduleSaveProperties_(properties, nowMs) {
+  const all = properties.getProperties();
+  Object.keys(all).filter(function(key) { return key.indexOf('foxScheduleSave:') === 0 && key.slice(-5) === ':meta'; }).forEach(function(metaKey) {
+    const meta = parseJsonSafe_(String(all[metaKey] || '{}'));
+    if (!meta.updatedAt || nowMs - Number(meta.updatedAt) <= FOX_SCHEDULE_SAVE_CHUNK_TTL_MS) return;
+    const base = metaKey.slice(0, -5);
+    const count = Math.max(0, Math.min(1000, Number(meta.chunkCount || 0)));
+    properties.deleteProperty(metaKey);
+    for (let index = 0; index < count; index++) properties.deleteProperty(base + ':chunk:' + index);
+  });
 }
 
 function normalizeFoxScheduleMonth_(value) {
