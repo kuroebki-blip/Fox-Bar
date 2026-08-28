@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.15.0 — DOCUMENT OCR RESILIENCE</title>
+<title>FO'X App v15.15.1 — SCHEDULE SAVE FAST</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -295,6 +295,14 @@ body.mode-hub #backBtn{display:none}
 .sync-status.ok{color:#C9E8D8;border-color:rgba(95,191,143,.35);background:var(--done-soft)}
 .sync-status.warn{color:#EAD9B0;border-color:rgba(230,180,80,.3);background:var(--warn-soft)}
 .sync-status.err{color:#F0B0A7;border-color:rgba(240,139,125,.35);background:rgba(240,139,125,.12)}
+.fox-schedule-review{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.fox-schedule-review-item{border:1px solid var(--line);border-radius:12px;background:var(--surface-2);overflow:hidden}
+.fox-schedule-review-item summary{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:48px;padding:0 12px;cursor:pointer;font-size:14px;font-weight:700;color:var(--text)}
+.fox-schedule-review-item summary::marker{color:var(--amber)}
+.fox-schedule-review-count{font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap}
+.fox-schedule-review-days{display:flex;flex-direction:column;gap:6px;padding:0 12px 12px;border-top:1px solid var(--line)}
+.fox-schedule-review-day{display:flex;justify-content:space-between;gap:12px;padding-top:8px;font-size:13px;color:var(--muted)}
+.fox-schedule-review-day b{color:var(--amber);font-size:12px;min-width:28px}
 
 
 .banq-refresh{border:1px solid var(--amber-line);background:var(--amber-soft);color:var(--amber);
@@ -1493,7 +1501,7 @@ async function loadMySchedule_(){
   if(!isStockApiConfigured()||myScheduleMonthLoaded===month)return;
   const card=document.getElementById('myScheduleCard');
   try{const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxMySchedule',month:month},receiptAuthParams()));if(!res||!res.ok)throw new Error();const data=res.schedule||{};myScheduleMonthLoaded=month;card.hidden=false;if(!data.matched)card.textContent='Мои смены: профиль не сопоставлен с графиком.';else if(!data.scheduleFound)card.textContent='Мои смены: график на этот месяц не загружен.';else{const items=(data.items||[]).sort((a,b)=>a.date.localeCompare(b.date));myScheduleWorkingDates=new Set(items.filter(x=>x.isWorking).map(x=>x.date));card.innerHTML='<b>Мои смены</b><br>'+(items.map(x=>escapeHtml(x.date)+' — '+escapeHtml(x.isWorking?formatFoxScheduleShift_(x):'выходной')).join('<br>')||'Смены на этот месяц не указаны.');renderBanqCalendar();}}catch(_){card.hidden=true;}}
-let foxScheduleCanManage=false,foxSchedulePreview=[];
+let foxScheduleCanManage=false,foxSchedulePreview=[],foxScheduleSaveInFlight=false;
 
 async function initFoxScheduleAdmin_(){
   const root=document.getElementById('foxScheduleAdmin'),open=document.getElementById('foxScheduleOpen');if(!root||!open||!isStockApiConfigured())return;
@@ -1506,10 +1514,32 @@ function setFoxScheduleStatus_(type,text){
   const el=document.getElementById('foxScheduleStatus');if(!el)return;
   el.className='sync-status '+(type||'');el.textContent=text||'';
 }
+function foxScheduleReviewGroups_(){
+  const groups=new Map();
+  foxSchedulePreview.forEach(function(row){
+    const name=String(row&&row.name||'').trim()||'Без имени';
+    const key=name.toLocaleLowerCase('ru-RU');
+    if(!groups.has(key))groups.set(key,{name:name,rows:[]});
+    groups.get(key).rows.push(row);
+  });
+  return Array.from(groups.values()).map(function(group){
+    group.rows.sort(function(a,b){return String(a.date||'').localeCompare(String(b.date||''));});
+    return group;
+  }).sort(function(a,b){return a.name.localeCompare(b.name,'ru');});
+}
+function formatFoxScheduleReviewDay_(row){
+  const weekdays=['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
+  const parsed=new Date(String(row.date||'')+'T12:00:00');
+  const weekday=isNaN(parsed.getTime())?'День':weekdays[parsed.getDay()];
+  return {weekday:weekday,shift:formatFoxScheduleShift_(row)};
+}
 function renderFoxScheduleReview_(){
   const root=document.getElementById('foxScheduleReview');if(!root)return;root.hidden=!foxSchedulePreview.length;
   if(!foxSchedulePreview.length)return;
-  root.innerHTML='<div class="banq-comment"><b>Проверьте распознанный график</b></div>'+foxSchedulePreview.map((row,i)=>'<div class="form-grid"><div class="form-field"><input data-sr-name="'+i+'" value="'+escapeHtml(row.name)+'"></div><div class="form-field"><input data-sr-date="'+i+'" type="date" value="'+escapeHtml(row.date)+'"></div><div class="form-field"><input data-sr-value="'+i+'" value="'+escapeHtml(row.rawValue)+'"></div><div class="form-field"><select data-sr-type="'+i+'"><option value="regular"'+(row.shiftType==='preparation'?'':' selected')+'>Обычная смена</option><option value="preparation"'+(row.shiftType==='preparation'?' selected':'')+'>Заготовка</option></select></div></div>').join('')+'<button class="save-btn" id="foxScheduleSave" type="button">Подтвердить график</button>';
+  const groups=foxScheduleReviewGroups_();
+  root.innerHTML='<div class="banq-comment"><b>Распознанный график</b><br>Нажмите на сотрудника, чтобы увидеть дни его смен.</div><div class="fox-schedule-review">'+groups.map(function(group){
+    return '<details class="fox-schedule-review-item"><summary><span>'+escapeHtml(group.name)+'</span><span class="fox-schedule-review-count">'+group.rows.length+' '+(group.rows.length===1?'смена':'смены')+'</span></summary><div class="fox-schedule-review-days">'+group.rows.map(function(row){const item=formatFoxScheduleReviewDay_(row);return '<div class="fox-schedule-review-day"><b>'+escapeHtml(item.weekday)+'</b><span>'+escapeHtml(item.shift)+'</span></div>';}).join('')+'</div></details>';
+  }).join('')+'</div><button class="save-btn" id="foxScheduleSave" type="button">Подтвердить график</button>';
   document.getElementById('foxScheduleSave').onclick=()=>saveFoxSchedule_().catch(err=>setFoxScheduleStatus_('err',String(err&&err.message||err)));
 }
 async function recognizeFoxSchedule_(){
@@ -1527,22 +1557,23 @@ async function recognizeFoxSchedule_(){
     document.getElementById('foxScheduleMonth').value=res.preview.month;
     foxSchedulePreview=(res.preview.rows||[]).map(row=>Object.assign({imageUrl:uploaded.url},row));
     if(!foxSchedulePreview.length)throw new Error('Gemini не нашёл строки смен. Проверьте, что на фото видны имена, даты и ячейки графика.');
-    renderFoxScheduleReview_();setFoxScheduleStatus_('ok','График распознан. Проверьте строки перед сохранением.');
+    renderFoxScheduleReview_();setFoxScheduleStatus_('ok','График распознан. Нажмите на сотрудника, чтобы проверить его смены.');
   }catch(err){
     setFoxScheduleStatus_('err',String(err&&err.message||err));throw err;
   }finally{button.disabled=false;button.textContent='Распознать график';}
 }
 async function saveFoxSchedule_(){
+  if(foxScheduleSaveInFlight)return;
+  foxScheduleSaveInFlight=true;
   const button=document.getElementById('foxScheduleSave');if(button){button.disabled=true;button.textContent='Сохраняю…';}
   try{
-    foxSchedulePreview.forEach((row,i)=>{row.name=document.querySelector('[data-sr-name="'+i+'"]').value.trim();row.date=document.querySelector('[data-sr-date="'+i+'"]').value;row.rawValue=document.querySelector('[data-sr-value="'+i+'"]').value;row.shiftType=document.querySelector('[data-sr-type="'+i+'"]').value;});
     const month=document.getElementById('foxScheduleMonth').value;if(!month)throw new Error('Проверьте месяц графика.');
     setFoxScheduleStatus_('','Сохраняю график…');
     const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxScheduleSave',month:month,imageUrl:foxSchedulePreview[0]&&foxSchedulePreview[0].imageUrl||'',rowsJson:JSON.stringify(foxSchedulePreview)},receiptAuthParams()),30000);
     if(!res||!res.ok)throw new Error(res&&res.error||'График не сохранён.');
-    foxSchedulePreview=[];renderFoxScheduleReview_();banqScheduleWorkersByDate.clear();renderBanquets();setFoxScheduleStatus_('ok','График сотрудников сохранён.');setSyncStatus('ok','График сотрудников сохранён.');
+    const savedRows=Number(res.schedule&&res.schedule.savedRows||0);foxSchedulePreview=[];renderFoxScheduleReview_();banqScheduleWorkersByDate.clear();renderBanquets();setFoxScheduleStatus_('ok','График сохранён'+(savedRows?' · '+savedRows+' смен':'')+'.');setSyncStatus('ok','График сотрудников сохранён.');
   }catch(err){setFoxScheduleStatus_('err',String(err&&err.message||err));throw err;
-  }finally{if(button){button.disabled=false;button.textContent='Подтвердить график';}}
+  }finally{foxScheduleSaveInFlight=false;if(button){button.disabled=false;button.textContent='Подтвердить график';}}
 }
 const foxScheduleRecognizeButton=document.getElementById('foxScheduleRecognize');
 if(foxScheduleRecognizeButton)foxScheduleRecognizeButton.onclick=()=>recognizeFoxSchedule_().catch(err=>setSyncStatus('err',String(err&&err.message||err)));
@@ -1562,7 +1593,8 @@ function renderBanqScheduleWorkers_(date){
 }
 function formatFoxScheduleShift_(shift){
   const time=shift&&shift.shiftStart?'с '+shift.shiftStart+(shift.shiftEnd?' до '+shift.shiftEnd:''):(shift&&shift.rawValue||'смена');
-  return (shift&&shift.shiftType==='preparation'?'Заготовка · ':'')+time;
+  const type=shift&&shift.shiftType;
+  return (type==='preparation'?'Заготовка · ':type==='inventory'?'Инвентаризация':'')+(type==='inventory'?'':time);
 }
 
 function getTgUser(){

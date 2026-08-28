@@ -260,14 +260,15 @@ test('отправка заказа снимает только сопостав
   assert.deepEqual([row[10], row[11], row[4]], [2, 0, 'Заказ отправлен']);
 });
 
-test('график: пусто/X/Инв не являются сменой, а число и диапазон сохраняют время начала', () => {
+test('график: X игнорируется, Инв хранится отдельной сменой, а число и диапазон сохраняют время начала', () => {
   const { context } = makeRuntime();
   assert.equal(context.parseFoxScheduleShift_('').isWorking, false);
   assert.equal(context.parseFoxScheduleShift_('X').isWorking, false);
   assert.deepEqual(JSON.parse(JSON.stringify(context.parseFoxScheduleShift_('10'))), { rawValue:'10', isWorking:true, shiftStart:'10:00', shiftEnd:'' });
   assert.deepEqual(JSON.parse(JSON.stringify(context.parseFoxScheduleShift_('11-17'))), { rawValue:'11-17', isWorking:true, shiftStart:'11:00', shiftEnd:'17:00' });
-  assert.equal(context.parseFoxScheduleShift_('Инв').isWorking, false);
+  assert.deepEqual(JSON.parse(JSON.stringify(context.parseFoxScheduleShift_('Инв'))), { rawValue:'Инв', isWorking:true, shiftStart:'', shiftEnd:'', shiftType:'inventory' });
   assert.equal(context.normalizeFoxScheduleShiftType_('ЗАГОТОВКА'), 'preparation');
+  assert.equal(context.normalizeFoxScheduleShiftType_('Инвентаризация'), 'inventory');
   assert.equal(context.normalizeFoxScheduleShiftType_('regular'), 'regular');
 });
 
@@ -298,4 +299,19 @@ test('подтверждение графика показывает acknowledge
   assert.match(frontendSource, /foxScheduleSave'\)\.onclick=\(\)=>saveFoxSchedule_\(\)\.catch/);
   assert.match(frontendSource, /setFoxScheduleStatus_\('','Сохраняю график…'\)/);
   assert.match(frontendSource, /action:'foxScheduleSave'[\s\S]*?\),30000\)/);
+  assert.match(frontendSource, /foxScheduleSaveInFlight/);
+  assert.match(frontendSource, /res\.schedule&&res\.schedule\.savedRows/);
+  assert.match(frontendSource, /savedRows/);
+});
+
+test('подтверждение графика не перечитывает весь месяц после записи, а review сгруппирован по сотрудникам', () => {
+  const saveStart = stockSource.indexOf('function saveFoxSchedule_');
+  const saveEnd = stockSource.indexOf('function recognizeFoxScheduleImage_', saveStart);
+  const saveSource = stockSource.slice(saveStart, saveEnd);
+  assert.doesNotMatch(saveSource, /getFoxScheduleForMonth_\(month\)/);
+  assert.match(saveSource, /savedRows:values\.length/);
+  assert.match(saveSource, /const employees = tatooineUserRows_/);
+  assert.match(frontendSource, /function foxScheduleReviewGroups_/);
+  assert.match(frontendSource, /<details class="fox-schedule-review-item">/);
+  assert.match(frontendSource, /formatFoxScheduleReviewDay_/);
 });

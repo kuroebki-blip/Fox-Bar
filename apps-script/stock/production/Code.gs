@@ -16,7 +16,7 @@
  */
 
 const FOX_RECEIPTS = {
-  version: 'v9.9.0 DOCUMENT OCR RESILIENCE',
+  version: 'v9.9.1 SCHEDULE SAVE FAST',
 
   stockSheets: [
     'Вино',
@@ -4321,6 +4321,7 @@ function normalizeFoxScheduleDate_(value) {
 function parseFoxScheduleShift_(rawValue) {
   const raw = String(rawValue == null ? '' : rawValue).trim();
   if (!raw || /^x$/i.test(raw)) return { rawValue:raw, isWorking:false, shiftStart:'', shiftEnd:'' };
+  if (/^инв(?:ентаризац(?:ия|ии))?\.?$/i.test(raw)) return { rawValue:raw, isWorking:true, shiftStart:'', shiftEnd:'', shiftType:'inventory' };
   const range = raw.match(/^(\d{1,2})\s*[-–—]\s*(\d{1,2})$/);
   if (range) {
     const shiftStart = normalizeFoxScheduleTime_(range[1]); const shiftEnd = normalizeFoxScheduleTime_(range[2]);
@@ -4340,6 +4341,7 @@ function normalizeFoxScheduleTime_(value) {
 
 function normalizeFoxScheduleShiftType_(value) {
   const type = normalizeText_(value);
+  if (type === 'inventory' || type.indexOf('инв') >= 0) return 'inventory';
   return type === 'preparation' || type.indexOf('заготов') >= 0 ? 'preparation' : 'regular';
 }
 
@@ -4413,6 +4415,7 @@ function saveFoxSchedule_(p, auth) {
   const shiftSh = foxScheduleSheet_('foxScheduleShifts', true);
   const activeId = activeFoxScheduleIdForMonth_(month);
   const now = new Date(); const id = 'schedule_' + Date.now();
+  const employees = tatooineUserRows_(tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, false));
   if (activeId) {
     const existing = scheduleSh.getRange(3, 1, scheduleSh.getLastRow() - 2, FOX_RECEIPT_HEADERS.foxSchedules.length).getValues();
     existing.forEach(function(row, index) { if (String(row[0]) === activeId) scheduleSh.getRange(index + 3, 3).setValue('REPLACED'); });
@@ -4421,17 +4424,17 @@ function saveFoxSchedule_(p, auth) {
     const date = normalizeFoxScheduleDate_(row.date);
     if (date.slice(0, 7) !== month) throw new Error('Все даты должны относиться к выбранному месяцу.');
     const parsed = parseFoxScheduleShift_(row.rawValue);
-    const isWorking = row.isWorking === true || row.isWorking === 'true' || parsed.isWorking;
+    const isWorking = parsed.isWorking;
     const name = String(row.name || '').trim();
-    const employees = tatooineUserRows_(tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, false));
     const matched = employees.filter(function(item) { return normalizeText_(item.name) === normalizeText_(name); });
-    return [id,date,String(row.employeeId || (matched.length === 1 ? matched[0].userId : '')),name,parsed.rawValue,isWorking ? 'YES' : 'NO',parsed.shiftStart,parsed.shiftEnd,now,now,normalizeFoxScheduleShiftType_(row.shiftType)];
-  }).filter(function(row) { return row[3]; });
+    const shiftType = parsed.shiftType === 'inventory' ? 'inventory' : normalizeFoxScheduleShiftType_(row.shiftType);
+    return [id,date,String(row.employeeId || (matched.length === 1 ? matched[0].userId : '')),name,parsed.rawValue,isWorking ? 'YES' : 'NO',parsed.shiftStart,parsed.shiftEnd,now,now,shiftType];
+  }).filter(function(row) { return row[3] && row[4] && !/^x$/i.test(row[4]); });
   if (!values.length) throw new Error('Не найдено сотрудников для сохранения.');
   scheduleSh.getRange(scheduleSh.getLastRow() + 1, 1, 1, FOX_RECEIPT_HEADERS.foxSchedules.length).setValues([[id,month,'ACTIVE',String(p.imageUrl || ''),now,now,auth.userId]]);
   shiftSh.getRange(shiftSh.getLastRow() + 1, 1, values.length, FOX_RECEIPT_HEADERS.foxScheduleShifts.length).setValues(values);
   SpreadsheetApp.flush();
-  return getFoxScheduleForMonth_(month);
+  return { id:id, month:month, active:true, savedRows:values.length };
 }
 
 function recognizeFoxScheduleImage_(imageUrl, requestedMonth) {
@@ -4449,7 +4452,7 @@ function recognizeFoxScheduleImage_(imageUrl, requestedMonth) {
     'График относится к месяцу ' + requestedMonth + '. Используй этот месяц для всех дат, даже если месяц или год на фото не видны.',
     'Числа в верхней строке — дни месяца, например 28 означает ' + requestedMonth + '-28. Цифра в ячейке сотрудника (10, 11, 12, 13) — начало смены, а не количество часов.',
     'Если блок подписан «ЗАГОТОВКА», верни section="preparation" для каждого сотрудника этого блока. Для основного графика верни section="regular". Не создавай разных сотрудников, если имя встречается в обоих блоках.',
-    'X и пустая ячейка означают отсутствие обычной смены. Текстовые специальные отметки вроде «Инв» сохраняй в raw_value, но не превращай в время.',
+    'X и пустая ячейка — пожелание/отсутствие смены: не возвращай их как строки. «Инв» означает инвентаризацию: сохрани raw_value как специальную смену, но не превращай в время.',
     'Верни месяц строго YYYY-MM и каждую видимую строку сотрудника.',
     'Каждая date строго YYYY-MM-DD. raw_value сохраняй буквально: пусто, X, число, диапазон или текст.',
     'Не выдумывай имена, дни и ячейки. Месяц уже задан выше.',
@@ -4468,7 +4471,8 @@ function recognizeFoxScheduleImage_(imageUrl, requestedMonth) {
     (person.shifts || []).forEach(function(shift) {
       const date = normalizeFoxScheduleDate_(shift.date); if (date.slice(0,7) !== month) return;
       const parsedShift = parseFoxScheduleShift_(shift.raw_value);
-      rows.push({date:date,name:name,employeeId:matches.length === 1 ? matches[0].userId : '',rawValue:parsedShift.rawValue,isWorking:parsedShift.isWorking,shiftStart:parsedShift.shiftStart,shiftEnd:parsedShift.shiftEnd,shiftType:normalizeFoxScheduleShiftType_(person.section),needsEmployeeMatch:matches.length !== 1});
+      if (!parsedShift.rawValue || /^x$/i.test(parsedShift.rawValue)) return;
+      rows.push({date:date,name:name,employeeId:matches.length === 1 ? matches[0].userId : '',rawValue:parsedShift.rawValue,isWorking:parsedShift.isWorking,shiftStart:parsedShift.shiftStart,shiftEnd:parsedShift.shiftEnd,shiftType:parsedShift.shiftType === 'inventory' ? 'inventory' : normalizeFoxScheduleShiftType_(person.section),needsEmployeeMatch:matches.length !== 1});
     });
   });
   return { month:month, rows:rows };
