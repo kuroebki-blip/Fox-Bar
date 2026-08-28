@@ -336,6 +336,18 @@ test('части графика подтверждённо собираются 
   assert.deepEqual(result.rows.map(row => row.name), ['Иван','Анна']);
 });
 
+test('загрузка банкетов повторяет временный JSONP-сбой и сохраняет последнюю общую копию', () => {
+  assert.match(frontendSource, /async function loadSharedBanquetList_\(\)/);
+  assert.match(frontendSource, /for\(let attempt=1;attempt<=3;attempt\+\+\)/);
+  assert.match(frontendSource, /Повторно подключаю общую базу/);
+  const loadStart = frontendSource.indexOf('async function loadBanquets()');
+  const loadEnd = frontendSource.indexOf('async function loadBanquetReserveSummaries_', loadStart);
+  const loadSource = frontendSource.slice(loadStart, loadEnd);
+  assert.match(loadSource, /const res=await loadSharedBanquetList_\(\)/);
+  assert.match(loadSource, /banqSharedMode=true;\s*saveLocalFallback\(\)/);
+  assert.match(loadSource, /последняя сохранённая копия на этом устройстве/);
+});
+
 test('подтверждение графика не перечитывает весь месяц после записи, а review сгруппирован по сотрудникам', () => {
   const saveStart = stockSource.indexOf('function saveFoxSchedule_');
   const saveEnd = stockSource.indexOf('function recognizeFoxScheduleImage_', saveStart);

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.15.2 — SCHEDULE SAVE RELIABLE</title>
+<title>FO'X App v15.15.3 — BANQUET LOAD RESILIENT</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1728,6 +1728,24 @@ function ensureBanquetsLoaded_(){
   banquetsInitialLoadPromise_=loadBanquets();
   return banquetsInitialLoadPromise_;
 }
+function sleepBanquetLoad_(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
+async function loadSharedBanquetList_(){
+  let lastError;
+  for(let attempt=1;attempt<=3;attempt++){
+    try{
+      const res=await jsonp(BANQ_API_URL,{action:'list'});
+      if(res&&res.ok)return res;
+      throw new Error(res&&res.error||'bad response');
+    }catch(error){
+      lastError=error;
+      if(attempt<3){
+        setSyncStatus('','Повторно подключаю общую базу… '+(attempt+1)+' из 3');
+        await sleepBanquetLoad_(attempt*600);
+      }
+    }
+  }
+  throw lastError||new Error('Не удалось загрузить общую базу.');
+}
 async function loadBanquets(){
   updateAdminVisibility();
   updateStorageWarning();
@@ -1744,8 +1762,7 @@ async function loadBanquets(){
 
   try{
     setSyncStatus('', 'Загружаю общую базу банкетов…');
-    const res=await jsonp(BANQ_API_URL,{action:'list'});
-    if(!res || !res.ok) throw new Error(res && res.error ? res.error : 'bad response');
+    const res=await loadSharedBanquetList_();
     banqMediaSupported=Boolean(res.mediaSupported);
     banquets=(res.items||[]).map(x=>({
       id:String(x.id||''),
@@ -1762,6 +1779,7 @@ async function loadBanquets(){
       reserve:null
     })).filter(x=>x.id && x.date);
     banqSharedMode=true;
+    saveLocalFallback();
     const reserveConnected=await loadBanquetReserveSummaries_();
     setSyncStatus(
       reserveConnected?'ok':'warn',
@@ -1774,7 +1792,7 @@ async function loadBanquets(){
     banqSharedMode=false;
     banqMediaSupported=false;
     try{ banquets=JSON.parse(localStorage.getItem(BANQ_LOCAL_FALLBACK_KEY)||'[]'); }catch(_){ banquets=[]; }
-    setSyncStatus('err','Не удалось загрузить общую базу. Проверь URL Web App и доступы. Сейчас показан локальный резерв.');
+    setSyncStatus('err',banquets.length?'Не удалось обновить общую базу. Показана последняя сохранённая копия на этом устройстве.':'Не удалось загрузить общую базу. Проверьте соединение и повторите обновление.');
     renderBanquets();
   }
 }
