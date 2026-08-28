@@ -16,7 +16,7 @@
 
 | Компонент | Версия | Статус | Основание |
 | --- | --- | --- | --- |
-| FO’X frontend | `v15.15.4 CALENDAR REFRESH RELIABLE` | готов к публикации из `main` | сбрасывает устаревший кэш графика и ограничивает повторные загрузки банкетов |
+| FO’X frontend | `v15.15.4 CALENDAR REFRESH RELIABLE` | опубликован из `main` | GitHub Pages подтверждён с cache-busting query `rev=19eca51` |
 | Tatooine frontend | `v1.8.3 TAXI PARALLEL LOAD` | опубликован в `main`; GitHub Pages обновляется из `main` | релиз параллельной загрузки раздела «Такси» |
 | Scanner/cash Apps Script | `v9.9.2 SCHEDULE SAVE RELIABLE`, Apps Script version 51 | deployment обновлён и проверен `ping` | прежний Web App URL и deployment ID сохранены; живой тест сохранения графика остаётся отдельным пунктом |
 | Banquets Apps Script | неизвестно | требует подтверждения пользователя и проверки deployment | исходника production нет в `main` |
@@ -41,7 +41,7 @@ Tatooine `v1.8.3` устраняет Apps Script waterfall в разделе «�
 ## Проверка
 
 - Автоматические тесты текущего релиза: 129/129; lint и `git diff --check` прошли по commit `bd0e345`.
-- Публичные GitHub Pages версии FO’X `v15.15.4` и Tatooine публикуются из `main`; после публикации нужен живой Telegram-тест сохранения графика.
+- Публичные GitHub Pages версии FO’X `v15.15.4` и Tatooine публикуются из `main`; для FO’X после публикации нужен живой Telegram-тест сохранения графика.
 - Публичный scanner/cash backend после обновления deployment version 51 ответил на `ping` как `v9.9.2 SCHEDULE SAVE RELIABLE`.
 - Живой пользовательский тест точности OCR и отправки в Telegram для текущего montage-релиза не подтверждён.
 - Живой тест банкетов и формул Google Sheets после текущего frontend-релиза не подтверждён.
