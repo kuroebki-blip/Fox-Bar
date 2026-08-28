@@ -16,7 +16,7 @@
  */
 
 const FOX_RECEIPTS = {
-  version: 'v9.9.4 WEEKLY SCHEDULE RELIABLE',
+  version: 'v9.9.5 SCHEDULE DATE KEYS RELIABLE',
 
   stockSheets: [
     'Вино',
@@ -4400,6 +4400,16 @@ function normalizeFoxScheduleDate_(value) {
   if (!/^\d{4}-(0[1-9]|1[0-2])-([012]\d|3[01])$/.test(date)) throw new Error('Дата смены должна иметь формат ГГГГ-ММ-ДД.');
   return date;
 }
+function foxScheduleStoredMonth_(value) {
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM');
+  const match = String(value || '').trim().match(/^(\d{4}-(0[1-9]|1[0-2]))/);
+  return match ? match[1] : '';
+}
+function foxScheduleStoredDate_(value) {
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  const match = String(value || '').trim().match(/^(\d{4}-(0[1-9]|1[0-2])-([012]\d|3[01]))/);
+  return match ? match[1] : '';
+}
 
 function parseFoxScheduleShift_(rawValue) {
   const raw = String(rawValue == null ? '' : rawValue).trim();
@@ -4433,6 +4443,7 @@ function foxScheduleRows_(sh) {
   const width = Math.min(sh.getLastColumn(), FOX_RECEIPT_HEADERS.foxScheduleShifts.length);
   return sh.getRange(3, 1, sh.getLastRow() - 2, width).getValues().map(function(row) {
     while (row.length < FOX_RECEIPT_HEADERS.foxScheduleShifts.length) row.push('');
+    row[1] = foxScheduleStoredDate_(row[1]);
     return row;
   });
 }
@@ -4477,7 +4488,7 @@ function activeFoxScheduleIdForMonth_(month) {
   const sh = foxScheduleSheet_('foxSchedules', false);
   if (!sh || sh.getLastRow() < 3) return '';
   const rows = sh.getRange(3, 1, sh.getLastRow() - 2, FOX_RECEIPT_HEADERS.foxSchedules.length).getValues();
-  for (let i = rows.length - 1; i >= 0; i--) if (String(rows[i][1]) === month && String(rows[i][2]) === 'ACTIVE') return String(rows[i][0]);
+  for (let i = rows.length - 1; i >= 0; i--) if (foxScheduleStoredMonth_(rows[i][1]) === month && String(rows[i][2]) === 'ACTIVE') return String(rows[i][0]);
   return '';
 }
 
@@ -4514,8 +4525,14 @@ function saveFoxSchedule_(p, auth) {
     return [id,date,String(row.employeeId || (matched.length === 1 ? matched[0].userId : '')),name,parsed.rawValue,isWorking ? 'YES' : 'NO',parsed.shiftStart,parsed.shiftEnd,now,now,shiftType];
   }).filter(function(row) { return row[3] && row[4] && !/^x$/i.test(row[4]); });
   if (!values.length) throw new Error('Не найдено сотрудников для сохранения.');
-  scheduleSh.getRange(scheduleSh.getLastRow() + 1, 1, 1, FOX_RECEIPT_HEADERS.foxSchedules.length).setValues([[id,month,'ACTIVE',String(p.imageUrl || ''),now,now,auth.userId]]);
-  shiftSh.getRange(shiftSh.getLastRow() + 1, 1, values.length, FOX_RECEIPT_HEADERS.foxScheduleShifts.length).setValues(values);
+  const scheduleRow = scheduleSh.getLastRow() + 1;
+  const shiftFirstRow = shiftSh.getLastRow() + 1;
+  // Sheets otherwise coerces ISO keys to Date values, breaking exact lookup of
+  // the active month and individual shift dates after the save.
+  scheduleSh.getRange(scheduleRow, 2, 1, 1).setNumberFormat('@');
+  shiftSh.getRange(shiftFirstRow, 2, values.length, 1).setNumberFormat('@');
+  scheduleSh.getRange(scheduleRow, 1, 1, FOX_RECEIPT_HEADERS.foxSchedules.length).setValues([[id,month,'ACTIVE',String(p.imageUrl || ''),now,now,auth.userId]]);
+  shiftSh.getRange(shiftFirstRow, 1, values.length, FOX_RECEIPT_HEADERS.foxScheduleShifts.length).setValues(values);
   SpreadsheetApp.flush();
   if (activeFoxScheduleIdForMonth_(month) !== id) throw new Error('График не удалось активировать. Повторите подтверждение.');
   return { id:id, month:month, active:true, savedRows:values.length };

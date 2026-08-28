@@ -68,7 +68,10 @@ function makeContext({ banquetSheet, reserveSheet }) {
     PropertiesService: { getScriptProperties: () => ({ getProperty: key => properties[key] || '', getProperties: () => properties, setProperty: (key, value) => { properties[key] = value; }, deleteProperty: key => { delete properties[key]; } }) },
     CacheService: { getScriptCache: () => ({ get: key => cache.get(key) || null, put: (key, value) => cache.set(key, value), remove: key => cache.delete(key) }) },
     LockService: { getDocumentLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },
-    Utilities: { formatDate: () => '01.01.2026', base64Encode: () => '' },
+    Utilities: { formatDate: (date, _timezone, format) => {
+      const yyyy = date.getUTCFullYear(); const mm = String(date.getUTCMonth() + 1).padStart(2, '0'); const dd = String(date.getUTCDate()).padStart(2, '0');
+      return format === 'yyyy-MM' ? yyyy + '-' + mm : yyyy + '-' + mm + '-' + dd;
+    }, base64Encode: () => '' },
     Session: { getScriptTimeZone: () => 'Europe/Moscow' },
     ContentService: { MimeType: { JSON: 'JSON', JAVASCRIPT: 'JAVASCRIPT' }, createTextOutput: () => ({ setMimeType() { return this; } }) },
     UrlFetchApp: {},
@@ -272,6 +275,15 @@ test('график: X игнорируется, Инв хранится отде
   assert.equal(context.normalizeFoxScheduleShiftType_('ЗАГОТОВКА'), 'preparation');
   assert.equal(context.normalizeFoxScheduleShiftType_('Инвентаризация'), 'inventory');
   assert.equal(context.normalizeFoxScheduleShiftType_('regular'), 'regular');
+});
+
+test('график корректно читает ISO-месяц и дату, даже если Google Sheets уже преобразовал их в Date', () => {
+  const { context } = makeRuntime();
+  const saved = new Date(Date.UTC(2026, 7, 24, 12));
+  assert.equal(context.foxScheduleStoredMonth_(saved), '2026-08');
+  assert.equal(context.foxScheduleStoredDate_(saved), '2026-08-24');
+  assert.equal(context.foxScheduleStoredMonth_('2026-08'), '2026-08');
+  assert.equal(context.foxScheduleStoredDate_('2026-08-24'), '2026-08-24');
 });
 
 test('итоговая сумма банкета хранится числом, допускает ноль и очистку', () => {
