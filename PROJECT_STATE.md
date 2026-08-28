@@ -16,9 +16,9 @@
 
 | Компонент | Версия | Статус | Основание |
 | --- | --- | --- | --- |
-| FO’X frontend | `v15.15.5 SCHEDULE SAVE RELIABLE` | опубликован из `main` | GitHub Pages подтверждён с cache-busting query `rev=76cd2a0` |
+| FO’X frontend | `v15.15.6 WEEKLY SCHEDULE RELIABLE` | опубликован из `main` | GitHub Pages подтверждён с cache-busting query `rev=bfa4acc` |
 | Tatooine frontend | `v1.8.3 TAXI PARALLEL LOAD` | опубликован в `main`; GitHub Pages обновляется из `main` | релиз параллельной загрузки раздела «Такси» |
-| Scanner/cash Apps Script | `v9.9.3 SCHEDULE STAGING RELIABLE`, Apps Script version 53 | deployment обновлён и проверен `ping` | прежний Web App URL и deployment ID сохранены; части графика не используют вытесняемый CacheService |
+| Scanner/cash Apps Script | `v9.9.4 WEEKLY SCHEDULE RELIABLE`, Apps Script version 54 | deployment обновлён и проверен `ping` | прежний Web App URL и deployment ID сохранены; выбранный админом месяц не может быть подменён OCR |
 | Banquets Apps Script | неизвестно | требует подтверждения пользователя и проверки deployment | исходника production нет в `main` |
 | Google Sheets | неизвестно | требует подтверждения пользователя | таблицы и Script Properties не хранятся в Git |
 
@@ -40,9 +40,9 @@ Tatooine `v1.8.3` устраняет Apps Script waterfall в разделе «�
 
 ## Проверка
 
-- Автоматические тесты текущего релиза: 130/130; lint и `git diff --check` прошли по commit `76cd2a0`.
-- Публичные GitHub Pages версии FO’X `v15.15.5` и Tatooine публикуются из `main`; для FO’X после публикации нужен живой Telegram-тест сохранения графика.
-- Публичный scanner/cash backend после обновления deployment version 53 ответил на `ping` как `v9.9.3 SCHEDULE STAGING RELIABLE`.
+- Автоматические тесты текущего релиза: 130/130; lint и `git diff --check` прошли по commit `bfa4acc`.
+- Публичные GitHub Pages версии FO’X `v15.15.6` и Tatooine публикуются из `main`; для FO’X после публикации нужен живой Telegram-тест сохранения графика.
+- Публичный scanner/cash backend после обновления deployment version 54 ответил на `ping` как `v9.9.4 WEEKLY SCHEDULE RELIABLE`.
 - Живой пользовательский тест точности OCR и отправки в Telegram для текущего montage-релиза не подтверждён.
 - Живой тест банкетов и формул Google Sheets после текущего frontend-релиза не подтверждён.
 
