@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.15.3 — BANQUET LOAD RESILIENT</title>
+<title>FO'X App v15.15.4 — CALENDAR REFRESH RELIABLE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1495,6 +1495,12 @@ let banqGalleryIndex=0;
 const banqScheduleWorkersByDate=new Map();
 let myScheduleMonthLoaded='';
 let myScheduleWorkingDates=new Set();
+let banquetsLoadPromise_=null;
+function invalidateBanqScheduleCache_(){
+  myScheduleMonthLoaded='';
+  myScheduleWorkingDates.clear();
+  banqScheduleWorkersByDate.clear();
+}
 
 async function loadMySchedule_(){
   const month=banqMonthDate.getFullYear()+'-'+String(banqMonthDate.getMonth()+1).padStart(2,'0');
@@ -1603,7 +1609,16 @@ async function saveFoxSchedule_(){
     setFoxScheduleStatus_('','Сохраняю график…');
     const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxScheduleSaveCommit',saveId:saveId,month:month,imageUrl:foxSchedulePreview[0]&&foxSchedulePreview[0].imageUrl||''},receiptAuthParams()),30000);
     if(!res||!res.ok)throw new Error(res&&res.error||'График не сохранён.');
-    const savedRows=Number(res.schedule&&res.schedule.savedRows||0);foxSchedulePreview=[];renderFoxScheduleReview_();banqScheduleWorkersByDate.clear();renderBanquets();setFoxScheduleStatus_('ok','График сохранён'+(savedRows?' · '+savedRows+' смен':'')+'.');setSyncStatus('ok','График сотрудников сохранён.');
+    const savedRows=Number(res.schedule&&res.schedule.savedRows||0);
+    // A previous calendar render may have cached "no schedule" for this month.
+    // Invalidate both schedule views before rerendering so the just-saved active
+    // schedule is read from the backend instead of being hidden by stale state.
+    invalidateBanqScheduleCache_();
+    foxSchedulePreview=[];
+    renderFoxScheduleReview();
+    renderBanquets();
+    setFoxScheduleStatus_('ok','График сохранён'+(savedRows?' · '+savedRows+' смен':'')+'.');
+    setSyncStatus('ok','График сотрудников сохранён.');
   }catch(err){
     const message=String(err&&err.message||err);
     setFoxScheduleStatus_('err',message==='jsonp error'?'Не удалось передать график. Проверьте соединение и повторите попытку.':message);throw err;
@@ -1698,7 +1713,7 @@ document.getElementById('banqPrev').onclick=()=>{ banqMonthDate.setMonth(banqMon
 document.getElementById('banqNext').onclick=()=>{ banqMonthDate.setMonth(banqMonthDate.getMonth()+1); hap('light'); renderBanquets(); };
 const banqRefreshBtn=document.getElementById('banqRefresh');
 if(banqRefreshBtn){
-  banqRefreshBtn.onclick=()=>{ hap('light'); loadBanquets(); };
+  banqRefreshBtn.onclick=()=>{ hap('light'); invalidateBanqScheduleCache_(); loadBanquets(); };
 }
 
 
@@ -1731,22 +1746,33 @@ function ensureBanquetsLoaded_(){
 function sleepBanquetLoad_(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
 async function loadSharedBanquetList_(){
   let lastError;
-  for(let attempt=1;attempt<=3;attempt++){
+  // A list request normally completes in under a second.  Two bounded attempts
+  // keep the calendar responsive on a flaky Telegram WebView instead of making
+  // the user wait for three generic 15-second JSONP timeouts.
+  for(let attempt=1;attempt<=2;attempt++){
     try{
-      const res=await jsonp(BANQ_API_URL,{action:'list'});
+      const res=await jsonp(BANQ_API_URL,{action:'list'},6000);
       if(res&&res.ok)return res;
       throw new Error(res&&res.error||'bad response');
     }catch(error){
       lastError=error;
-      if(attempt<3){
-        setSyncStatus('','Повторно подключаю общую базу… '+(attempt+1)+' из 3');
-        await sleepBanquetLoad_(attempt*600);
+      if(attempt<2){
+        setSyncStatus('','Повторно подключаю общую базу… попытка 2 из 2');
+        await sleepBanquetLoad_(500);
       }
     }
   }
   throw lastError||new Error('Не удалось загрузить общую базу.');
 }
 async function loadBanquets(){
+  if(banquetsLoadPromise_)return banquetsLoadPromise_;
+  const refreshButton=document.getElementById('banqRefresh');
+  if(refreshButton)refreshButton.disabled=true;
+  banquetsLoadPromise_=loadBanquetsImpl_();
+  try{return await banquetsLoadPromise_;}
+  finally{banquetsLoadPromise_=null;if(refreshButton)refreshButton.disabled=false;}
+}
+async function loadBanquetsImpl_(){
   updateAdminVisibility();
   updateStorageWarning();
   updateCloudinaryWarning();

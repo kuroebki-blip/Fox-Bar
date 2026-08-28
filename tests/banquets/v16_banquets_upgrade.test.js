@@ -336,13 +336,19 @@ test('части графика подтверждённо собираются 
   assert.deepEqual(result.rows.map(row => row.name), ['Иван','Анна']);
 });
 
-test('загрузка банкетов повторяет временный JSONP-сбой и сохраняет последнюю общую копию', () => {
+test('загрузка банкетов делает две короткие попытки и сохраняет последнюю общую копию', () => {
   assert.match(frontendSource, /async function loadSharedBanquetList_\(\)/);
-  assert.match(frontendSource, /for\(let attempt=1;attempt<=3;attempt\+\+\)/);
+  assert.match(frontendSource, /for\(let attempt=1;attempt<=2;attempt\+\+\)/);
+  assert.match(frontendSource, /jsonp\(BANQ_API_URL,\{action:'list'\},6000\)/);
+  assert.match(frontendSource, /attempt<2/);
   assert.match(frontendSource, /Повторно подключаю общую базу/);
+  assert.match(frontendSource, /let banquetsLoadPromise_=null/);
+  assert.match(frontendSource, /if\(banquetsLoadPromise_\)return banquetsLoadPromise_/);
   const loadStart = frontendSource.indexOf('async function loadBanquets()');
   const loadEnd = frontendSource.indexOf('async function loadBanquetReserveSummaries_', loadStart);
   const loadSource = frontendSource.slice(loadStart, loadEnd);
+  assert.match(loadSource, /loadBanquetsImpl_\(\)/);
+  assert.match(loadSource, /refreshButton\.disabled=true/);
   assert.match(loadSource, /const res=await loadSharedBanquetList_\(\)/);
   assert.match(loadSource, /banqSharedMode=true;\s*saveLocalFallback\(\)/);
   assert.match(loadSource, /последняя сохранённая копия на этом устройстве/);
@@ -358,4 +364,13 @@ test('подтверждение графика не перечитывает в
   assert.match(frontendSource, /function foxScheduleReviewGroups_/);
   assert.match(frontendSource, /<details class="fox-schedule-review-item">/);
   assert.match(frontendSource, /formatFoxScheduleReviewDay_/);
+});
+
+test('сохранение графика инвалидирует кэш календаря и перечитывает только что сохранённую смену', () => {
+  const saveStart = frontendSource.indexOf('async function saveFoxSchedule_()');
+  const saveEnd = frontendSource.indexOf('const foxScheduleRecognizeButton', saveStart);
+  const saveSource = frontendSource.slice(saveStart, saveEnd);
+  assert.match(saveSource, /invalidateBanqScheduleCache_\(\)/);
+  assert.match(saveSource, /renderBanquets\(\)/);
+  assert.match(frontendSource, /banqRefreshBtn\.onclick=\(\)=>\{ hap\('light'\); invalidateBanqScheduleCache_\(\); loadBanquets\(\); \}/);
 });
