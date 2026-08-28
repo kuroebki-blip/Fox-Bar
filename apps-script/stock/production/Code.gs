@@ -1,5 +1,5 @@
 /**
- * FO’X — документы, чеки, банкетный резерв и кассовый отчёт v9.9.0
+ * FO’X — документы, чеки, банкетный резерв и кассовый отчёт v9.10.0
  *
  * Назначение:
  * 1. Принимает облегчённые JPEG-страницы для быстрого распознавания.
@@ -16,7 +16,7 @@
  */
 
 const FOX_RECEIPTS = {
-  version: 'v9.9.7 SCHEDULE OCR RELIABLE',
+  version: 'v9.10.0 SECURE CALENDAR & STAFF ACCESS',
 
   stockSheets: [
     'Вино',
@@ -51,6 +51,7 @@ const FOX_RECEIPTS = {
     foxScheduleShifts: 'FOx_СменыСотрудников',
     tatooineUsers: 'Tatooine_Пользователи',
     tatooineRoleAudit: 'Tatooine_АудитРолей',
+    foxEmployeeAudit: 'FOx_АудитСотрудников',
     tatooineRideRequests: 'Tatooine_ЗаявкиРазвоза',
     tatooineLocations: 'Tatooine_Локации',
     tatooineLocationAudit: 'Tatooine_АудитЛокаций',
@@ -154,6 +155,9 @@ const FOX_RECEIPT_HEADERS = {
   tatooineRoleAudit: [
     'Actor User ID','Target User ID','Старая роль','Новая роль','Timestamp'
   ],
+  foxEmployeeAudit: [
+    'Actor User ID','Target User ID','Действие','Старое значение','Новое значение','Timestamp'
+  ],
   tatooineRideRequests: [
     'ID','Employee ID','Дата развоза','Развоз нужен','Создано','Обновлено','Подтверждено','Отменено','Создано пользователем','Обновил пользователь'
   ],
@@ -181,10 +185,10 @@ const FOX_RECEIPT_HEADERS = {
 const TATOOINE_RBAC = {
   defaultRole: 'employee',
   roles: {
-    employee: ['profile.view_self','profile.edit_self','rides.submit_self','rides.view_self'],
-    manager: ['profile.view_self','profile.edit_self','rides.submit_self','rides.view_self','employees.view','rides.view_all','rides.optimize','rides.override','rides.manage_addresses','rides.confirm','rides.enter_cost','rides.view_analytics','analytics.view'],
-    admin: ['profile.view_self','profile.edit_self','rides.submit_self','rides.view_self','employees.view','rides.view_all','rides.optimize','rides.override','rides.manage_addresses','rides.manage_origin','rides.confirm','rides.enter_cost','rides.view_analytics','analytics.view','employees.edit','settings.view','settings.manage','roles.view'],
-    superadmin: ['profile.view_self','profile.edit_self','employees.view','employees.edit','rides.submit_self','rides.view_self','rides.view_all','rides.optimize','rides.override','rides.manage_addresses','rides.manage_origin','rides.confirm','rides.enter_cost','rides.view_analytics','analytics.view','settings.view','settings.manage','roles.view','roles.manage']
+    employee: ['profile.view_self','profile.edit_self','rides.submit_self','rides.view_self','schedules.view_self','schedules.view_team','banquets.view'],
+    manager: ['profile.view_self','profile.edit_self','rides.submit_self','rides.view_self','employees.view','rides.view_all','rides.optimize','rides.override','rides.manage_addresses','rides.confirm','rides.enter_cost','rides.view_analytics','analytics.view','schedules.view_self','schedules.view_team','banquets.view'],
+    admin: ['profile.view_self','profile.edit_self','rides.submit_self','rides.view_self','employees.view','rides.view_all','rides.optimize','rides.override','rides.manage_addresses','rides.manage_origin','rides.confirm','rides.enter_cost','rides.view_analytics','analytics.view','employees.edit','settings.view','settings.manage','roles.view','schedules.view_self','schedules.view_team','schedules.manage','banquets.view','banquets.manage'],
+    superadmin: ['profile.view_self','profile.edit_self','employees.view','employees.edit','rides.submit_self','rides.view_self','rides.view_all','rides.optimize','rides.override','rides.manage_addresses','rides.manage_origin','rides.confirm','rides.enter_cost','rides.view_analytics','analytics.view','settings.view','settings.manage','roles.view','roles.manage','schedules.view_self','schedules.view_team','schedules.manage','banquets.view','banquets.manage']
   }
 };
 
@@ -925,16 +929,63 @@ function doGet(e) {
       return jsonpOutput_(callback, { ok: true, items: getBanquetReserveSummaries_() });
     }
 
+    // Calendar reads use the same verified identity as the rest of FO’X. This
+    // prevents the separate legacy Web App from exposing banquet data by URL.
+    if (action === 'foxCalendarBanquets') {
+      requireFoxPermission_(auth, 'banquets.view');
+      return jsonpOutput_(callback, Object.assign({ ok: true, source: 'stock-secure' }, listFoxCalendarBanquets_()));
+    }
+
+    // Банкетные записи проходят через тот же verified Telegram auth и RBAC,
+    // что и остальные действия FO’X. Старый независимый Banquets Web App
+    // оставлен только для legacy-read; он больше не является write endpoint.
+    if (action === 'foxBanquetSave') {
+      requireFoxPermission_(auth, 'banquets.manage');
+      const item = saveFoxCalendarBanquet_(e.parameter, auth);
+      return jsonpOutput_(callback, { ok:true, item:item, summary:syncFoxCalendarBanquetReserveStatus_(item.id) });
+    }
+
+    if (action === 'foxBanquetStatus') {
+      requireFoxPermission_(auth, 'banquets.manage');
+      const banquet = setFoxCalendarBanquetStatus_(e.parameter.banquetId, e.parameter.status);
+      return jsonpOutput_(callback, { ok:true, banquet:banquet, summary:syncFoxCalendarBanquetReserveStatus_(banquet.id) });
+    }
+
+    if (action === 'foxBanquetDelete') {
+      requireFoxPermission_(auth, 'banquets.manage');
+      const deleted = deleteFoxCalendarBanquet_(e.parameter.banquetId);
+      return jsonpOutput_(callback, { ok:true, deleted:deleted, summary:archiveBanquetReserve_(e.parameter.banquetId) });
+    }
+
+    if (action === 'foxCurrentUser') {
+      return jsonpOutput_(callback, { ok: true, user: getFoxCurrentUser_(auth, true) });
+    }
+
+    if (action === 'foxEmployees') {
+      requireFoxPermission_(auth, 'roles.manage');
+      return jsonpOutput_(callback, { ok: true, items: listFoxEmployees_(auth), roles: Object.keys(TATOOINE_RBAC.roles) });
+    }
+
+    if (action === 'foxSetRole') {
+      return jsonpOutput_(callback, { ok: true, result: setFoxEmployeeRole_(e.parameter, auth) });
+    }
+
+    if (action === 'foxSetEmployeeName') {
+      return jsonpOutput_(callback, { ok: true, result: setFoxEmployeeName_(e.parameter, auth) });
+    }
+
     if (action === 'foxScheduleWorkers') {
+      requireFoxPermission_(auth, 'schedules.view_team');
       return jsonpOutput_(callback, { ok:true, schedule:listFoxScheduleWorkers_(e.parameter.date) });
     }
 
     if (action === 'foxMySchedule') {
+      requireFoxPermission_(auth, 'schedules.view_self');
       return jsonpOutput_(callback, { ok:true, schedule:getFoxMySchedule_(e.parameter.month, auth) });
     }
 
     if (action === 'foxBanquetFinalAmount') {
-      assertFoxScheduleManager_(auth);
+      requireFoxPermission_(auth, 'banquets.manage');
       return jsonpOutput_(callback, { ok:true, banquet:setFoxBanquetFinalAmount_(e.parameter.banquetId, e.parameter.finalAmount) });
     }
 
@@ -970,17 +1021,17 @@ function doGet(e) {
     // Небольшие команды банкетного резерва выполняются через JSONP,
     // чтобы frontend видел реальный ответ и не скрывал ошибки opaque/no-cors POST.
     if (action === 'banquetStatusUpdate') {
-      assertBanquetAdmin_(auth);
+      requireFoxPermission_(auth, 'banquets.manage');
       return jsonpOutput_(callback, { ok: true, summary: setBanquetReserveStatus_(e.parameter.banquetId, e.parameter.status) });
     }
 
     if (action === 'banquetDelete') {
-      assertBanquetAdmin_(auth);
+      requireFoxPermission_(auth, 'banquets.manage');
       return jsonpOutput_(callback, { ok: true, summary: archiveBanquetReserve_(e.parameter.banquetId) });
     }
 
     if (action === 'banquetOrder') {
-      assertBanquetAdmin_(auth);
+      requireFoxPermission_(auth, 'banquets.manage');
       return jsonpOutput_(callback, { ok: true, summary: setBanquetOrderSent_(e.parameter.banquetId, truthy_(e.parameter.sent)) });
     }
 
@@ -1074,23 +1125,23 @@ function doPost(e) {
     }
 
     if (action === 'banquetScan') {
-      assertBanquetAdmin_(auth);
+      requireFoxPermission_(auth, 'banquets.manage');
       scanBanquetReserve_(e.parameter, auth);
       return textOutput_({ ok: true });
     }
 
     if (action === 'banquetOrder') {
-      assertBanquetAdmin_(auth);
+      requireFoxPermission_(auth, 'banquets.manage');
       return textOutput_({ ok: true, summary: setBanquetOrderSent_(e.parameter.banquetId, truthy_(e.parameter.sent)) });
     }
 
     if (action === 'banquetStatusUpdate') {
-      assertBanquetAdmin_(auth);
+      requireFoxPermission_(auth, 'banquets.manage');
       return textOutput_({ ok: true, summary: setBanquetReserveStatus_(e.parameter.banquetId, e.parameter.status) });
     }
 
     if (action === 'banquetDelete') {
-      assertBanquetAdmin_(auth);
+      requireFoxPermission_(auth, 'banquets.manage');
       archiveBanquetReserve_(e.parameter.banquetId);
       return textOutput_({ ok: true });
     }
@@ -3043,6 +3094,7 @@ function tatooineRbacSheet_(name, ensure) {
   const definitions = {};
   definitions[FOX_RECEIPTS.sheets.tatooineUsers] = { title: 'Tatooine — ПОЛЬЗОВАТЕЛИ', headers: FOX_RECEIPT_HEADERS.tatooineUsers };
   definitions[FOX_RECEIPTS.sheets.tatooineRoleAudit] = { title: 'Tatooine — АУДИТ РОЛЕЙ', headers: FOX_RECEIPT_HEADERS.tatooineRoleAudit };
+  definitions[FOX_RECEIPTS.sheets.foxEmployeeAudit] = { title: 'FO’X — АУДИТ СОТРУДНИКОВ', headers: FOX_RECEIPT_HEADERS.foxEmployeeAudit };
   definitions[FOX_RECEIPTS.sheets.tatooineRideRequests] = { title: 'Tatooine — ЗАЯВКИ РАЗВОЗА', headers: FOX_RECEIPT_HEADERS.tatooineRideRequests };
   definitions[FOX_RECEIPTS.sheets.tatooineLocations] = { title: 'Tatooine — ЛОКАЦИИ', headers: FOX_RECEIPT_HEADERS.tatooineLocations };
   definitions[FOX_RECEIPTS.sheets.tatooineLocationAudit] = { title: 'Tatooine — АУДИТ ЛОКАЦИЙ', headers: FOX_RECEIPT_HEADERS.tatooineLocationAudit };
@@ -3105,6 +3157,85 @@ function getTatooineCurrentUser_(auth, register) {
   const sh = tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, Boolean(register));
   const rows = tatooineUserRows_(sh);
   return getTatooineCurrentUserFromRows_(auth, sh, rows, register);
+}
+
+// FO'X and Tatooine share the same verified Telegram identity and user table.
+// The legacy FO'X admin list is used only once while migrating a previously
+// trusted administrator into the role source of truth.
+function foxLegacyBootstrapRole_(auth, existing) {
+  if (existing) return '';
+  return FOX_RECEIPTS.adminTelegramIds.map(String).indexOf(String(auth && auth.userId || '')) >= 0 ? 'admin' : '';
+}
+
+function getFoxCurrentUser_(auth, register) {
+  if (!auth || auth.venue !== 'fox' || !auth.userId) throw new Error('Нет доступа.');
+  const sh = tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, Boolean(register));
+  const rows = tatooineUserRows_(sh);
+  const existing = rows.filter(function(item) { return item.userId === String(auth.userId); })[0] || null;
+  const inheritedRole = foxLegacyBootstrapRole_(auth, existing);
+  const user = publicTatooineUser_(existing, auth, inheritedRole || (existing && existing.role));
+  if (register && sh && !existing) {
+    const now = new Date();
+    sh.getRange(sh.getLastRow() + 1, 1, 1, FOX_RECEIPT_HEADERS.tatooineUsers.length).setValues([[auth.userId, auth.userName, user.role, now, now, '', '', '']]);
+  }
+  return user;
+}
+
+function requireFoxPermission_(auth, permission) {
+  const user = getFoxCurrentUser_(auth, true);
+  if (!hasTatooinePermission_(user, permission)) throw new Error('Нет доступа.');
+  return user;
+}
+
+function listFoxEmployees_(auth) {
+  const sh = tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, true);
+  getFoxCurrentUser_(auth, true);
+  return tatooineUserRows_(sh).map(function(item) { return publicTatooineUser_(item, auth); });
+}
+
+function setFoxEmployeeRole_(p, auth) {
+  const actor = requireFoxPermission_(auth, 'roles.manage');
+  const targetUserId = requiredString_(p.targetUserId, 'targetUserId');
+  const newRole = normalizeTatooineRole_(p.role);
+  if (String(p.role || '').trim() !== newRole) throw new Error('Неизвестная роль.');
+  const lock = LockService.getDocumentLock();
+  if (!lock.tryLock(30000)) throw new Error('Система ролей сейчас занята. Повторите попытку.');
+  try {
+    const sh = tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, true);
+    getFoxCurrentUser_(auth, true);
+    const rows = tatooineUserRows_(sh);
+    const target = rows.filter(function(item) { return item.userId === targetUserId; })[0];
+    if (!target) throw new Error('Сотрудник не найден.');
+    const oldRole = normalizeTatooineRole_(target.role);
+    const superadminCount = rows.filter(function(item) { return item.role === 'superadmin'; }).length;
+    assertTatooineRoleChangeAllowed_(actor.id, targetUserId, oldRole, newRole, superadminCount);
+    if (oldRole === newRole) return { changed: false };
+    sh.getRange(target.row, 3, 1, 3).setValues([[newRole, target.createdAt || new Date(), new Date()]]);
+    const audit = tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineRoleAudit, true);
+    audit.getRange(audit.getLastRow() + 1, 1, 1, FOX_RECEIPT_HEADERS.tatooineRoleAudit.length).setValues([[actor.id, targetUserId, oldRole, newRole, new Date()]]);
+    return { changed: true };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function setFoxEmployeeName_(p, auth) {
+  const actor = requireFoxPermission_(auth, 'roles.manage');
+  const targetUserId = requiredString_(p.targetUserId, 'targetUserId');
+  const employeeName = String(p.employeeName || '').trim().replace(/\s+/g, ' ');
+  if (!employeeName || employeeName.length > 120) throw new Error('Укажите имя сотрудника из графика.');
+  const sh = tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, true);
+  const rows = tatooineUserRows_(sh);
+  const target = rows.filter(function(item) { return item.userId === targetUserId; })[0];
+  if (!target) throw new Error('Сотрудник не найден.');
+  const duplicate = rows.some(function(item) { return item.userId !== targetUserId && foxScheduleNamesMatch_(item.name, employeeName); });
+  if (duplicate) throw new Error('Это имя уже привязано к другому Telegram-пользователю.');
+  if (foxScheduleNamesMatch_(target.name, employeeName)) return { changed: false, employeeName: target.name };
+  sh.getRange(target.row, 2, 1, 1).setValue(employeeName);
+  sh.getRange(target.row, 5, 1, 1).setValue(new Date());
+  const audit = tatooineRbacSheet_(FOX_RECEIPTS.sheets.foxEmployeeAudit, true);
+  audit.getRange(audit.getLastRow() + 1, 1, 1, FOX_RECEIPT_HEADERS.foxEmployeeAudit.length).setValues([[actor.id, targetUserId, 'employee_name', target.name, employeeName, new Date()]]);
+  return { changed: true, employeeName: employeeName };
 }
 
 function listTatooineEmployees_(auth) {
@@ -3640,6 +3771,7 @@ function setupTatooineRbac() {
   if (!ss) throw new Error('Открой скрипт именно из Google Таблицы стока.');
   ensureServiceSheet_(ss, FOX_RECEIPTS.sheets.tatooineUsers, 'Tatooine — ПОЛЬЗОВАТЕЛИ', FOX_RECEIPT_HEADERS.tatooineUsers);
   ensureServiceSheet_(ss, FOX_RECEIPTS.sheets.tatooineRoleAudit, 'Tatooine — АУДИТ РОЛЕЙ', FOX_RECEIPT_HEADERS.tatooineRoleAudit);
+  ensureServiceSheet_(ss, FOX_RECEIPTS.sheets.foxEmployeeAudit, 'FO’X — АУДИТ СОТРУДНИКОВ', FOX_RECEIPT_HEADERS.foxEmployeeAudit);
   ensureServiceSheet_(ss, FOX_RECEIPTS.sheets.tatooineRideRequests, 'Tatooine — ЗАЯВКИ РАЗВОЗА', FOX_RECEIPT_HEADERS.tatooineRideRequests);
   ensureServiceSheet_(ss, FOX_RECEIPTS.sheets.tatooineLocations, 'Tatooine — ЛОКАЦИИ', FOX_RECEIPT_HEADERS.tatooineLocations);
   ensureServiceSheet_(ss, FOX_RECEIPTS.sheets.tatooineLocationAudit, 'Tatooine — АУДИТ ЛОКАЦИЙ', FOX_RECEIPT_HEADERS.tatooineLocationAudit);
@@ -4288,10 +4420,10 @@ function orderFormula_(rowNumber) {
 }
 
 function assertBanquetAdmin_(auth) {
-  const admins = FOX_RECEIPTS.adminTelegramIds.map(String);
-  if (!auth || admins.indexOf(String(auth.userId || '')) < 0) {
-    throw new Error('Управлять банкетным резервом могут только администраторы FO’X.');
-  }
+  // Compatibility wrapper for old internal callers. New endpoints call the
+  // permission helper directly; keeping one gate prevents an accidental
+  // reintroduction of hard-coded Telegram IDs in reserve operations.
+  return requireFoxPermission_(auth, 'banquets.manage');
 }
 
 function foxScheduleSheet_(name, ensure) {
@@ -4306,14 +4438,12 @@ function foxScheduleSheet_(name, ensure) {
 }
 
 function foxScheduleCanManage_(auth) {
-  if (FOX_RECEIPTS.adminTelegramIds.map(String).indexOf(String(auth && auth.userId || '')) >= 0) return true;
-  const sh = tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, false);
-  const employee = tatooineUserRows_(sh).filter(function(item) { return item.userId === String(auth && auth.userId || ''); })[0];
-  return Boolean(employee && ['admin','superadmin'].indexOf(employee.role) >= 0);
+  try { return hasTatooinePermission_(getFoxCurrentUser_(auth, true), 'schedules.manage'); }
+  catch (_) { return false; }
 }
 
 function assertFoxScheduleManager_(auth) {
-  if (!foxScheduleCanManage_(auth)) throw new Error('Загружать и менять график могут только admin или superadmin.');
+  requireFoxPermission_(auth, 'schedules.manage');
 }
 
 // A schedule is sent in several JSONP requests. CacheService is deliberately
@@ -4410,6 +4540,182 @@ function foxScheduleStoredDate_(value) {
   const match = String(value || '').trim().match(/^(\d{4}-(0[1-9]|1[0-2])-([012]\d|3[01]))/);
   return match ? match[1] : '';
 }
+
+function listFoxCalendarBanquets_() {
+  const source = FOX_RECEIPTS.banquets;
+  const sh = SpreadsheetApp.openById(source.spreadsheetId).getSheetByName(source.sheet);
+  if (!sh || sh.getLastRow() < source.firstDataRow) return { items: [], mediaSupported: false };
+
+  const width = sh.getLastColumn();
+  const headers = sh.getRange(source.headerRow, 1, 1, width).getDisplayValues()[0].map(function(value) { return String(value || '').trim(); });
+  const mediaColumn = headers.indexOf('Media JSON') + 1;
+  const finalAmountColumn = headers.indexOf('Итоговая сумма банкета') + 1;
+  const rows = sh.getRange(source.firstDataRow, 1, sh.getLastRow() - source.firstDataRow + 1, width).getValues();
+
+  return {
+    mediaSupported: Boolean(mediaColumn),
+    items: rows.filter(function(row) {
+      return String(row[source.cols.id - 1] || '').trim() && String(row[source.cols.deleted - 1] || '').trim().toUpperCase() !== 'YES';
+    }).map(function(row) {
+      const rawMedia = mediaColumn ? parseJsonSafe_(row[mediaColumn - 1]) : [];
+      const media = Array.isArray(rawMedia) ? rawMedia.map(function(item, index) {
+        return { url: String(item && item.url || ''), publicId: String(item && item.publicId || ''), order: Number(item && item.order) || index };
+      }).filter(function(item) { return item.url; }) : [];
+      const fallbackUrl = String(row[7] || '');
+      const fallbackPublicId = String(row[6] || '');
+      const firstMedia = media[0] || { url: fallbackUrl, publicId: fallbackPublicId };
+      const rawFinalAmount = finalAmountColumn ? row[finalAmountColumn - 1] : '';
+      return {
+        id: String(row[source.cols.id - 1] || ''),
+        date: foxScheduleStoredDate_(row[1]),
+        time: foxScheduleStoredTime_(row[2]),
+        name: String(row[3] || ''),
+        comment: String(row[4] || ''),
+        status: String(row[source.cols.status - 1] || 'Актуально'),
+        cloudinaryPublicId: firstMedia.publicId,
+        imageUrl: firstMedia.url,
+        photo: firstMedia.url,
+        imageUrls: media.map(function(item) { return item.url; }),
+        media: media,
+        finalAmount: rawFinalAmount === '' || rawFinalAmount == null ? null : Number(rawFinalAmount)
+      };
+    }).filter(function(item) { return item.date; })
+  };
+}
+
+// ==== FO'X BANQUET WRITE START ====
+// The calendar source lives in its own spreadsheet, but mutations deliberately
+// live in this backend: this project already verifies Telegram initData and
+// resolves the shared User → Role → Permission model.
+function foxCalendarBanquetSheet_() {
+  const source = FOX_RECEIPTS.banquets;
+  const sh = SpreadsheetApp.openById(source.spreadsheetId).getSheetByName(source.sheet);
+  if (!sh) throw new Error('Не найден лист банкетов.');
+  return sh;
+}
+
+function foxCalendarBanquetMediaColumn_(sh, create) {
+  const width = sh.getLastColumn();
+  const headers = width ? sh.getRange(1, 1, 1, width).getDisplayValues()[0].map(String) : [];
+  const existing = headers.indexOf('Media JSON') + 1;
+  if (existing || !create) return existing;
+  const column = Math.max(width, FOX_RECEIPTS.banquets.cols.deleted) + 1;
+  if (sh.getMaxColumns() < column) sh.insertColumnsAfter(sh.getMaxColumns(), column - sh.getMaxColumns());
+  sh.getRange(1, column).setValue('Media JSON');
+  return column;
+}
+
+function foxCalendarBanquetMedia_(raw, fallbackUrl, fallbackPublicId) {
+  let parsed = raw;
+  if (typeof raw === 'string') parsed = parseJsonSafe_(raw);
+  const candidates = Array.isArray(parsed) ? parsed : [];
+  if (!candidates.length && fallbackUrl) candidates.push({ url:fallbackUrl, publicId:fallbackPublicId || '', order:0 });
+  const seen = {};
+  return candidates.map(function(item, index) {
+    return { url:String(item && item.url || '').trim(), publicId:String(item && item.publicId || '').trim(), order:Number(item && item.order) || index };
+  }).filter(function(item) {
+    if (!item.url || seen[item.url]) return false;
+    seen[item.url] = true;
+    return true;
+  });
+}
+
+function foxCalendarBanquetRowById_(sh, id) {
+  const source = FOX_RECEIPTS.banquets;
+  if (sh.getLastRow() < source.firstDataRow) return 0;
+  const rows = sh.getRange(source.firstDataRow, 1, sh.getLastRow() - source.firstDataRow + 1, source.cols.deleted).getValues();
+  for (let i = rows.length - 1; i >= 0; i--) {
+    if (String(rows[i][source.cols.id - 1] || '').trim() === String(id) && String(rows[i][source.cols.deleted - 1] || '').trim().toUpperCase() !== 'YES') return i + source.firstDataRow;
+  }
+  return 0;
+}
+
+function foxCalendarBanquetClientItem_(row, mediaColumn, finalAmountColumn) {
+  const media = foxCalendarBanquetMedia_(mediaColumn ? row[mediaColumn - 1] : [], row[7], row[6]);
+  const first = media[0] || { url:String(row[7] || ''), publicId:String(row[6] || '') };
+  const amount = finalAmountColumn ? row[finalAmountColumn - 1] : '';
+  return {
+    id:String(row[0] || ''), date:foxScheduleStoredDate_(row[1]), time:foxScheduleStoredTime_(row[2]), name:String(row[3] || ''), comment:String(row[4] || ''), status:String(row[5] || 'Актуально'),
+    cloudinaryPublicId:first.publicId, imageUrl:first.url, photo:first.url, imageUrls:media.map(function(item) { return item.url; }), media:media,
+    finalAmount:amount === '' || amount == null ? null : Number(amount)
+  };
+}
+
+function saveFoxCalendarBanquet_(p, auth) {
+  const lock = LockService.getDocumentLock();
+  if (!lock.tryLock(30000)) throw new Error('Таблица банкетов сейчас занята. Повторите попытку.');
+  try {
+    const sh = foxCalendarBanquetSheet_();
+    const id = String(p.id || ('b' + Date.now())).trim();
+    const date = normalizeFoxScheduleDate_(p.date);
+    const time = String(p.time || '').trim();
+    const name = String(p.name || '').trim();
+    const comment = String(p.comment || '').trim();
+    const status = normalizeBanquetStatusForReserve_(p.status);
+    if (!time) throw new Error('Укажите время банкета.');
+    if (!name) throw new Error('Укажите название банкета.');
+    const mediaColumn = foxCalendarBanquetMediaColumn_(sh, true);
+    const media = foxCalendarBanquetMedia_(p.mediaJson || p.media, p.imageUrl, p.cloudinaryPublicId);
+    const first = media[0] || { url:'', publicId:'' };
+    const rowNumber = foxCalendarBanquetRowById_(sh, id);
+    if (rowNumber) {
+      sh.getRange(rowNumber, 2, 1, 7).setValues([[date, time, name, comment, status, first.publicId, first.url]]);
+      sh.getRange(rowNumber, 10, 1, 2).setValues([[auth.userId, auth.userName]]);
+      sh.getRange(rowNumber, mediaColumn).setValue(JSON.stringify(media));
+    } else {
+      const next = sh.getLastRow() + 1;
+      sh.getRange(next, 1, 1, FOX_RECEIPTS.banquets.cols.deleted).setValues([[id, date, time, name, comment, status, first.publicId, first.url, new Date(), auth.userId, auth.userName, '']]);
+      sh.getRange(next, mediaColumn).setValue(JSON.stringify(media));
+    }
+    SpreadsheetApp.flush();
+    const stored = sh.getRange(rowNumber || sh.getLastRow(), 1, 1, sh.getLastColumn()).getValues()[0];
+    const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getDisplayValues()[0].map(String);
+    return foxCalendarBanquetClientItem_(stored, mediaColumn, headers.indexOf('Итоговая сумма банкета') + 1);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function setFoxCalendarBanquetStatus_(banquetId, status) {
+  const id = requiredString_(banquetId, 'banquetId');
+  const lock = LockService.getDocumentLock();
+  if (!lock.tryLock(30000)) throw new Error('Таблица банкетов сейчас занята. Повторите попытку.');
+  try {
+    const sh = foxCalendarBanquetSheet_();
+    const row = foxCalendarBanquetRowById_(sh, id);
+    if (!row) throw new Error('Банкет не найден.');
+    const normalized = normalizeBanquetStatusForReserve_(status);
+    sh.getRange(row, FOX_RECEIPTS.banquets.cols.status).setValue(normalized);
+    SpreadsheetApp.flush();
+    return { id:id, status:normalized };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function deleteFoxCalendarBanquet_(banquetId) {
+  const id = requiredString_(banquetId, 'banquetId');
+  const lock = LockService.getDocumentLock();
+  if (!lock.tryLock(30000)) throw new Error('Таблица банкетов сейчас занята. Повторите попытку.');
+  try {
+    const sh = foxCalendarBanquetSheet_();
+    const row = foxCalendarBanquetRowById_(sh, id);
+    if (!row) throw new Error('Банкет не найден.');
+    sh.getRange(row, FOX_RECEIPTS.banquets.cols.deleted).setValue('YES');
+    SpreadsheetApp.flush();
+    return true;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function syncFoxCalendarBanquetReserveStatus_(banquetId) {
+  const current = getOneBanquetReserveSummary_(banquetId);
+  if (!current.recognized) return Object.assign(current, { changedCount:0 });
+  return setBanquetReserveStatus_(banquetId);
+}
+// ==== FO'X BANQUET WRITE END ====
+
 function foxScheduleStoredTime_(value) {
   if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
     // A Sheets time-only cell is returned as 1899-12-30. UTC restores the
@@ -4456,6 +4762,21 @@ function normalizeFoxScheduleShiftType_(value) {
   return type === 'preparation' || type.indexOf('заготов') >= 0 ? 'preparation' : 'regular';
 }
 
+function dedupeFoxScheduleRows_(rows) {
+  const seen = {};
+  return (Array.isArray(rows) ? rows : []).filter(function(row) {
+    const name = foxScheduleNameKey_(row && row.name);
+    const date = foxScheduleStoredDate_(row && row.date);
+    const type = normalizeFoxScheduleShiftType_(row && row.shiftType);
+    const rawValue = String(row && row.rawValue || '').trim();
+    if (!name || !date || !rawValue) return false;
+    const key = [name, date, type].join('|');
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
+}
+
 function foxScheduleRows_(sh) {
   if (!sh || sh.getLastRow() < 3) return [];
   const width = Math.min(sh.getLastColumn(), FOX_RECEIPT_HEADERS.foxScheduleShifts.length);
@@ -4485,7 +4806,8 @@ function listFoxScheduleWorkers_(date) {
 
 function getFoxMySchedule_(month, auth) {
   month = normalizeFoxScheduleMonth_(month);
-  const employee = tatooineUserRows_(tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, false)).filter(function(item) { return item.userId === String(auth && auth.userId || ''); })[0];
+  const currentUser = getFoxCurrentUser_(auth, true);
+  const employee = tatooineUserRows_(tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, false)).filter(function(item) { return item.userId === currentUser.id; })[0];
   if (!employee) return { month:month, matched:false, scheduleFound:Boolean(activeFoxScheduleIdForMonth_(month)), items:[] };
   const schedule = getFoxScheduleForMonth_(month);
   return { month:month, matched:true, scheduleFound:schedule.active, items:schedule.rows.filter(function(row) { return row.employeeId === employee.userId || foxScheduleNamesMatch_(row.name, employee.name); }).map(function(row) { return { date:row.date, rawValue:row.rawValue, isWorking:row.isWorking, shiftStart:row.shiftStart, shiftEnd:row.shiftEnd, shiftType:row.shiftType }; }) };
@@ -4526,7 +4848,7 @@ function getFoxScheduleForMonth_(month) {
 
 function saveFoxSchedule_(p, auth) {
   const month = normalizeFoxScheduleMonth_(p.month);
-  const rows = parseJsonSafe_(String(p.rowsJson || '[]'));
+  const rows = dedupeFoxScheduleRows_(parseJsonSafe_(String(p.rowsJson || '[]')));
   if (!Array.isArray(rows) || !rows.length) throw new Error('Добавьте хотя бы одну строку графика.');
   const scheduleSh = foxScheduleSheet_('foxSchedules', true);
   const shiftSh = foxScheduleSheet_('foxScheduleShifts', true);
@@ -4602,7 +4924,7 @@ function recognizeFoxScheduleImage_(imageUrl, requestedMonth) {
       rows.push({date:date,name:name,employeeId:matches.length === 1 ? matches[0].userId : '',rawValue:parsedShift.rawValue,isWorking:parsedShift.isWorking,shiftStart:parsedShift.shiftStart,shiftEnd:parsedShift.shiftEnd,shiftType:parsedShift.shiftType === 'inventory' ? 'inventory' : normalizeFoxScheduleShiftType_(person.section),needsEmployeeMatch:matches.length !== 1});
     });
   });
-  return { month:month, rows:rows };
+  return { month:month, rows:dedupeFoxScheduleRows_(rows) };
 }
 
 function normalizeBanquetStatusForReserve_(status) {

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.15.9 — SCHEDULE OCR RELIABLE</title>
+<title>FO'X App v15.16.0 — SECURE CALENDAR & STAFF ACCESS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -314,6 +314,16 @@ body.mode-hub #backBtn{display:none}
 .fox-schedule-review-days{display:flex;flex-direction:column;gap:6px;padding:0 12px 12px;border-top:1px solid var(--line)}
 .fox-schedule-review-day{display:flex;justify-content:space-between;gap:12px;padding-top:8px;font-size:13px;color:var(--muted)}
 .fox-schedule-review-day b{color:var(--amber);font-size:12px;min-width:28px}
+.fox-schedule-review-edit{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:6px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06)}
+.fox-schedule-review-edit input,.fox-schedule-review-edit select,.fox-schedule-manual input,.fox-schedule-manual select{min-width:0;margin:0;padding:7px 8px;font-size:12px}
+.fox-schedule-remove{min-width:34px;padding:6px 9px!important;color:var(--danger)!important}
+.fox-schedule-manual{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:7px;margin-top:12px;padding:10px;border:1px dashed var(--line);border-radius:12px;background:var(--surface-2)}
+.fox-schedule-manual .small-btn{white-space:nowrap}
+.fox-schedule-warning{color:var(--danger);font-weight:700}
+.fox-employee-directory{display:flex;flex-direction:column;gap:8px;margin:12px 0}
+.fox-employee-row{display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:8px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}
+.fox-employee-row b{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fox-employee-id{font-size:11px;color:var(--muted);margin-top:3px}
+.fox-employee-row input,.fox-employee-row select{min-width:0;margin:0;padding:8px;font-size:12px}.fox-employee-row .small-btn{grid-column:1/-1;justify-self:start}
 
 
 .banq-refresh{border:1px solid var(--amber-line);background:var(--amber-soft);color:var(--amber);
@@ -654,12 +664,14 @@ body.mode-cash-report #backBtn{display:inline-flex}
     <div class="banq-list" id="banqList"></div>
   </div>
 
-  <div id="banqAdminBlock" class="admin-hidden">
+  <div class="banq-form" id="foxScheduleAdmin" hidden>
     <div class="group-label">График сотрудников</div>
-    <div class="banq-form" id="foxScheduleAdmin" hidden>
-      <div class="form-grid"><div class="form-field"><label>Месяц</label><input id="foxScheduleMonth" type="month"></div><div class="form-field full"><label>Изображение графика</label><input id="foxScheduleImage" type="file" accept="image/*"><button class="small-btn" id="foxScheduleRecognize" type="button">Распознать график</button><div id="foxScheduleStatus" class="sync-status" aria-live="polite"></div></div></div>
-      <div id="foxScheduleReview" hidden></div>
-    </div>
+    <div class="form-grid"><div class="form-field"><label>Месяц</label><input id="foxScheduleMonth" type="month"></div><div class="form-field full"><label>Изображение графика</label><input id="foxScheduleImage" type="file" accept="image/*"><button class="small-btn" id="foxScheduleRecognize" type="button">Распознать график</button><div id="foxScheduleStatus" class="sync-status" aria-live="polite"></div></div></div>
+    <div id="foxEmployeeDirectory" class="fox-employee-directory" hidden></div>
+    <div id="foxScheduleReview" hidden></div>
+  </div>
+
+  <div id="banqAdminBlock" class="admin-hidden">
     <div class="group-label">Добавить банкет</div>
     <form class="banq-form" id="banqForm">
     <div class="form-grid">
@@ -1476,22 +1488,10 @@ document.getElementById('backBtn').onclick=()=>{ hap('light'); setAppSection('hu
 
 
 // ===== Банкетный календарь v2: общая база Google Sheets + Cloudinary =====
-// 1) Вставь сюда URL опубликованного Google Apps Script Web App.
-// Пример: https://script.google.com/macros/s/AKfycbx.../exec
-const BANQ_API_URL = 'https://script.google.com/macros/s/AKfycbxRlmtQMLMQ0h3NhQtInpYFAxyQxTLSgrzFClrFF3pqRqmHHxMbWrXeTc56nbAcLteZ/exec';
-
 // Cloudinary: заполни эти 2 строки после создания аккаунта.
 // Cloud name берётся из Dashboard, upload preset должен быть Unsigned.
 const CLOUDINARY_CLOUD_NAME = 'sivtytoc';
 const CLOUDINARY_UPLOAD_PRESET = 'fox_banquets_unsigned';
-
-// 2) Вставь Telegram user_id админов. У обычных пользователей форма добавления будет скрыта.
-// Узнать id можно через @userinfobot. После настройки ID должен быть числом без кавычек.
-const ADMIN_TELEGRAM_IDS = [
-  1036250074,
-  315978242,
-  317564157
-];
 
 const BANQ_LOCAL_FALLBACK_KEY='fox_banquets_v2_local_fallback';
 let banquets=[];
@@ -1516,14 +1516,44 @@ async function loadMySchedule_(){
   const month=banqMonthDate.getFullYear()+'-'+String(banqMonthDate.getMonth()+1).padStart(2,'0');
   if(!isStockApiConfigured()||myScheduleMonthLoaded===month)return;
   try{const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxMySchedule',month:month},receiptAuthParams()));if(!res||!res.ok)throw new Error();const data=res.schedule||{};myScheduleMonthLoaded=month;const items=(data.items||[]).sort((a,b)=>a.date.localeCompare(b.date));myScheduleWorkingDates=new Set(items.filter(x=>x.isWorking).map(x=>x.date));renderBanqCalendar();}catch(_){myScheduleWorkingDates.clear();}}
-let foxScheduleCanManage=false,foxSchedulePreview=[],foxScheduleSaveInFlight=false;
+let foxCurrentUser=null,foxScheduleCanManage=false,foxSchedulePreview=[],foxScheduleSaveInFlight=false;
+function foxCan_(permission){return Boolean(foxCurrentUser&&Array.isArray(foxCurrentUser.permissions)&&foxCurrentUser.permissions.includes(permission));}
 
 async function initFoxScheduleAdmin_(){
   const root=document.getElementById('foxScheduleAdmin'),open=document.getElementById('foxScheduleOpen');if(!root||!open||!isStockApiConfigured())return;
   const month=document.getElementById('foxScheduleMonth');if(month&&!month.value){const now=new Date();month.value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');}
-  const knownAdmin=isBanqAdmin();
-  open.hidden=!knownAdmin;root.hidden=true;
-  try{const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxScheduleAccess'},receiptAuthParams()));foxScheduleCanManage=knownAdmin||Boolean(res&&res.ok&&res.canManage);open.hidden=!foxScheduleCanManage;}catch(_){foxScheduleCanManage=knownAdmin;}
+  open.hidden=true;root.hidden=true;
+  try{
+    const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxCurrentUser'},receiptAuthParams()));
+    foxCurrentUser=res&&res.ok?res.user:null;
+    foxScheduleCanManage=foxCan_('schedules.manage');
+    open.hidden=!foxScheduleCanManage;
+    updateAdminVisibility();
+    renderBanquets();
+    if(isBanqAdmin()) loadBanquetReserveSummaries_().then(()=>renderBanquets()).catch(()=>{});
+  }catch(_){foxCurrentUser=null;foxScheduleCanManage=false;updateAdminVisibility();}
+}
+async function loadFoxEmployeeDirectory_(){
+  const root=document.getElementById('foxEmployeeDirectory');if(!root||!foxCan_('roles.manage'))return;
+  root.hidden=false;root.innerHTML='<div class="banq-comment">Загружаю сотрудников…</div>';
+  try{
+    const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxEmployees'},receiptAuthParams()));if(!res||!res.ok)throw new Error(res&&res.error||'Не удалось загрузить сотрудников.');
+    const roles=(res.roles||[]).map(String),items=(res.items||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'ru'));
+    root.innerHTML='<div class="banq-comment"><b>Сотрудники и доступ</b><br>Имя должно совпадать с именем в графике. Пользователь появляется здесь после первого открытия FO’X.</div>'+items.map(function(item){
+      const options=roles.map(function(role){return '<option value="'+escapeHtml(role)+'"'+(String(item.role)===role?' selected':'')+'>'+escapeHtml(role)+'</option>';}).join('');
+      return '<div class="fox-employee-row" data-user-id="'+escapeHtml(String(item.id||''))+'"><div><b>'+escapeHtml(String(item.name||'Без имени'))+'</b><div class="fox-employee-id">Telegram ID '+escapeHtml(String(item.id||''))+'</div></div><select class="fox-employee-role" aria-label="Роль">'+options+'</select><input class="fox-employee-name" value="'+escapeHtml(String(item.name||''))+'" aria-label="Имя в графике"><button class="small-btn fox-employee-save" type="button">Сохранить</button></div>';
+    }).join('');
+    root.querySelectorAll('.fox-employee-save').forEach(function(button){button.onclick=()=>saveFoxEmployeeDirectoryRow_(button);});
+  }catch(error){root.innerHTML='<div class="sync-status err">'+escapeHtml(String(error&&error.message||error))+'</div>';}
+}
+async function saveFoxEmployeeDirectoryRow_(button){
+  const row=button.closest('.fox-employee-row');if(!row)return;const targetUserId=row.dataset.userId,name=row.querySelector('.fox-employee-name').value,role=row.querySelector('.fox-employee-role').value;
+  button.disabled=true;button.textContent='Сохраняю…';
+  try{
+    const nameRes=await jsonp(STOCK_API_URL,Object.assign({action:'foxSetEmployeeName',targetUserId:targetUserId,employeeName:name},receiptAuthParams()));if(!nameRes||!nameRes.ok)throw new Error(nameRes&&nameRes.error||'Не удалось сохранить имя.');
+    const roleRes=await jsonp(STOCK_API_URL,Object.assign({action:'foxSetRole',targetUserId:targetUserId,role:role},receiptAuthParams()));if(!roleRes||!roleRes.ok)throw new Error(roleRes&&roleRes.error||'Не удалось сохранить роль.');
+    setFoxScheduleStatus_('ok','Сотрудник обновлён.');await loadFoxEmployeeDirectory_();
+  }catch(error){setFoxScheduleStatus_('err',String(error&&error.message||error));}finally{button.disabled=false;button.textContent='Сохранить';}
 }
 function setFoxScheduleStatus_(type,text){
   const el=document.getElementById('foxScheduleStatus');if(!el)return;
@@ -1531,11 +1561,12 @@ function setFoxScheduleStatus_(type,text){
 }
 function foxScheduleReviewGroups_(){
   const groups=new Map();
-  foxSchedulePreview.forEach(function(row){
+  foxSchedulePreview.forEach(function(row,previewIndex){
     const name=String(row&&row.name||'').trim()||'Без имени';
     const key=name.toLocaleLowerCase('ru-RU');
-    if(!groups.has(key))groups.set(key,{name:name,rows:[]});
-    groups.get(key).rows.push(row);
+    if(!groups.has(key))groups.set(key,{name:name,rows:[],previewIndexes:[]});
+    groups.get(key).rows.push(Object.assign({previewIndex:previewIndex},row));
+    groups.get(key).previewIndexes.push(previewIndex);
   });
   return Array.from(groups.values()).map(function(group){
     group.rows.sort(function(a,b){return String(a.date||'').localeCompare(String(b.date||''));});
@@ -1551,10 +1582,19 @@ function formatFoxScheduleReviewDay_(row){
 function renderFoxScheduleReview_(){
   const root=document.getElementById('foxScheduleReview');if(!root)return;root.hidden=!foxSchedulePreview.length;
   if(!foxSchedulePreview.length)return;
-  const groups=foxScheduleReviewGroups_();
-  root.innerHTML='<div class="banq-comment"><b>Распознанный график</b><br>Нажмите на сотрудника, чтобы увидеть дни его смен.</div><div class="fox-schedule-review">'+groups.map(function(group){
-    return '<details class="fox-schedule-review-item"><summary><span>'+escapeHtml(group.name)+'</span><span class="fox-schedule-review-count">'+group.rows.length+' '+(group.rows.length===1?'смена':'смены')+'</span></summary><div class="fox-schedule-review-days">'+group.rows.map(function(row){const item=formatFoxScheduleReviewDay_(row);return '<div class="fox-schedule-review-day"><b>'+escapeHtml(item.weekday)+'</b><span>'+escapeHtml(item.shift)+'</span></div>';}).join('')+'</div></details>';
-  }).join('')+'</div><button class="save-btn" id="foxScheduleSave" type="button">Подтвердить график</button>';
+  const groups=foxScheduleReviewGroups_(),unmatched=groups.filter(group=>group.rows.some(row=>row.needsEmployeeMatch)).length;
+  const warning=unmatched?'<br><span class="fox-schedule-warning">⚠ Не привязано к Telegram: '+unmatched+'. Свяжите имя в блоке «Сотрудники и доступ» до подтверждения.</span>':'';
+  root.innerHTML='<div class="banq-comment"><b>Распознанный график · '+groups.length+' сотрудников</b><br>Нажмите на сотрудника, чтобы проверить дни; здесь можно исправить имя, дату, время или тип смены.'+warning+'</div><div class="fox-schedule-review">'+groups.map(function(group){
+    const groupIndexes=group.previewIndexes.join(',');
+    return '<details class="fox-schedule-review-item"><summary><span>'+escapeHtml(group.name)+'</span><span class="fox-schedule-review-count">'+group.rows.length+' '+(group.rows.length===1?'смена':'смены')+'</span></summary><div class="fox-schedule-review-days"><input class="fox-schedule-group-name" data-fox-schedule-group="'+escapeHtml(groupIndexes)+'" value="'+escapeHtml(group.name)+'" aria-label="Имя сотрудника"><div class="banq-comment">Дата · значение · тип смены</div>'+group.rows.map(function(row){
+      const item=formatFoxScheduleReviewDay_(row),index=Number(row.previewIndex),type=String(row.shiftType||'regular');
+      return '<div class="fox-schedule-review-edit"><input type="date" data-fox-schedule-field="date" data-fox-schedule-index="'+index+'" value="'+escapeHtml(String(row.date||''))+'" aria-label="Дата '+escapeHtml(item.weekday)+'"><input data-fox-schedule-field="rawValue" data-fox-schedule-index="'+index+'" value="'+escapeHtml(String(row.rawValue||''))+'" aria-label="Значение смены"><select data-fox-schedule-field="shiftType" data-fox-schedule-index="'+index+'" aria-label="Тип смены"><option value="regular"'+(type==='regular'?' selected':'')+'>Обычная</option><option value="preparation"'+(type==='preparation'?' selected':'')+'>Заготовка</option><option value="inventory"'+(type==='inventory'?' selected':'')+'>Инв.</option></select><button class="small-btn fox-schedule-remove" type="button" data-fox-schedule-remove="'+index+'" aria-label="Удалить смену">×</button></div>';
+    }).join('')+'</div></details>';
+  }).join('')+'</div><div class="fox-schedule-manual"><input id="foxScheduleManualName" placeholder="Имя сотрудника" aria-label="Имя сотрудника"><input id="foxScheduleManualDate" type="date" aria-label="Дата смены"><input id="foxScheduleManualRaw" placeholder="Начало: 11 или 11-17" aria-label="Время смены"><select id="foxScheduleManualType" aria-label="Тип смены"><option value="regular">Обычная</option><option value="preparation">Заготовка</option><option value="inventory">Инв.</option></select><button class="small-btn" id="foxScheduleManualAdd" type="button">Добавить смену</button></div><button class="save-btn" id="foxScheduleSave" type="button">Подтвердить график</button>';
+  root.querySelectorAll('[data-fox-schedule-field]').forEach(function(input){input.onchange=()=>{const index=Number(input.dataset.foxScheduleIndex),field=input.dataset.foxScheduleField;if(foxSchedulePreview[index])foxSchedulePreview[index][field]=input.value;};});
+  root.querySelectorAll('[data-fox-schedule-group]').forEach(function(input){input.onchange=()=>{String(input.dataset.foxScheduleGroup||'').split(',').map(Number).forEach(function(index){if(foxSchedulePreview[index])foxSchedulePreview[index].name=input.value.trim();});renderFoxScheduleReview_();};});
+  root.querySelectorAll('[data-fox-schedule-remove]').forEach(function(button){button.onclick=()=>{const index=Number(button.dataset.foxScheduleRemove);if(Number.isInteger(index)){foxSchedulePreview.splice(index,1);renderFoxScheduleReview_();}};});
+  const add=root.querySelector('#foxScheduleManualAdd');if(add)add.onclick=()=>{const name=root.querySelector('#foxScheduleManualName').value.trim(),date=root.querySelector('#foxScheduleManualDate').value,rawValue=root.querySelector('#foxScheduleManualRaw').value.trim(),shiftType=root.querySelector('#foxScheduleManualType').value;if(!name||!date||!rawValue){setFoxScheduleStatus_('err','Чтобы добавить смену, укажите имя, дату и значение из графика.');return;}foxSchedulePreview.push({name:name,date:date,rawValue:rawValue,shiftType:shiftType,imageUrl:foxSchedulePreview[0]&&foxSchedulePreview[0].imageUrl||'',needsEmployeeMatch:true});renderFoxScheduleReview_();};
   document.getElementById('foxScheduleSave').onclick=()=>saveFoxSchedule_().catch(()=>{});
 }
 function foxScheduleSaveRows_(){
@@ -1638,7 +1678,7 @@ async function saveFoxSchedule_(){
 const foxScheduleRecognizeButton=document.getElementById('foxScheduleRecognize');
 if(foxScheduleRecognizeButton)foxScheduleRecognizeButton.onclick=()=>recognizeFoxSchedule_().catch(err=>setSyncStatus('err',String(err&&err.message||err)));
 const foxScheduleOpenButton=document.getElementById('foxScheduleOpen');
-if(foxScheduleOpenButton)foxScheduleOpenButton.onclick=()=>{const root=document.getElementById('foxScheduleAdmin');if(root){root.hidden=false;root.scrollIntoView({behavior:'smooth',block:'start'});}};
+if(foxScheduleOpenButton)foxScheduleOpenButton.onclick=()=>{const root=document.getElementById('foxScheduleAdmin');if(root){root.hidden=false;root.scrollIntoView({behavior:'smooth',block:'start'});loadFoxEmployeeDirectory_();}};
 
 async function loadBanqScheduleWorkers_(date){
   if(!isStockApiConfigured()||banqScheduleWorkersByDate.has(date)) return;
@@ -1677,11 +1717,10 @@ function getTgChatId(){
   }catch(e){return '';}
 }
 function isBanqAdmin(){
-  const id=getTgUserId();
-  return id && ADMIN_TELEGRAM_IDS.map(String).includes(id);
+  return foxCan_('banquets.manage');
 }
 function isApiConfigured(){
-  return BANQ_API_URL && !BANQ_API_URL.includes('PASTE_APPS_SCRIPT_WEB_APP_URL_HERE');
+  return isStockApiConfigured();
 }
 function setSyncStatus(type,text){
   const el=document.getElementById('banqSyncStatus');
@@ -1757,12 +1796,12 @@ function ensureBanquetsLoaded_(){
 function sleepBanquetLoad_(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
 async function loadSharedBanquetList_(){
   let lastError;
-  // A list request normally completes in under a second.  Two bounded attempts
-  // keep the calendar responsive on a flaky Telegram WebView instead of making
-  // the user wait for three generic 15-second JSONP timeouts.
+  // A list request normally completes in under a second. Two bounded attempts
+  // preserve a responsive Calendar without ever reading the public legacy Web
+  // App; the Stock backend verifies Telegram identity and banquets.view.
   for(let attempt=1;attempt<=2;attempt++){
     try{
-      const res=await jsonp(BANQ_API_URL,{action:'list'},6000);
+      const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxCalendarBanquets'},receiptAuthParams()),8000);
       if(res&&res.ok)return res;
       throw new Error(res&&res.error||'bad response');
     }catch(error){
@@ -2100,11 +2139,7 @@ function renderBanqDay(){
       del.onclick=async ()=>{
         if(!confirm('Удалить этот банкет?')) return;
         if(isApiConfigured()){
-          await postBanqForm({action:'delete',id:b.id});
-          if(isStockApiConfigured()){
-            const stockRes=await jsonp(STOCK_API_URL,Object.assign({action:'banquetDelete',banquetId:b.id},receiptAuthParams()));
-            if(!stockRes||!stockRes.ok) throw new Error(stockRes&&stockRes.error?stockRes.error:'Банкет удалён, но резерв не архивирован.');
-          }
+          await postBanqForm({action:'delete',banquetId:b.id});
           await loadBanquets();
         }else{
           banquets=banquets.filter(x=>x.id!==b.id);
@@ -2140,16 +2175,9 @@ async function changeBanquetStatus(banquet,nextStatus){
   renderBanquets();
   setSyncStatus('', 'Сохраняю статус банкета…');
 
-  let primaryStatusPosted=false;
   try{
     if(isApiConfigured()){
-      await postBanqForm({action:'updateStatus',id:banquet.id,status:normalized});
-      primaryStatusPosted=true;
-      if(isStockApiConfigured()){
-        const stockRes=await jsonp(STOCK_API_URL,Object.assign({action:'banquetStatusUpdate',banquetId:banquet.id},receiptAuthParams()));
-        if(!stockRes||!stockRes.ok) throw new Error(stockRes&&stockRes.error?stockRes.error:'Банкет сохранён, но резерв не пересчитан.');
-        if(Number(stockRes.summary&&stockRes.summary.changedCount||0)===0) throw new Error('Банкет сохранён, но резерв не обновлён: 0 строк.');
-      }
+      await postBanqForm({action:'updateStatus',banquetId:banquet.id,status:normalized});
       await loadBanquets();
       setSyncStatus('ok','Статус сохранён: '+getBanqStatusMeta(normalized).label+'. Банкетный резерв пересчитан.');
     }else{
@@ -2158,14 +2186,9 @@ async function changeBanquetStatus(banquet,nextStatus){
     }
     hap('ok');
   }catch(err){
-    if(primaryStatusPosted){
-      await loadBanquets().catch(()=>{});
-      setSyncStatus('warn','Статус банкета сохранён, но резерв не обновлён: '+String(err&&err.message?err.message:err));
-    }else{
-      banquet.status=previous;
-      renderBanquets();
-      setSyncStatus('err','Не удалось сохранить статус банкета.');
-    }
+    banquet.status=previous;
+    renderBanquets();
+    setSyncStatus('err',String(err&&err.message?err.message:err)||'Не удалось сохранить статус банкета.');
   }
 }
 
@@ -2444,12 +2467,14 @@ async function imageToDataUrl(file){
 }
 
 async function postBanqForm(fields){
-  const fd=new FormData();
-  Object.keys(fields).forEach(k=>fd.append(k, fields[k] == null ? '' : fields[k]));
-  fd.append('telegramUserId', getTgUserId());
-  fd.append('telegramUserName', getTgUserName());
-  fd.append('telegramInitData', TG ? (TG.initData || '') : '');
-  await fetch(BANQ_API_URL, {method:'POST', mode:'no-cors', body:fd});
+  if(!isStockApiConfigured()) throw new Error('Защищённый backend FO’X не подключён.');
+  const actions={save:'foxBanquetSave',updateStatus:'foxBanquetStatus',delete:'foxBanquetDelete'};
+  const action=actions[String(fields&&fields.action||'')];
+  if(!action) throw new Error('Неизвестное действие банкета.');
+  const payload=Object.assign({},fields,{action:action});delete payload.telegramUserId;delete payload.telegramUserName;delete payload.telegramInitData;
+  const result=await jsonp(STOCK_API_URL,Object.assign(payload,receiptAuthParams()),20000);
+  if(!result||!result.ok) throw new Error(result&&result.error||'Банкет не сохранён.');
+  return result;
 }
 
 const banqPhotoInput=document.getElementById('banqPhoto');
@@ -2477,7 +2502,9 @@ async function uploadBanqPendingMedia_(){
 }
 async function verifyBanquetSave_(id,expectedMediaCount){
   for(let attempt=0;attempt<6;attempt++){
-    const res=await jsonp(BANQ_API_URL,{action:'list'});
+    // The protected write was acknowledged by STOCK_API_URL. Verify against
+    // the same source instead of waiting for the legacy Banquets Web App.
+    const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxCalendarBanquets'},receiptAuthParams()),10000);
     if(res&&res.ok){
       banqMediaSupported=Boolean(res.mediaSupported);
       const item=(res.items||[]).find(x=>String(x.id||'')===String(id));
