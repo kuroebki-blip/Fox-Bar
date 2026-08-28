@@ -16,7 +16,7 @@
  */
 
 const FOX_RECEIPTS = {
-  version: 'v9.9.6 SCHEDULE DISPLAY CONSISTENT',
+  version: 'v9.9.7 SCHEDULE OCR RELIABLE',
 
   stockSheets: [
     'Вино',
@@ -4429,23 +4429,25 @@ function foxScheduleNamesMatch_(a, b) {
 
 function parseFoxScheduleShift_(rawValue) {
   const raw = String(rawValue == null ? '' : rawValue).trim();
-  if (!raw || /^x$/i.test(raw)) return { rawValue:raw, isWorking:false, shiftStart:'', shiftEnd:'' };
+  if (!raw || /^[xх]$/i.test(raw)) return { rawValue:raw, isWorking:false, shiftStart:'', shiftEnd:'' };
   if (/^инв(?:ентаризац(?:ия|ии))?\.?$/i.test(raw)) return { rawValue:raw, isWorking:true, shiftStart:'', shiftEnd:'', shiftType:'inventory' };
-  const range = raw.match(/^(\d{1,2})\s*[-–—]\s*(\d{1,2})$/);
+  const range = raw.match(/^(.+?)\s*[-–—]\s*(.+?)$/);
   if (range) {
     const shiftStart = normalizeFoxScheduleTime_(range[1]); const shiftEnd = normalizeFoxScheduleTime_(range[2]);
     if (shiftStart && shiftEnd) return { rawValue:raw, isWorking:true, shiftStart:shiftStart, shiftEnd:shiftEnd };
   }
-  if (/^\d{1,2}$/.test(raw)) {
-    const shiftStart = normalizeFoxScheduleTime_(raw);
-    if (shiftStart) return { rawValue:raw, isWorking:true, shiftStart:shiftStart, shiftEnd:'' };
-  }
+  const shiftStart = normalizeFoxScheduleTime_(raw);
+  if (shiftStart) return { rawValue:raw, isWorking:true, shiftStart:shiftStart, shiftEnd:'' };
   return { rawValue:raw, isWorking:false, shiftStart:'', shiftEnd:'' };
 }
 
 function normalizeFoxScheduleTime_(value) {
-  const hour = Number(value);
-  return Number.isInteger(hour) && hour >= 0 && hour <= 23 ? (hour < 10 ? '0' : '') + hour + ':00' : '';
+  const match = String(value == null ? '' : value).trim().replace(/^(?:с|в)\s+/i, '').match(/^(\d{1,2})(?:\s*[:.]\s*(\d{1,2}))?\s*(?:ч(?:ас(?:а|ов)?)?\.?)?$/i);
+  if (!match) return '';
+  const hour = Number(match[1]); const minutes = match[2] == null ? 0 : Number(match[2]);
+  return Number.isInteger(hour) && Number.isInteger(minutes) && hour >= 0 && hour <= 23 && minutes >= 0 && minutes <= 59
+    ? String(hour).padStart(2, '0') + ':' + String(minutes).padStart(2, '0')
+    : '';
 }
 
 function normalizeFoxScheduleShiftType_(value) {
@@ -4460,8 +4462,11 @@ function foxScheduleRows_(sh) {
   return sh.getRange(3, 1, sh.getLastRow() - 2, width).getValues().map(function(row) {
     while (row.length < FOX_RECEIPT_HEADERS.foxScheduleShifts.length) row.push('');
     row[1] = foxScheduleStoredDate_(row[1]);
-    row[6] = foxScheduleStoredTime_(row[6]);
-    row[7] = foxScheduleStoredTime_(row[7]);
+    // The source cell is immutable OCR output. Reparse it first so a historic
+    // Google Sheets Date conversion cannot shift the displayed time by a timezone.
+    const parsed = parseFoxScheduleShift_(row[4]);
+    row[6] = parsed.shiftStart || foxScheduleStoredTime_(row[6]);
+    row[7] = parsed.shiftEnd || foxScheduleStoredTime_(row[7]);
     return row;
   });
 }
@@ -4474,7 +4479,7 @@ function listFoxScheduleWorkers_(date) {
   const active = activeFoxScheduleIdForMonth_(targetDate.slice(0, 7));
   if (!active) return { date:targetDate, scheduleFound:false, items:[] };
   return { date:targetDate, scheduleFound:true, items:rows.filter(function(row) {
-    return String(row[0]) === active && String(row[1]) === targetDate && truthy_(row[5]);
+    return String(row[0]) === active && String(row[1]) === targetDate && parseFoxScheduleShift_(row[4]).isWorking;
   }).map(function(row) { return { employeeId:String(row[2] || ''), name:String(row[3] || ''), rawValue:String(row[4] || ''), shiftStart:String(row[6] || ''), shiftEnd:String(row[7] || ''), shiftType:normalizeFoxScheduleShiftType_(row[10]) }; }) };
 }
 
@@ -4516,7 +4521,7 @@ function getFoxScheduleForMonth_(month) {
   if (!id) return { month:month, active:false, rows:[] };
   const sh = foxScheduleSheet_('foxScheduleShifts', false);
   const rows = foxScheduleRows_(sh).filter(function(row) { return String(row[0]) === id; });
-  return { id:id, month:month, active:true, rows:rows.map(function(row) { return { date:String(row[1]), employeeId:String(row[2]), name:String(row[3]), rawValue:String(row[4]), isWorking:truthy_(row[5]), shiftStart:String(row[6]), shiftEnd:String(row[7]), shiftType:normalizeFoxScheduleShiftType_(row[10]) }; }) };
+  return { id:id, month:month, active:true, rows:rows.map(function(row) { return { date:String(row[1]), employeeId:String(row[2]), name:String(row[3]), rawValue:String(row[4]), isWorking:parseFoxScheduleShift_(row[4]).isWorking, shiftStart:String(row[6]), shiftEnd:String(row[7]), shiftType:normalizeFoxScheduleShiftType_(row[10]) }; }) };
 }
 
 function saveFoxSchedule_(p, auth) {
@@ -4575,6 +4580,7 @@ function recognizeFoxScheduleImage_(imageUrl, requestedMonth) {
     'X и пустая ячейка — пожелание/отсутствие смены: не возвращай их как строки. «Инв» означает инвентаризацию: сохрани raw_value как специальную смену, но не превращай в время.',
     'Верни месяц строго YYYY-MM и каждую видимую строку сотрудника.',
     'Каждая date строго YYYY-MM-DD. raw_value сохраняй буквально: пусто, X, число, диапазон или текст.',
+    'Перед ответом проверь полноту: последовательно пройди каждую видимую строку сотрудника и каждый столбец с датой. Верни все непустые смены, включая форматы 10, 10:00, 10.00, 10-18 и 10:00-18:00. Не сокращай список и не возвращай только примеры.',
     'Не выдумывай имена, дни и ячейки. Месяц уже задан выше.',
     'Верни только JSON по схеме.'
   ].join('\n');

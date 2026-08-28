@@ -277,6 +277,13 @@ test('график: X игнорируется, Инв хранится отде
   assert.equal(context.normalizeFoxScheduleShiftType_('regular'), 'regular');
 });
 
+test('график не теряет смену, если OCR вернул время с двоеточием, и сохраняет исходное время как источник истины', () => {
+  const { context } = makeRuntime();
+  assert.deepEqual(JSON.parse(JSON.stringify(context.parseFoxScheduleShift_('10:30'))), { rawValue:'10:30', isWorking:true, shiftStart:'10:30', shiftEnd:'' });
+  assert.deepEqual(JSON.parse(JSON.stringify(context.parseFoxScheduleShift_('11:00–17:30'))), { rawValue:'11:00–17:30', isWorking:true, shiftStart:'11:00', shiftEnd:'17:30' });
+  assert.equal(context.parseFoxScheduleShift_('Х').isWorking, false);
+});
+
 test('график корректно читает ISO-месяц и дату, даже если Google Sheets уже преобразовал их в Date', () => {
   const { context } = makeRuntime();
   const saved = new Date(Date.UTC(2026, 7, 24, 12));
@@ -419,4 +426,5 @@ test('календарь загружает персонал выбранног�
   assert.match(daySource, /loadBanqScheduleWorkers_\(selectedBanqDate\)/);
   assert.doesNotMatch(frontendSource, /id="myScheduleCard"/);
   assert.match(frontendSource, /\.cal-day\.today\.selected\{/);
+  assert.match(frontendSource, /\.cal-day\.today span:first-child\{/);
 });

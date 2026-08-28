@@ -16,9 +16,9 @@
 
 | Компонент | Версия | Статус | Основание |
 | --- | --- | --- | --- |
-| FO’X frontend | `v15.15.8 CALENDAR SHIFT LOAD FIX` | опубликован из `main` | скрывает личный список смен, выделяет сегодня и восстанавливает загрузку персонала выбранной даты |
+| FO’X frontend | `v15.15.9 SCHEDULE OCR RELIABLE` | готовится к публикации из `main` | выделяет цифру сегодняшнего дня и исправляет разбор форматов смен |
 | Tatooine frontend | `v1.8.3 TAXI PARALLEL LOAD` | опубликован в `main`; GitHub Pages обновляется из `main` | релиз параллельной загрузки раздела «Такси» |
-| Scanner/cash Apps Script | `v9.9.6 SCHEDULE DISPLAY CONSISTENT`, Apps Script version 56 | deployment обновлён | прежний Web App URL и deployment ID сохранены; время из Sheets Date-ячейки нормализуется в `HH:MM` |
+| Scanner/cash Apps Script | `v9.9.7 SCHEDULE OCR RELIABLE`, Apps Script version pending | готовится к обновлению существующего deployment | прежний Web App URL и deployment ID будут сохранены; смены пересчитываются по исходной OCR-ячейке |
 | Banquets Apps Script | неизвестно | требует подтверждения пользователя и проверки deployment | исходника production нет в `main` |
 | Google Sheets | неизвестно | требует подтверждения пользователя | таблицы и Script Properties не хранятся в Git |
 
