@@ -286,6 +286,15 @@ test('график корректно читает ISO-месяц и дату, �
   assert.equal(context.foxScheduleStoredDate_('2026-08-24'), '2026-08-24');
 });
 
+test('график корректно читает время из преобразованной Sheets Date-ячейки и сопоставляет переставленные части имени', () => {
+  const { context } = makeRuntime();
+  const savedTime = new Date(Date.UTC(1899, 11, 30, 18, 0));
+  assert.equal(context.foxScheduleStoredTime_(savedTime), '18:00');
+  assert.equal(context.foxScheduleStoredTime_('9:30'), '09:30');
+  assert.equal(context.foxScheduleNamesMatch_('Захар Захарченко', 'Захарченко Захар'), true);
+  assert.equal(context.foxScheduleNamesMatch_('Захар Захарченко', 'Захар Захаров'), false);
+});
+
 test('итоговая сумма банкета хранится числом, допускает ноль и очистку', () => {
   const { context } = makeRuntime();
   seedBanquet(context, 'b-final');
@@ -391,4 +400,14 @@ test('сохранение графика инвалидирует кэш кал
   assert.doesNotMatch(saveSource, /renderFoxScheduleReview\(\)/);
   assert.match(saveSource, /renderBanquets\(\)/);
   assert.match(frontendSource, /banqRefreshBtn\.onclick=\(\)=>\{ hap\('light'\); invalidateBanqScheduleCache_\(\); loadBanquets\(\); \}/);
+});
+
+test('календарь показывает персонал и банкеты в отдельных spoiler-блоках без дубля персонала в каждой карточке', () => {
+  const dayStart = frontendSource.indexOf('function renderBanqDay()');
+  const dayEnd = frontendSource.indexOf('function renderBanqPhotoHtml', dayStart);
+  const daySource = frontendSource.slice(dayStart, dayEnd);
+  assert.match(daySource, /renderBanqScheduleWorkers_\(daySchedule\)/);
+  assert.match(daySource, /banquetsSpoiler\.className='banq-spoiler'/);
+  assert.doesNotMatch(daySource, /renderBanqScheduleWorkers_\(b\.date\)/);
+  assert.match(frontendSource, /\.banq-spoiler\{/);
 });

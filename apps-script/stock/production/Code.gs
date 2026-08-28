@@ -16,7 +16,7 @@
  */
 
 const FOX_RECEIPTS = {
-  version: 'v9.9.5 SCHEDULE DATE KEYS RELIABLE',
+  version: 'v9.9.6 SCHEDULE DISPLAY CONSISTENT',
 
   stockSheets: [
     'Вино',
@@ -4410,6 +4410,22 @@ function foxScheduleStoredDate_(value) {
   const match = String(value || '').trim().match(/^(\d{4}-(0[1-9]|1[0-2])-([012]\d|3[01]))/);
   return match ? match[1] : '';
 }
+function foxScheduleStoredTime_(value) {
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
+    // A Sheets time-only cell is returned as 1899-12-30. UTC restores the
+    // original clock value without Moscow's historical date offset.
+    return String(value.getUTCHours()).padStart(2, '0') + ':' + String(value.getUTCMinutes()).padStart(2, '0');
+  }
+  const match = String(value || '').trim().match(/^(\d{1,2}):(\d{2})$/);
+  return match ? String(Number(match[1])).padStart(2, '0') + ':' + match[2] : '';
+}
+function foxScheduleNameKey_(value) {
+  return normalizeText_(value).split(/\s+/).filter(Boolean).sort().join(' ');
+}
+function foxScheduleNamesMatch_(a, b) {
+  const left = foxScheduleNameKey_(a); const right = foxScheduleNameKey_(b);
+  return Boolean(left && right && left === right);
+}
 
 function parseFoxScheduleShift_(rawValue) {
   const raw = String(rawValue == null ? '' : rawValue).trim();
@@ -4444,6 +4460,8 @@ function foxScheduleRows_(sh) {
   return sh.getRange(3, 1, sh.getLastRow() - 2, width).getValues().map(function(row) {
     while (row.length < FOX_RECEIPT_HEADERS.foxScheduleShifts.length) row.push('');
     row[1] = foxScheduleStoredDate_(row[1]);
+    row[6] = foxScheduleStoredTime_(row[6]);
+    row[7] = foxScheduleStoredTime_(row[7]);
     return row;
   });
 }
@@ -4465,7 +4483,7 @@ function getFoxMySchedule_(month, auth) {
   const employee = tatooineUserRows_(tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, false)).filter(function(item) { return item.userId === String(auth && auth.userId || ''); })[0];
   if (!employee) return { month:month, matched:false, scheduleFound:Boolean(activeFoxScheduleIdForMonth_(month)), items:[] };
   const schedule = getFoxScheduleForMonth_(month);
-  return { month:month, matched:true, scheduleFound:schedule.active, items:schedule.rows.filter(function(row) { return row.employeeId === employee.userId; }).map(function(row) { return { date:row.date, rawValue:row.rawValue, isWorking:row.isWorking, shiftStart:row.shiftStart, shiftEnd:row.shiftEnd, shiftType:row.shiftType }; }) };
+  return { month:month, matched:true, scheduleFound:schedule.active, items:schedule.rows.filter(function(row) { return row.employeeId === employee.userId || foxScheduleNamesMatch_(row.name, employee.name); }).map(function(row) { return { date:row.date, rawValue:row.rawValue, isWorking:row.isWorking, shiftStart:row.shiftStart, shiftEnd:row.shiftEnd, shiftType:row.shiftType }; }) };
 }
 
 function setFoxBanquetFinalAmount_(banquetId, rawAmount) {
@@ -4520,7 +4538,7 @@ function saveFoxSchedule_(p, auth) {
     const parsed = parseFoxScheduleShift_(row.rawValue);
     const isWorking = parsed.isWorking;
     const name = String(row.name || '').trim();
-    const matched = employees.filter(function(item) { return normalizeText_(item.name) === normalizeText_(name); });
+    const matched = employees.filter(function(item) { return foxScheduleNamesMatch_(item.name, name); });
     const shiftType = parsed.shiftType === 'inventory' ? 'inventory' : normalizeFoxScheduleShiftType_(row.shiftType);
     return [id,date,String(row.employeeId || (matched.length === 1 ? matched[0].userId : '')),name,parsed.rawValue,isWorking ? 'YES' : 'NO',parsed.shiftStart,parsed.shiftEnd,now,now,shiftType];
   }).filter(function(row) { return row[3] && row[4] && !/^x$/i.test(row[4]); });
@@ -4531,6 +4549,7 @@ function saveFoxSchedule_(p, auth) {
   // the active month and individual shift dates after the save.
   scheduleSh.getRange(scheduleRow, 2, 1, 1).setNumberFormat('@');
   shiftSh.getRange(shiftFirstRow, 2, values.length, 1).setNumberFormat('@');
+  shiftSh.getRange(shiftFirstRow, 7, values.length, 2).setNumberFormat('@');
   scheduleSh.getRange(scheduleRow, 1, 1, FOX_RECEIPT_HEADERS.foxSchedules.length).setValues([[id,month,'ACTIVE',String(p.imageUrl || ''),now,now,auth.userId]]);
   shiftSh.getRange(shiftFirstRow, 1, values.length, FOX_RECEIPT_HEADERS.foxScheduleShifts.length).setValues(values);
   SpreadsheetApp.flush();
@@ -4569,8 +4588,7 @@ function recognizeFoxScheduleImage_(imageUrl, requestedMonth) {
   const rows = [];
   (parsed.rows || []).forEach(function(person) {
     const name = String(person.name || '').trim(); if (!name) return;
-    const norm = normalizeText_(name);
-    const matches = employees.filter(function(item) { return normalizeText_(item.name) === norm; });
+    const matches = employees.filter(function(item) { return foxScheduleNamesMatch_(item.name, name); });
     (person.shifts || []).forEach(function(shift) {
       const date = normalizeFoxScheduleDate_(shift.date); if (date.slice(0,7) !== month) return;
       const parsedShift = parseFoxScheduleShift_(shift.raw_value);

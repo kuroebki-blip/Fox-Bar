@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.15.6 — WEEKLY SCHEDULE RELIABLE</title>
+<title>FO'X App v15.15.7 — SCHEDULE DISPLAY CONSISTENT</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -232,6 +232,14 @@ body.mode-hub #backBtn{display:none}
 .banq-status.cancelled{color:#F08B7D;border-color:rgba(240,139,125,.4);background:rgba(240,139,125,.10)}
 .banq-name{font-size:15px;font-weight:700;margin-bottom:3px}
 .banq-comment{font-size:13px;color:var(--muted);line-height:1.45;margin:5px 0 9px}
+.banq-spoiler{margin:10px 0;border:1px solid var(--line);border-radius:12px;background:var(--surface-2);overflow:hidden}
+.banq-spoiler summary{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 12px;color:var(--text);font-size:13px;font-weight:800;cursor:pointer;list-style:none}
+.banq-spoiler summary::-webkit-details-marker{display:none}
+.banq-spoiler summary::after{content:'⌄';color:var(--amber);font-size:16px;line-height:1;transition:transform .18s ease}
+.banq-spoiler[open] summary{border-bottom:1px solid var(--line)}
+.banq-spoiler[open] summary::after{transform:rotate(180deg)}
+.banq-spoiler-content{display:flex;flex-direction:column;gap:10px;padding:10px}
+.banq-spoiler>.banq-comment{margin:9px 12px 11px}
 .banq-img{display:block;width:100%;height:180px;object-fit:cover;border-radius:12px;border:1px solid var(--line);margin-top:8px;background:#000}
 .banq-media-open{position:relative;display:block;width:100%;padding:0;border:0;background:transparent;cursor:pointer;text-align:left}
 .banq-media-open .banq-img{margin-top:8px}
@@ -1635,12 +1643,12 @@ async function loadBanqScheduleWorkers_(date){
   if(!isStockApiConfigured()||banqScheduleWorkersByDate.has(date)) return;
   try{const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxScheduleWorkers',date:date},receiptAuthParams()));if(res&&res.ok)banqScheduleWorkersByDate.set(date,res.schedule||{scheduleFound:false,items:[]});renderBanquets();}catch(_){}
 }
-function renderBanqScheduleWorkers_(date){
-  const data=banqScheduleWorkersByDate.get(date);
-  if(!data) return '<div class="banq-comment">Загружаю сотрудников по графику…</div>';
-  if(!data.scheduleFound) return '<div class="banq-comment">График сотрудников на этот месяц не загружен.</div>';
+function renderBanqScheduleWorkers_(data){
+  if(!data) return '<details class="banq-spoiler"><summary>Работают в этот день</summary><div class="banq-comment">Загружаю сотрудников по графику…</div></details>';
+  if(!data.scheduleFound) return '<details class="banq-spoiler"><summary>Работают в этот день</summary><div class="banq-comment">График сотрудников на этот месяц не загружен.</div></details>';
   const names=(data.items||[]).map(x=>escapeHtml(x.name)+' — '+escapeHtml(formatFoxScheduleShift_(x))).join('<br>');
-  return '<div class="banq-comment"><b>Сотрудники по графику</b><br>'+(names||'На эту дату смен нет.')+'</div>';
+  const count=(data.items||[]).length;
+  return '<details class="banq-spoiler"><summary>Работают в этот день'+(count?' · '+count:'')+'</summary><div class="banq-comment">'+(names||'На эту дату смен нет.')+'</div></details>';
 }
 function formatFoxScheduleShift_(shift){
   const time=shift&&shift.shiftStart?'с '+shift.shiftStart+(shift.shiftEnd?' до '+shift.shiftEnd:''):(shift&&shift.rawValue||'смена');
@@ -2007,10 +2015,8 @@ function renderBanqCalendar(){
 function renderBanqDay(){
   const list=document.getElementById('banqList');
   const items=banquets.filter(b=>b.date===selectedBanqDate).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
-  loadBanqScheduleWorkers_(selectedBanqDate);
   const scheduleCard=document.getElementById('dayScheduleCard'),daySchedule=banqScheduleWorkersByDate.get(selectedBanqDate);
-  if(scheduleCard){scheduleCard.hidden=!daySchedule;if(daySchedule){const names=(daySchedule.items||[]).map(x=>escapeHtml(x.name)+' — '+escapeHtml(formatFoxScheduleShift_(x))).join('<br>');scheduleCard.innerHTML='<b>Работают в этот день</b><br>'+(daySchedule.scheduleFound?(names||'Смены не указаны.'):'График сотрудников на этот месяц не загружен.');}}
-  loadBanqScheduleWorkers_(selectedBanqDate);
+  if(scheduleCard){scheduleCard.hidden=false;scheduleCard.innerHTML=renderBanqScheduleWorkers_(daySchedule);}
   document.getElementById('banqSelectedTitle').textContent=humanDate(selectedBanqDate);
   document.getElementById('banqSelectedCount').textContent=items.length+' '+pluralRu(items.length,'заказ','заказа','заказов');
 
@@ -2020,6 +2026,13 @@ function renderBanqDay(){
   }
 
   list.innerHTML='';
+  const banquetsSpoiler=document.createElement('details');
+  banquetsSpoiler.className='banq-spoiler';
+  banquetsSpoiler.innerHTML='<summary>Банкеты · '+items.length+'</summary>';
+  const banquetsContent=document.createElement('div');
+  banquetsContent.className='banq-spoiler-content';
+  banquetsSpoiler.appendChild(banquetsContent);
+  list.appendChild(banquetsSpoiler);
   items.forEach(b=>{
     const meta=getBanqStatusMeta(b.status);
     b.status=meta.value;
@@ -2051,7 +2064,6 @@ function renderBanqDay(){
       '<div class="banq-name">'+safeName+'</div>'+ 
       (safeComment?'<div class="banq-comment">'+safeComment+'</div>':'')+
       finalAmountHtml+
-      renderBanqScheduleWorkers_(b.date)+
       renderBanqPhotoHtml(b)+renderBanqReserveHtml_(b)+adminActions;
 
     card.querySelectorAll('[data-status]').forEach(btn=>{
@@ -2100,7 +2112,7 @@ function renderBanqDay(){
         hap('ok');
       };
     }
-    list.appendChild(card);
+    banquetsContent.appendChild(card);
     attachBanqImageFallbacks(card);
   });
 }
