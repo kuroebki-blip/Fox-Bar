@@ -16,7 +16,7 @@
  */
 
 const FOX_RECEIPTS = {
-  version: 'v9.9.2 SCHEDULE SAVE RELIABLE',
+  version: 'v9.9.3 SCHEDULE STAGING RELIABLE',
 
   stockSheets: [
     'Вино',
