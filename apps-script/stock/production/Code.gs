@@ -5128,11 +5128,14 @@ function recognizeFoxScheduleImage_(imageUrl, requestedMonth) {
   (parsed.rows || []).forEach(function(person) {
     const name = String(person.name || '').trim(); if (!name) return;
     const matches = employees.filter(function(item) { return foxScheduleNamesMatch_(item.name, name); });
+    // OCR can call out a bartender either through work_role or by placing
+    // the person in a "Бармены" section. Persist one normalized role for both.
+    const workRole = normalizeFoxScheduleWorkRole_(person.work_role) || normalizeFoxScheduleWorkRole_(person.section);
     (person.shifts || []).forEach(function(shift) {
       const date = normalizeFoxScheduleDate_(shift.date); if (date.slice(0,7) !== month) return;
       const parsedShift = parseFoxScheduleShift_(shift.raw_value);
       if (!parsedShift.rawValue || /^x$/i.test(parsedShift.rawValue)) return;
-      rows.push({date:date,name:name,employeeId:matches.length === 1 ? matches[0].userId : '',rawValue:parsedShift.rawValue,isWorking:parsedShift.isWorking,shiftStart:parsedShift.shiftStart,shiftEnd:parsedShift.shiftEnd,shiftType:parsedShift.shiftType === 'inventory' ? 'inventory' : normalizeFoxScheduleShiftType_(person.section),workRole:normalizeFoxScheduleWorkRole_(person.work_role),needsEmployeeMatch:matches.length !== 1});
+      rows.push({date:date,name:name,employeeId:matches.length === 1 ? matches[0].userId : '',rawValue:parsedShift.rawValue,isWorking:parsedShift.isWorking,shiftStart:parsedShift.shiftStart,shiftEnd:parsedShift.shiftEnd,shiftType:parsedShift.shiftType === 'inventory' ? 'inventory' : normalizeFoxScheduleShiftType_(person.section),workRole:workRole,needsEmployeeMatch:matches.length !== 1});
     });
   });
   return { month:month, rows:dedupeFoxScheduleRows_(rows) };

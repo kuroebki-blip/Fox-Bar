@@ -411,6 +411,21 @@ test('бармен из распознанного графика сохраня
   assert.match(frontendSource, /workRole:String\(row.workRole\|\|''\)/);
 });
 
+test('OCR считает секцию Бармены ролью bartender, даже если work_role пустой', () => {
+  const { context } = makeRuntime();
+  context.PropertiesService.getScriptProperties().setProperty('GEMINI_API_KEY', 'test-key');
+  context.UrlFetchApp.fetch = () => ({
+    getResponseCode: () => 200,
+    getBlob: () => ({ getBytes: () => Array(120).fill(1), getContentType: () => 'image/jpeg' })
+  });
+  context.callGeminiGenerateContent_ = () => ({ text: JSON.stringify({ month:'2026-08', rows:[{
+    name:'Пётр', section:'Бармены', work_role:'', shifts:[{ date:'2026-08-28', raw_value:'18' }]
+  }] }) });
+  const result = context.recognizeFoxScheduleImage_('https://image/schedule', '2026-08');
+  assert.equal(result.rows.length, 1);
+  assert.equal(result.rows[0].workRole, 'bartender');
+});
+
 test('ручной бармен — отдельная защищённая операция графика, а не поле старой итоговой суммы', () => {
   assert.match(stockSource, /action === 'foxScheduleAddBartender'/);
   assert.match(stockSource, /function addFoxScheduleBartender_/);
