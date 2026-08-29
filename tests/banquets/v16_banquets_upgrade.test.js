@@ -32,6 +32,7 @@ class FakeSheet {
       getDisplayValue: () => String(read()[0][0] ?? ''),
       setValue: value => write([[value]]),
       setValues: values => write(values),
+      setNumberFormat: () => this,
       setFontWeight: () => this,
       setBackground: () => this,
       setFontColor: () => this
@@ -371,14 +372,16 @@ test('периодный отчёт выводит каждый банкет о�
   context.listFoxScheduleWorkers_ = () => ({ items:[{ name:'Бармен Пётр', shiftStart:'18:00', workRole:'bartender' },{ name:'Официант Анна', shiftStart:'18:00', workRole:'' }] });
   const report = context.buildFoxBanquetPeriodReport_({ dateFrom:'2026-08-28', dateTo:'2026-08-28' });
   assert.equal(report.count, 2);
-  assert.match(report.text, /b-report-a/);
-  assert.match(report.text, /b-report-b/);
+  assert.equal((report.text.match(/🎉 28\/08\/26/g) || []).length, 2);
   assert.match(report.text, /🗓 28\/08\/26 — 28\/08\/26/);
-  assert.match(report.text, /🎉 28\/08\/26 · b-report-a/);
+  assert.match(report.text, /🎉 28\/08\/26<\/b>\n/);
+  assert.doesNotMatch(report.text, /🎉 28\/08\/26 ·/);
+  assert.doesNotMatch(report.text, /b-report-a/);
   assert.doesNotMatch(report.text, /19:00/);
   assert.match(report.text, /💰 Сервис 1: 100 ₽/);
   assert.match(report.text, /👔 Ответственные официанты: Анна/);
-  assert.match(report.text, /🍸 Бармены: Бармен Пётр · с 18:00/);
+  assert.match(report.text, /🍸 Бармены: Бармен Пётр/);
+  assert.doesNotMatch(report.text, /Бармены: Бармен Пётр · с/);
 });
 
 test('ручной бармен сохраняется в списке и отчёте после замены OCR-графика месяца', () => {
@@ -391,7 +394,21 @@ test('ручной бармен сохраняется в списке и отч
   assert.deepEqual(JSON.parse(JSON.stringify(workers.items)), [{
     employeeId:'', name:'Пётр Бармен', rawValue:'18:00', shiftStart:'18:00', shiftEnd:'', shiftType:'regular', workRole:'bartender'
   }]);
-  assert.deepEqual(JSON.parse(JSON.stringify(context.foxBanquetReportBartenders_('2026-08-28'))), ['Пётр Бармен · с 18:00']);
+  assert.deepEqual(JSON.parse(JSON.stringify(context.foxBanquetReportBartenders_('2026-08-28'))), ['Пётр Бармен']);
+});
+
+test('бармен из распознанного графика сохраняет роль и попадает в отчёт', () => {
+  const { context } = makeRuntime();
+  const auth = { userId:'1036250074', userName:'Админ', venue:'fox' };
+  context.saveFoxSchedule_({
+    month:'2026-08', imageUrl:'https://image/schedule',
+    rowsJson:JSON.stringify([{ date:'2026-08-28', name:'Пётр', rawValue:'18', shiftType:'regular', workRole:'bartender' }])
+  }, auth);
+  assert.equal(context.listFoxScheduleWorkers_('2026-08-28').items[0].workRole, 'bartender');
+  assert.deepEqual(JSON.parse(JSON.stringify(context.foxBanquetReportBartenders_('2026-08-28'))), ['Пётр']);
+  assert.match(stockSource, /work_role/);
+  assert.match(stockSource, /work_role="bartender"/);
+  assert.match(frontendSource, /workRole:String\(row.workRole\|\|''\)/);
 });
 
 test('ручной бармен — отдельная защищённая операция графика, а не поле старой итоговой суммы', () => {

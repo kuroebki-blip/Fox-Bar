@@ -4851,7 +4851,7 @@ function dedupeFoxScheduleRows_(rows) {
     const type = normalizeFoxScheduleShiftType_(row && row.shiftType);
     const rawValue = String(row && row.rawValue || '').trim();
     if (!name || !date || !rawValue) return false;
-    const key = [name, date, type].join('|');
+    const key = [name, date, type, normalizeFoxScheduleWorkRole_(row && row.workRole)].join('|');
     if (seen[key]) return false;
     seen[key] = true;
     return true;
@@ -4992,7 +4992,7 @@ function foxBanquetReportDateRange_(input) {
 function foxBanquetReportBartenders_(date) {
   const schedule = listFoxScheduleWorkers_(date);
   return (schedule.items || []).filter(function(item) { return normalizeFoxScheduleWorkRole_(item.workRole) === 'bartender'; }).map(function(item) {
-    return item.name + (item.shiftStart ? ' · с ' + item.shiftStart : '');
+    return item.name;
   });
 }
 
@@ -5011,7 +5011,7 @@ function buildFoxBanquetPeriodReport_(input) {
   items.forEach(function(item) {
     const waiters = (item.responsibleWaiters || []).join(', ') || 'не указаны';
     const bartenders = foxBanquetReportBartenders_(item.date).join(', ') || 'не указаны';
-    lines.push('', '<b>🎉 ' + escapeTelegramHtml_(formatFoxBanquetReportDate_(item.date) + ' · ' + (item.name || 'Банкет')) + '</b>');
+    lines.push('', '<b>🎉 ' + escapeTelegramHtml_(formatFoxBanquetReportDate_(item.date)) + '</b>');
     lines.push('💰 Сервис 1: ' + escapeTelegramHtml_(formatFoxBanquetReportAmount_(item.service1)));
     lines.push('💳 Сервис 2: ' + escapeTelegramHtml_(formatFoxBanquetReportAmount_(item.service2)));
     lines.push('💨 Сервис кальян: ' + escapeTelegramHtml_(formatFoxBanquetReportAmount_(item.serviceHookah)));
@@ -5052,7 +5052,7 @@ function getFoxScheduleForMonth_(month) {
   if (!id) return { month:month, active:false, rows:[] };
   const sh = foxScheduleSheet_('foxScheduleShifts', false);
   const rows = foxScheduleRows_(sh).filter(function(row) { return String(row[0]) === id; });
-  return { id:id, month:month, active:true, rows:rows.map(function(row) { return { date:String(row[1]), employeeId:String(row[2]), name:String(row[3]), rawValue:String(row[4]), isWorking:parseFoxScheduleShift_(row[4]).isWorking, shiftStart:String(row[6]), shiftEnd:String(row[7]), shiftType:normalizeFoxScheduleShiftType_(row[10]), workRole:String(row[11] || '') }; }) };
+  return { id:id, month:month, active:true, rows:rows.map(function(row) { return { date:String(row[1]), employeeId:String(row[2]), name:String(row[3]), rawValue:String(row[4]), isWorking:parseFoxScheduleShift_(row[4]).isWorking, shiftStart:String(row[6]), shiftEnd:String(row[7]), shiftType:normalizeFoxScheduleShiftType_(row[10]), workRole:normalizeFoxScheduleWorkRole_(row[11]) }; }) };
 }
 
 function saveFoxSchedule_(p, auth) {
@@ -5076,7 +5076,8 @@ function saveFoxSchedule_(p, auth) {
     const name = String(row.name || '').trim();
     const matched = employees.filter(function(item) { return foxScheduleNamesMatch_(item.name, name); });
     const shiftType = parsed.shiftType === 'inventory' ? 'inventory' : normalizeFoxScheduleShiftType_(row.shiftType);
-    return [id,date,String(row.employeeId || (matched.length === 1 ? matched[0].userId : '')),name,parsed.rawValue,isWorking ? 'YES' : 'NO',parsed.shiftStart,parsed.shiftEnd,now,now,shiftType,''];
+    const workRole = normalizeFoxScheduleWorkRole_(row.workRole);
+    return [id,date,String(row.employeeId || (matched.length === 1 ? matched[0].userId : '')),name,parsed.rawValue,isWorking ? 'YES' : 'NO',parsed.shiftStart,parsed.shiftEnd,now,now,shiftType,workRole];
   }).filter(function(row) { return row[3] && row[4] && !/^x$/i.test(row[4]); });
   if (!values.length) throw new Error('Не найдено сотрудников для сохранения.');
   const scheduleRow = scheduleSh.getLastRow() + 1;
@@ -5102,12 +5103,13 @@ function recognizeFoxScheduleImage_(imageUrl, requestedMonth) {
   if (response.getResponseCode() < 200 || response.getResponseCode() >= 300) throw new Error('Изображение графика не загрузилось.');
   const blob = response.getBlob(); const bytes = blob.getBytes();
   if (!bytes || bytes.length < 100 || bytes.length > 12 * 1024 * 1024) throw new Error('Некорректный размер изображения графика.');
-  const schema = { type:'OBJECT', properties:{ month:{type:'STRING'}, rows:{type:'ARRAY',items:{type:'OBJECT',properties:{name:{type:'STRING'}, section:{type:'STRING'}, shifts:{type:'ARRAY',items:{type:'OBJECT',properties:{date:{type:'STRING'},raw_value:{type:'STRING'}},required:['date','raw_value']}}},required:['name','section','shifts']} } }, required:['month','rows'] };
+  const schema = { type:'OBJECT', properties:{ month:{type:'STRING'}, rows:{type:'ARRAY',items:{type:'OBJECT',properties:{name:{type:'STRING'}, section:{type:'STRING'}, work_role:{type:'STRING'}, shifts:{type:'ARRAY',items:{type:'OBJECT',properties:{date:{type:'STRING'},raw_value:{type:'STRING'}},required:['date','raw_value']}}},required:['name','section','work_role','shifts']} } }, required:['month','rows'] };
   const prompt = [
     'Распознай рабочий график сотрудников на изображении.',
     'График относится к месяцу ' + requestedMonth + '. Используй этот месяц для всех дат, даже если месяц или год на фото не видны.',
     'Числа в верхней строке — дни месяца, например 28 означает ' + requestedMonth + '-28. Цифра в ячейке сотрудника (10, 11, 12, 13) — начало смены, а не количество часов.',
     'Если блок подписан «ЗАГОТОВКА», верни section="preparation" для каждого сотрудника этого блока. Для основного графика верни section="regular". Не создавай разных сотрудников, если имя встречается в обоих блоках.',
+    'Если строка находится в отдельном блоке/списке «БАР», «БАРМЕНЫ», «БАРМЕН» или явно относится к барменам, обязательно верни work_role="bartender". Для всех остальных строк верни work_role="". section при этом остаётся regular/preparation.',
     'X и пустая ячейка — пожелание/отсутствие смены: не возвращай их как строки. «Инв» означает инвентаризацию: сохрани raw_value как специальную смену, но не превращай в время.',
     'Верни месяц строго YYYY-MM и каждую видимую строку сотрудника.',
     'Каждая date строго YYYY-MM-DD. raw_value сохраняй буквально: пусто, X, число, диапазон или текст.',
@@ -5130,7 +5132,7 @@ function recognizeFoxScheduleImage_(imageUrl, requestedMonth) {
       const date = normalizeFoxScheduleDate_(shift.date); if (date.slice(0,7) !== month) return;
       const parsedShift = parseFoxScheduleShift_(shift.raw_value);
       if (!parsedShift.rawValue || /^x$/i.test(parsedShift.rawValue)) return;
-      rows.push({date:date,name:name,employeeId:matches.length === 1 ? matches[0].userId : '',rawValue:parsedShift.rawValue,isWorking:parsedShift.isWorking,shiftStart:parsedShift.shiftStart,shiftEnd:parsedShift.shiftEnd,shiftType:parsedShift.shiftType === 'inventory' ? 'inventory' : normalizeFoxScheduleShiftType_(person.section),needsEmployeeMatch:matches.length !== 1});
+      rows.push({date:date,name:name,employeeId:matches.length === 1 ? matches[0].userId : '',rawValue:parsedShift.rawValue,isWorking:parsedShift.isWorking,shiftStart:parsedShift.shiftStart,shiftEnd:parsedShift.shiftEnd,shiftType:parsedShift.shiftType === 'inventory' ? 'inventory' : normalizeFoxScheduleShiftType_(person.section),workRole:normalizeFoxScheduleWorkRole_(person.work_role),needsEmployeeMatch:matches.length !== 1});
     });
   });
   return { month:month, rows:dedupeFoxScheduleRows_(rows) };
