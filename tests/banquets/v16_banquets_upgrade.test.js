@@ -43,9 +43,9 @@ function makeSpreadsheet(sheets) {
   return { getSheetByName: name => sheets[name] || null };
 }
 
-function makeContext({ banquetSheet, reserveSheet }) {
+function makeContext({ banquetSheet, reserveSheet, scheduleSheet, scheduleShiftSheet }) {
   const banquetSpreadsheet = makeSpreadsheet({ 'Банкеты': banquetSheet });
-  const stockSpreadsheet = makeSpreadsheet({ 'Банкеты_Резерв': reserveSheet });
+  const stockSpreadsheet = makeSpreadsheet({ 'Банкеты_Резерв': reserveSheet, 'FOx_ГрафикиСотрудников': scheduleSheet, 'FOx_СменыСотрудников': scheduleShiftSheet });
   const properties = { SPREADSHEET_ID: 'stock-sheet', GEMINI_MODEL: 'gemini-test' };
   const cache = new Map();
   return vm.createContext({
@@ -91,10 +91,12 @@ function reserveHeaders() {
 function makeRuntime() {
   const banquetSheet = new FakeSheet([headers()]);
   const reserveSheet = new FakeSheet([reserveHeaders(), Array(20).fill('')]);
-  const context = makeContext({ banquetSheet, reserveSheet });
+  const scheduleSheet = new FakeSheet([['FO’X — ГРАФИКИ СОТРУДНИКОВ'], ['ID графика','Месяц','Статус','Image URL','Создано','Обновлено','Обновил пользователь'], ['schedule_august','2026-08','ACTIVE','','','','']]);
+  const scheduleShiftSheet = new FakeSheet([['FO’X — СМЕНЫ СОТРУДНИКОВ'], ['ID графика','Дата','Employee ID','Имя сотрудника','Исходное значение','Рабочая смена','Начало','Конец','Создано','Обновлено','Тип смены','Роль на смене']]);
+  const context = makeContext({ banquetSheet, reserveSheet, scheduleSheet, scheduleShiftSheet });
   vm.runInContext(stockSource, context, { filename: 'stock-production.gs' });
   vm.runInContext(banquetsSource, context, { filename: 'banquets-production.gs' });
-  return { context, banquetSheet, reserveSheet };
+  return { context, banquetSheet, reserveSheet, scheduleSheet, scheduleShiftSheet };
 }
 
 function seedBanquet(context, id, status = 'Актуально', date = '2026-08-01') {
@@ -330,6 +332,80 @@ test('итоговая сумма банкета хранится числом, 
   assert.equal(context.setFoxBanquetFinalAmount_('b-final', '0').finalAmount, 0);
   assert.equal(context.setFoxBanquetFinalAmount_('b-final', '').finalAmount, null);
   assert.throws(() => context.setFoxBanquetFinalAmount_('b-final', '-1'));
+});
+
+test('закрытие банкета хранит три сервиса и дедуплицирует ответственных официантов', () => {
+  const { context } = makeRuntime();
+  seedBanquet(context, 'b-services', 'Выполнено', '2026-08-28');
+  const result = context.setFoxBanquetClosure_('b-services', {
+    service1: '12000', service2: '8000.50', serviceHookah: '0',
+    responsibleWaitersJson: JSON.stringify([' Анна ', 'Иван', 'Анна', ''])
+  });
+  assert.deepEqual(JSON.parse(JSON.stringify(result)), {
+    id:'b-services', service1:12000, service2:8000.5, serviceHookah:0,
+    responsibleWaiters:['Анна','Иван']
+  });
+  const item = context.listFoxCalendarBanquets_().items[0];
+  assert.deepEqual(JSON.parse(JSON.stringify({
+    service1:item.service1, service2:item.service2, serviceHookah:item.serviceHookah,
+    responsibleWaiters:item.responsibleWaiters, finalAmount:item.finalAmount
+  })), { service1:12000, service2:8000.5, serviceHookah:0, responsibleWaiters:['Анна','Иван'], finalAmount:null });
+});
+
+test('закрытие банкета отклоняет отрицательный сервис и не меняет старую итоговую сумму', () => {
+  const { context } = makeRuntime();
+  seedBanquet(context, 'b-services-invalid', 'Выполнено');
+  context.setFoxBanquetFinalAmount_('b-services-invalid', '9000');
+  assert.throws(() => context.setFoxBanquetClosure_('b-services-invalid', {
+    service1:'-1', service2:'', serviceHookah:'', responsibleWaitersJson:'[]'
+  }));
+  assert.equal(context.listFoxCalendarBanquets_().items[0].finalAmount, 9000);
+});
+
+test('периодный отчёт выводит каждый банкет отдельно и использует барменов даты', () => {
+  const { context } = makeRuntime();
+  seedBanquet(context, 'b-report-a', 'Выполнено', '2026-08-28');
+  seedBanquet(context, 'b-report-b', 'Выполнено', '2026-08-28');
+  context.setFoxBanquetClosure_('b-report-a', { service1:'100', service2:'', serviceHookah:'50', responsibleWaitersJson:'["Анна"]' });
+  context.setFoxBanquetClosure_('b-report-b', { service1:'200', service2:'300', serviceHookah:'', responsibleWaitersJson:'["Иван","Оля"]' });
+  context.listFoxScheduleWorkers_ = () => ({ items:[{ name:'Бармен Пётр', shiftStart:'18:00', workRole:'bartender' },{ name:'Официант Анна', shiftStart:'18:00', workRole:'' }] });
+  const report = context.buildFoxBanquetPeriodReport_({ dateFrom:'2026-08-28', dateTo:'2026-08-28' });
+  assert.equal(report.count, 2);
+  assert.match(report.text, /b-report-a/);
+  assert.match(report.text, /b-report-b/);
+  assert.match(report.text, /Сервис 1: 100 ₽/);
+  assert.match(report.text, /Ответственные официанты: Анна/);
+  assert.match(report.text, /Бармены: Бармен Пётр · с 18:00/);
+});
+
+test('ручной бармен — отдельная защищённая операция графика, а не поле старой итоговой суммы', () => {
+  assert.match(stockSource, /action === 'foxScheduleAddBartender'/);
+  assert.match(stockSource, /function addFoxScheduleBartender_/);
+  assert.match(stockSource, /workRole === 'bartender'/);
+  assert.match(frontendSource, /action:'foxScheduleAddBartender'/);
+  assert.doesNotMatch(frontendSource.slice(frontendSource.indexOf('function renderBanqDay()'), frontendSource.indexOf('function changeBanquetStatus')), /Итоговая сумма/);
+});
+
+test('ручное добавление бармена создаёт одну смену и повторный запрос не дублирует её', () => {
+  const { context, scheduleShiftSheet } = makeRuntime();
+  const auth = { userId:'1036250074', userName:'Админ', venue:'fox' };
+  const first = context.addFoxScheduleBartender_({ date:'2026-08-28', name:'Пётр Бармен', shiftStart:'18:00' }, auth);
+  const second = context.addFoxScheduleBartender_({ date:'2026-08-28', name:'Бармен Пётр', shiftStart:'18:00' }, auth);
+  assert.equal(scheduleShiftSheet.getLastRow(), 3);
+  assert.deepEqual(JSON.parse(JSON.stringify(first.items)), [{ employeeId:'', name:'Пётр Бармен', rawValue:'18:00', shiftStart:'18:00', shiftEnd:'', shiftType:'regular', workRole:'bartender' }]);
+  assert.equal(second.items.length, 1);
+});
+
+test('интерфейс закрытия показывает три сервиса, динамических официантов и отправку периода', () => {
+  assert.match(frontendSource, /Сервис 1, ₽/);
+  assert.match(frontendSource, /Сервис 2, ₽/);
+  assert.match(frontendSource, /Сервис кальян, ₽/);
+  assert.match(frontendSource, /Добавить официанта/);
+  assert.match(frontendSource, /id="banqPeriodReportForm"/);
+  assert.match(frontendSource, /action:'foxBanquetPeriodReport'/);
+  assert.match(stockSource, /action === 'foxBanquetClosure'/);
+  assert.match(stockSource, /action === 'foxBanquetPeriodReport'/);
+  assert.match(stockSource, /requireFoxPermission_\(auth, 'banquets\.manage'\)/);
 });
 
 test('OCR графика показывает собственный статус и ждёт Gemini дольше обычного JSONP', () => {

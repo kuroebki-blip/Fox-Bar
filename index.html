@@ -672,6 +672,11 @@ body.mode-cash-report #backBtn{display:inline-flex}
   </div>
 
   <div id="banqAdminBlock" class="admin-hidden">
+    <div class="group-label">Выгрузка банкетов</div>
+    <form class="banq-form" id="banqPeriodReportForm">
+      <div class="form-grid"><div class="form-field"><label>С</label><input id="banqReportFrom" type="date" required></div><div class="form-field"><label>По</label><input id="banqReportTo" type="date" required></div></div>
+      <button class="small-btn" type="submit">📨 Отправить отчёт в Telegram</button>
+    </form>
     <div class="group-label">Добавить банкет</div>
     <form class="banq-form" id="banqForm">
     <div class="form-grid">
@@ -1687,9 +1692,14 @@ async function loadBanqScheduleWorkers_(date){
 function renderBanqScheduleWorkers_(data){
   if(!data) return '<details class="banq-spoiler"><summary>Работают в этот день</summary><div class="banq-comment">Загружаю сотрудников по графику…</div></details>';
   if(!data.scheduleFound) return '<details class="banq-spoiler"><summary>Работают в этот день</summary><div class="banq-comment">График сотрудников на этот месяц не загружен.</div></details>';
-  const names=(data.items||[]).map(x=>escapeHtml(x.name)+' — '+escapeHtml(formatFoxScheduleShift_(x))).join('<br>');
+  const names=(data.items||[]).map(x=>escapeHtml(x.name)+(x.workRole==='bartender'?' · бармен':'')+' — '+escapeHtml(formatFoxScheduleShift_(x))).join('<br>');
   const count=(data.items||[]).length;
-  return '<details class="banq-spoiler"><summary>Работают в этот день'+(count?' · '+count:'')+'</summary><div class="banq-comment">'+(names||'На эту дату смен нет.')+'</div></details>';
+  const addBartender=foxCan_('schedules.manage')?'<div class="form-grid"><div class="form-field"><label>Бармен</label><input data-bartender-name type="text" placeholder="Имя сотрудника"></div><div class="form-field"><label>Смена с</label><input data-bartender-start type="time"></div></div><button class="small-btn" type="button" data-add-bartender>+ Добавить бармена</button><div class="banq-comment" data-bartender-status></div>':'';
+  return '<details class="banq-spoiler"><summary>Работают в этот день'+(count?' · '+count:'')+'</summary><div class="banq-comment">'+(names||'На эту дату смен нет.')+'</div>'+addBartender+'</details>';
+}
+function bindDayScheduleControls_(root){
+  const button=root.querySelector('[data-add-bartender]');if(!button)return;
+  button.onclick=async()=>{const name=root.querySelector('[data-bartender-name]').value.trim(),shiftStart=root.querySelector('[data-bartender-start]').value,status=root.querySelector('[data-bartender-status]');if(!name||!shiftStart){status.textContent='Укажите имя и время начала смены.';return;}button.disabled=true;status.textContent='Добавляю бармена в график…';try{const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxScheduleAddBartender',date:selectedBanqDate,name:name,shiftStart:shiftStart},receiptAuthParams()),20000);if(!res||!res.ok)throw new Error(res&&res.error||'Бармена не удалось добавить.');banqScheduleWorkersByDate.set(selectedBanqDate,res.schedule);renderBanquets();setSyncStatus('ok','Бармен добавлен в график на выбранную дату.');hap('ok');}catch(err){button.disabled=false;status.textContent=String(err&&err.message||err);}};
 }
 function formatFoxScheduleShift_(shift){
   const time=shift&&shift.shiftStart?'с '+shift.shiftStart+(shift.shiftEnd?' до '+shift.shiftEnd:''):(shift&&shift.rawValue||'смена');
@@ -2057,7 +2067,7 @@ function renderBanqDay(){
   const items=banquets.filter(b=>b.date===selectedBanqDate).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
   loadBanqScheduleWorkers_(selectedBanqDate);
   const scheduleCard=document.getElementById('dayScheduleCard'),daySchedule=banqScheduleWorkersByDate.get(selectedBanqDate);
-  if(scheduleCard){scheduleCard.hidden=false;scheduleCard.innerHTML=renderBanqScheduleWorkers_(daySchedule);}
+  if(scheduleCard){scheduleCard.hidden=false;scheduleCard.innerHTML=renderBanqScheduleWorkers_(daySchedule);bindDayScheduleControls_(scheduleCard);}
   document.getElementById('banqSelectedTitle').textContent=humanDate(selectedBanqDate);
   document.getElementById('banqSelectedCount').textContent=items.length+' '+pluralRu(items.length,'заказ','заказа','заказов');
 
@@ -2087,8 +2097,7 @@ function renderBanqDay(){
     const orderClass=reserve&&reserve.orderSent?' sent':'';
     const orderDisabled=(!hasMatchedReserve||meta.key!=='actual')?' disabled':'';
     const scanLabel=reserve&&reserve.recognized?'🔄 Пересчитать резерв':'✨ Распознать резерв';
-    const finalAmount=Number.isFinite(Number(b.finalAmount))?Number(b.finalAmount):null;
-    const finalAmountHtml=meta.key==='completed'?(finalAmount==null?'<div class="banq-comment">Итоговая сумма не указана.</div>':'<div class="banq-comment"><b>Итоговая сумма:</b> '+finalAmount.toLocaleString('ru-RU',{maximumFractionDigits:2})+' ₽</div>') : '';
+    const closureHtml=meta.key==='completed'?renderBanqClosureHtml_(b):'';
     const adminActions=isBanqAdmin() ?
       '<div class="banq-actions">'+
         '<button class="small-btn status-actual '+(meta.key==='actual'?'active':'')+'" type="button" data-status="Актуально">● Актуальный</button>'+ 
@@ -2098,13 +2107,13 @@ function renderBanqDay(){
         '<button class="small-btn" type="button" data-edit-photos>🖼 Изменить фото</button>'+
         '<button class="small-btn order'+orderClass+'" type="button" data-order-sent'+orderDisabled+'>'+orderLabel+'</button>'+ 
         '<button class="small-btn danger" type="button" data-del="'+escapeHtml(b.id)+'">Удалить</button>'+ 
-        (meta.key==='completed'?'<button class="small-btn" type="button" data-final-amount>Итоговая сумма</button>':'')+
+        (meta.key==='completed'?'<button class="small-btn" type="button" data-banquet-closure>Сервисы и официанты</button>':'')+
       '</div>' : '';
     card.innerHTML=
       '<div class="banq-item-head"><div class="banq-time">'+escapeHtml(b.time||'')+'</div><div class="banq-status '+meta.key+'">'+meta.label+'</div></div>'+ 
       '<div class="banq-name">'+safeName+'</div>'+ 
       (safeComment?'<div class="banq-comment">'+safeComment+'</div>':'')+
-      finalAmountHtml+
+      closureHtml+
       renderBanqPhotoHtml(b)+renderBanqReserveHtml_(b)+adminActions;
 
     card.querySelectorAll('[data-status]').forEach(btn=>{
@@ -2131,8 +2140,8 @@ function renderBanqDay(){
 
     const editPhotos=card.querySelector('[data-edit-photos]');
     if(editPhotos) editPhotos.onclick=()=>openBanqPhotoEditor_(b);
-    const finalAmountButton=card.querySelector('[data-final-amount]');
-    if(finalAmountButton) finalAmountButton.onclick=()=>updateBanqFinalAmount_(b);
+    const closureButton=card.querySelector('[data-banquet-closure]');
+    if(closureButton) closureButton.onclick=()=>openBanqClosureForm_(card,b);
 
     const del=card.querySelector('[data-del]');
     if(del){
@@ -2154,15 +2163,21 @@ function renderBanqDay(){
   });
 }
 
-async function updateBanqFinalAmount_(banquet){
-  if(!isBanqAdmin())return;
-  const current=banquet.finalAmount==null?'':String(banquet.finalAmount);
-  const raw=prompt('Итоговая сумма банкета, ₽. Оставьте пустым, чтобы очистить:',current);if(raw===null)return;
-  const normalized=raw.trim().replace(/\s/g,'').replace(',','.');
-  if(normalized!==''&&(!/^\d+(?:\.\d{1,2})?$/.test(normalized)||Number(normalized)<0)){alert('Введите неотрицательную сумму числом.');return;}
-  const result=await jsonp(STOCK_API_URL,Object.assign({action:'foxBanquetFinalAmount',banquetId:banquet.id,finalAmount:normalized},receiptAuthParams()));
-  if(!result||!result.ok)throw new Error(result&&result.error||'Итоговая сумма не сохранена.');
-  await loadBanquets();setSyncStatus('ok','Итоговая сумма сохранена.');
+function formatBanqService_(value){return value==null||value===''?'—':Number(value).toLocaleString('ru-RU',{maximumFractionDigits:2})+' ₽';}
+function renderBanqClosureHtml_(banquet){
+  const waiters=Array.isArray(banquet.responsibleWaiters)?banquet.responsibleWaiters:[];
+  const services='<div class="banq-comment"><b>Сервис 1:</b> '+formatBanqService_(banquet.service1)+'<br><b>Сервис 2:</b> '+formatBanqService_(banquet.service2)+'<br><b>Сервис кальян:</b> '+formatBanqService_(banquet.serviceHookah)+(waiters.length?'<br><b>Ответственные официанты:</b> '+waiters.map(escapeHtml).join(', '):'')+'</div>';
+  return services;
+}
+function openBanqClosureForm_(card,banquet){
+  if(card.querySelector('[data-closure-form]'))return;
+  const waiters=(Array.isArray(banquet.responsibleWaiters)&&banquet.responsibleWaiters.length?banquet.responsibleWaiters:['']);
+  const panel=document.createElement('form');panel.className='banq-form';panel.dataset.closureForm='';
+  panel.innerHTML='<div class="group-label">Закрытие банкета</div><div class="form-grid"><div class="form-field"><label>Сервис 1, ₽</label><input name="service1" type="number" min="0" step="0.01" value="'+escapeHtml(banquet.service1==null?'':banquet.service1)+'"></div><div class="form-field"><label>Сервис 2, ₽</label><input name="service2" type="number" min="0" step="0.01" value="'+escapeHtml(banquet.service2==null?'':banquet.service2)+'"></div><div class="form-field full"><label>Сервис кальян, ₽</label><input name="serviceHookah" type="number" min="0" step="0.01" value="'+escapeHtml(banquet.serviceHookah==null?'':banquet.serviceHookah)+'"></div></div><div class="group-label">Ответственные официанты</div><div data-waiters></div><button class="small-btn" type="button" data-add-waiter>+ Добавить официанта</button><button class="small-btn" type="submit">Сохранить закрытие</button>';
+  const holder=panel.querySelector('[data-waiters]');const addWaiter=value=>{const row=document.createElement('div');row.className='form-field';row.innerHTML='<label>Ответственный официант</label><input data-waiter type="text" value="'+escapeHtml(value||'')+'"><button class="small-btn danger" type="button" data-remove-waiter>Убрать</button>';row.querySelector('[data-remove-waiter]').onclick=()=>row.remove();holder.appendChild(row);};waiters.forEach(addWaiter);
+  panel.querySelector('[data-add-waiter]').onclick=()=>addWaiter('');
+  panel.onsubmit=async event=>{event.preventDefault();const submit=panel.querySelector('[type="submit"]');submit.disabled=true;try{await postBanqForm({action:'closure',banquetId:banquet.id,service1:panel.elements.service1.value,service2:panel.elements.service2.value,serviceHookah:panel.elements.serviceHookah.value,responsibleWaitersJson:JSON.stringify([...panel.querySelectorAll('[data-waiter]')].map(input=>input.value))});await loadBanquets();setSyncStatus('ok','Сервисы и ответственные официанты сохранены.');hap('ok');}catch(err){setSyncStatus('err',String(err&&err.message||err));submit.disabled=false;}};
+  card.appendChild(panel);
 }
 
 async function changeBanquetStatus(banquet,nextStatus){
@@ -2468,7 +2483,7 @@ async function imageToDataUrl(file){
 
 async function postBanqForm(fields){
   if(!isStockApiConfigured()) throw new Error('Защищённый backend FO’X не подключён.');
-  const actions={save:'foxBanquetSave',updateStatus:'foxBanquetStatus',delete:'foxBanquetDelete'};
+  const actions={save:'foxBanquetSave',updateStatus:'foxBanquetStatus',delete:'foxBanquetDelete',closure:'foxBanquetClosure'};
   const action=actions[String(fields&&fields.action||'')];
   if(!action) throw new Error('Неизвестное действие банкета.');
   const payload=Object.assign({},fields,{action:action});delete payload.telegramUserId;delete payload.telegramUserName;delete payload.telegramInitData;
@@ -2476,6 +2491,9 @@ async function postBanqForm(fields){
   if(!result||!result.ok) throw new Error(result&&result.error||'Банкет не сохранён.');
   return result;
 }
+
+const banqPeriodReportForm=document.getElementById('banqPeriodReportForm');
+if(banqPeriodReportForm)banqPeriodReportForm.onsubmit=async event=>{event.preventDefault();if(!isBanqAdmin())return;const button=banqPeriodReportForm.querySelector('[type="submit"]');button.disabled=true;button.textContent='Отправляю…';try{const result=await jsonp(STOCK_API_URL,Object.assign({action:'foxBanquetPeriodReport',dateFrom:document.getElementById('banqReportFrom').value,dateTo:document.getElementById('banqReportTo').value},receiptAuthParams()),20000);if(!result||!result.ok)throw new Error(result&&result.error||'Отчёт не отправлен.');setSyncStatus('ok','Отчёт по '+Number(result.report&&result.report.count||0)+' банкетам отправлен в Telegram.');hap('ok');}catch(err){setSyncStatus('err',String(err&&err.message||err));}finally{button.disabled=false;button.textContent='📨 Отправить отчёт в Telegram';}};
 
 const banqPhotoInput=document.getElementById('banqPhoto');
 if(banqPhotoInput){

@@ -147,7 +147,7 @@ const FOX_RECEIPT_HEADERS = {
     'ID графика','Месяц','Статус','Image URL','Создано','Обновлено','Обновил пользователь'
   ],
   foxScheduleShifts: [
-    'ID графика','Дата','Employee ID','Имя сотрудника','Исходное значение','Рабочая смена','Начало','Конец','Создано','Обновлено','Тип смены'
+    'ID графика','Дата','Employee ID','Имя сотрудника','Исходное значение','Рабочая смена','Начало','Конец','Создано','Обновлено','Тип смены','Роль на смене'
   ],
   tatooineUsers: [
     'Telegram User ID','Имя','Роль','Создано','Обновлено','Адрес развоза','Широта развоза','Долгота развоза'
@@ -979,6 +979,11 @@ function doGet(e) {
       return jsonpOutput_(callback, { ok:true, schedule:listFoxScheduleWorkers_(e.parameter.date) });
     }
 
+    if (action === 'foxScheduleAddBartender') {
+      assertFoxScheduleManager_(auth);
+      return jsonpOutput_(callback, { ok:true, schedule:addFoxScheduleBartender_(e.parameter, auth) });
+    }
+
     if (action === 'foxMySchedule') {
       requireFoxPermission_(auth, 'schedules.view_self');
       return jsonpOutput_(callback, { ok:true, schedule:getFoxMySchedule_(e.parameter.month, auth) });
@@ -987,6 +992,16 @@ function doGet(e) {
     if (action === 'foxBanquetFinalAmount') {
       requireFoxPermission_(auth, 'banquets.manage');
       return jsonpOutput_(callback, { ok:true, banquet:setFoxBanquetFinalAmount_(e.parameter.banquetId, e.parameter.finalAmount) });
+    }
+
+    if (action === 'foxBanquetClosure') {
+      requireFoxPermission_(auth, 'banquets.manage');
+      return jsonpOutput_(callback, { ok:true, banquet:setFoxBanquetClosure_(e.parameter.banquetId, e.parameter) });
+    }
+
+    if (action === 'foxBanquetPeriodReport') {
+      requireFoxPermission_(auth, 'banquets.manage');
+      return jsonpOutput_(callback, { ok:true, report:sendFoxBanquetPeriodReport_(e.parameter, auth) });
     }
 
     if (action === 'foxScheduleAccess') {
@@ -4550,6 +4565,7 @@ function listFoxCalendarBanquets_() {
   const headers = sh.getRange(source.headerRow, 1, 1, width).getDisplayValues()[0].map(function(value) { return String(value || '').trim(); });
   const mediaColumn = headers.indexOf('Media JSON') + 1;
   const finalAmountColumn = headers.indexOf('Итоговая сумма банкета') + 1;
+  const closureColumns = foxCalendarBanquetClosureColumnsFromHeaders_(headers);
   const rows = sh.getRange(source.firstDataRow, 1, sh.getLastRow() - source.firstDataRow + 1, width).getValues();
 
   return {
@@ -4565,7 +4581,7 @@ function listFoxCalendarBanquets_() {
       const fallbackPublicId = String(row[6] || '');
       const firstMedia = media[0] || { url: fallbackUrl, publicId: fallbackPublicId };
       const rawFinalAmount = finalAmountColumn ? row[finalAmountColumn - 1] : '';
-      return {
+      return Object.assign({
         id: String(row[source.cols.id - 1] || ''),
         date: foxScheduleStoredDate_(row[1]),
         time: foxScheduleStoredTime_(row[2]),
@@ -4578,7 +4594,7 @@ function listFoxCalendarBanquets_() {
         imageUrls: media.map(function(item) { return item.url; }),
         media: media,
         finalAmount: rawFinalAmount === '' || rawFinalAmount == null ? null : Number(rawFinalAmount)
-      };
+      }, foxCalendarBanquetClosureDto_(row, closureColumns));
     }).filter(function(item) { return item.date; })
   };
 }
@@ -4603,6 +4619,66 @@ function foxCalendarBanquetMediaColumn_(sh, create) {
   if (sh.getMaxColumns() < column) sh.insertColumnsAfter(sh.getMaxColumns(), column - sh.getMaxColumns());
   sh.getRange(1, column).setValue('Media JSON');
   return column;
+}
+
+function foxCalendarBanquetColumn_(sh, header, create) {
+  const width = sh.getLastColumn();
+  const headers = width ? sh.getRange(1, 1, 1, width).getDisplayValues()[0].map(function(value) { return String(value || '').trim(); }) : [];
+  const existing = headers.indexOf(header) + 1;
+  if (existing || !create) return existing;
+  const column = width + 1;
+  if (sh.getMaxColumns() < column) sh.insertColumnsAfter(sh.getMaxColumns(), column - sh.getMaxColumns());
+  sh.getRange(1, column).setValue(header);
+  return column;
+}
+
+function foxCalendarBanquetClosureColumns_(sh, create) {
+  return {
+    service1:foxCalendarBanquetColumn_(sh, 'Сервис 1', create),
+    service2:foxCalendarBanquetColumn_(sh, 'Сервис 2', create),
+    serviceHookah:foxCalendarBanquetColumn_(sh, 'Сервис кальян', create),
+    responsibleWaiters:foxCalendarBanquetColumn_(sh, 'Ответственные официанты JSON', create)
+  };
+}
+
+function foxCalendarBanquetClosureColumnsFromHeaders_(headers) {
+  function column(header) { return headers.indexOf(header) + 1; }
+  return { service1:column('Сервис 1'), service2:column('Сервис 2'), serviceHookah:column('Сервис кальян'), responsibleWaiters:column('Ответственные официанты JSON') };
+}
+
+function normalizeFoxBanquetAmount_(value, label) {
+  const text = String(value == null ? '' : value).trim().replace(/\s/g, '').replace(',', '.');
+  if (!text) return null;
+  const amount = Number(text);
+  if (!isFinite(amount) || amount < 0) throw new Error(label + ' должен быть неотрицательным числом.');
+  return amount;
+}
+
+function normalizeFoxBanquetPeople_(value, label) {
+  const parsed = Array.isArray(value) ? value : parseJsonSafe_(String(value || '[]'));
+  if (!Array.isArray(parsed)) throw new Error('Некорректный список: ' + label + '.');
+  const seen = {};
+  return parsed.map(function(item) { return String(item || '').replace(/\s+/g, ' ').trim(); }).filter(function(name) {
+    const key = foxScheduleNameKey_(name);
+    if (!key || seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
+}
+
+function foxCalendarBanquetClosureDto_(row, columns) {
+  function amount(column) {
+    const value = column ? row[column - 1] : '';
+    return value === '' || value == null ? null : Number(value);
+  }
+  let responsibleWaiters = [];
+  try { responsibleWaiters = columns.responsibleWaiters ? normalizeFoxBanquetPeople_(row[columns.responsibleWaiters - 1], 'ответственных официантов') : []; } catch (_) {}
+  return {
+    service1:amount(columns.service1),
+    service2:amount(columns.service2),
+    serviceHookah:amount(columns.serviceHookah),
+    responsibleWaiters:responsibleWaiters
+  };
 }
 
 function foxCalendarBanquetMedia_(raw, fallbackUrl, fallbackPublicId) {
@@ -4630,15 +4706,15 @@ function foxCalendarBanquetRowById_(sh, id) {
   return 0;
 }
 
-function foxCalendarBanquetClientItem_(row, mediaColumn, finalAmountColumn) {
+function foxCalendarBanquetClientItem_(row, mediaColumn, finalAmountColumn, closureColumns) {
   const media = foxCalendarBanquetMedia_(mediaColumn ? row[mediaColumn - 1] : [], row[7], row[6]);
   const first = media[0] || { url:String(row[7] || ''), publicId:String(row[6] || '') };
   const amount = finalAmountColumn ? row[finalAmountColumn - 1] : '';
-  return {
+  return Object.assign({
     id:String(row[0] || ''), date:foxScheduleStoredDate_(row[1]), time:foxScheduleStoredTime_(row[2]), name:String(row[3] || ''), comment:String(row[4] || ''), status:String(row[5] || 'Актуально'),
     cloudinaryPublicId:first.publicId, imageUrl:first.url, photo:first.url, imageUrls:media.map(function(item) { return item.url; }), media:media,
     finalAmount:amount === '' || amount == null ? null : Number(amount)
-  };
+  }, foxCalendarBanquetClosureDto_(row, closureColumns || {}));
 }
 
 function saveFoxCalendarBanquet_(p, auth) {
@@ -4670,7 +4746,7 @@ function saveFoxCalendarBanquet_(p, auth) {
     SpreadsheetApp.flush();
     const stored = sh.getRange(rowNumber || sh.getLastRow(), 1, 1, sh.getLastColumn()).getValues()[0];
     const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getDisplayValues()[0].map(String);
-    return foxCalendarBanquetClientItem_(stored, mediaColumn, headers.indexOf('Итоговая сумма банкета') + 1);
+    return foxCalendarBanquetClientItem_(stored, mediaColumn, headers.indexOf('Итоговая сумма банкета') + 1, foxCalendarBanquetClosureColumnsFromHeaders_(headers));
   } finally {
     lock.releaseLock();
   }
@@ -4801,7 +4877,36 @@ function listFoxScheduleWorkers_(date) {
   if (!active) return { date:targetDate, scheduleFound:false, items:[] };
   return { date:targetDate, scheduleFound:true, items:rows.filter(function(row) {
     return String(row[0]) === active && String(row[1]) === targetDate && parseFoxScheduleShift_(row[4]).isWorking;
-  }).map(function(row) { return { employeeId:String(row[2] || ''), name:String(row[3] || ''), rawValue:String(row[4] || ''), shiftStart:String(row[6] || ''), shiftEnd:String(row[7] || ''), shiftType:normalizeFoxScheduleShiftType_(row[10]) }; }) };
+  }).map(function(row) { return { employeeId:String(row[2] || ''), name:String(row[3] || ''), rawValue:String(row[4] || ''), shiftStart:String(row[6] || ''), shiftEnd:String(row[7] || ''), shiftType:normalizeFoxScheduleShiftType_(row[10]), workRole:String(row[11] || '') }; }) };
+}
+
+function addFoxScheduleBartender_(input, auth) {
+  const date = normalizeFoxScheduleDate_(input.date);
+  const name = String(input.name || '').replace(/\s+/g, ' ').trim();
+  const shiftStart = normalizeFoxScheduleTime_(input.shiftStart || input.time || '');
+  if (!name) throw new Error('Укажите имя бармена.');
+  if (!shiftStart) throw new Error('Укажите время начала смены бармена.');
+  const lock = LockService.getDocumentLock();
+  if (!lock.tryLock(30000)) throw new Error('График сейчас занят. Повторите попытку.');
+  try {
+    const scheduleId = activeFoxScheduleIdForMonth_(date.slice(0, 7));
+    if (!scheduleId) throw new Error('Сначала загрузите и подтвердите график на этот месяц.');
+    const sh = foxScheduleSheet_('foxScheduleShifts', true);
+    const rows = foxScheduleRows_(sh);
+    const duplicate = rows.some(function(row) {
+      return String(row[0]) === scheduleId && String(row[1]) === date && String(row[11] || '') === 'bartender' && foxScheduleNamesMatch_(row[3], name);
+    });
+    if (!duplicate) {
+      const users = tatooineUserRows_(tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, false));
+      const matched = users.filter(function(item) { return foxScheduleNamesMatch_(item.name, name); });
+      const now = new Date();
+      sh.getRange(sh.getLastRow() + 1, 1, 1, FOX_RECEIPT_HEADERS.foxScheduleShifts.length).setValues([[scheduleId, date, matched.length === 1 ? matched[0].userId : '', name, shiftStart, 'YES', shiftStart, '', now, now, 'regular', 'bartender']]);
+      SpreadsheetApp.flush();
+    }
+    return listFoxScheduleWorkers_(date);
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function getFoxMySchedule_(month, auth) {
@@ -4829,6 +4934,83 @@ function setFoxBanquetFinalAmount_(banquetId, rawAmount) {
   throw new Error('Банкет не найден.');
 }
 
+function setFoxBanquetClosure_(banquetId, input) {
+  const id = requiredString_(banquetId, 'banquetId');
+  const lock = LockService.getDocumentLock();
+  if (!lock.tryLock(30000)) throw new Error('Таблица банкетов сейчас занята. Повторите попытку.');
+  try {
+    const sh = foxCalendarBanquetSheet_();
+    const rowNumber = foxCalendarBanquetRowById_(sh, id);
+    if (!rowNumber) throw new Error('Банкет не найден.');
+    const status = normalizeBanquetStatusForReserve_(sh.getRange(rowNumber, FOX_RECEIPTS.banquets.cols.status).getValue());
+    if (status !== 'Выполнено') throw new Error('Сервисы и ответственных официантов можно указать после завершения банкета.');
+    const service1 = normalizeFoxBanquetAmount_(input.service1, 'Сервис 1');
+    const service2 = normalizeFoxBanquetAmount_(input.service2, 'Сервис 2');
+    const serviceHookah = normalizeFoxBanquetAmount_(input.serviceHookah, 'Сервис кальян');
+    const responsibleWaiters = normalizeFoxBanquetPeople_(input.responsibleWaitersJson, 'ответственных официантов');
+    const columns = foxCalendarBanquetClosureColumns_(sh, true);
+    sh.getRange(rowNumber, columns.service1).setValue(service1 == null ? '' : service1);
+    sh.getRange(rowNumber, columns.service2).setValue(service2 == null ? '' : service2);
+    sh.getRange(rowNumber, columns.serviceHookah).setValue(serviceHookah == null ? '' : serviceHookah);
+    sh.getRange(rowNumber, columns.responsibleWaiters).setValue(JSON.stringify(responsibleWaiters));
+    SpreadsheetApp.flush();
+    return { id:id, service1:service1, service2:service2, serviceHookah:serviceHookah, responsibleWaiters:responsibleWaiters };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function foxBanquetReportDateRange_(input) {
+  const dateFrom = normalizeFoxScheduleDate_(input.dateFrom);
+  const dateTo = normalizeFoxScheduleDate_(input.dateTo);
+  if (dateFrom > dateTo) throw new Error('Дата начала периода не может быть позже даты окончания.');
+  return { dateFrom:dateFrom, dateTo:dateTo };
+}
+
+function foxBanquetReportBartenders_(date) {
+  const schedule = listFoxScheduleWorkers_(date);
+  return (schedule.items || []).filter(function(item) { return item.workRole === 'bartender'; }).map(function(item) {
+    return item.name + (item.shiftStart ? ' · с ' + item.shiftStart : '');
+  });
+}
+
+function buildFoxBanquetPeriodReport_(input) {
+  const range = foxBanquetReportDateRange_(input);
+  const items = listFoxCalendarBanquets_().items.filter(function(item) { return item.date >= range.dateFrom && item.date <= range.dateTo; }).sort(function(a, b) {
+    return (a.date + ' ' + a.time + ' ' + a.id).localeCompare(b.date + ' ' + b.time + ' ' + b.id);
+  });
+  const lines = ['<b>FO’X · банкеты</b>', escapeTelegramHtml_(range.dateFrom) + ' — ' + escapeTelegramHtml_(range.dateTo)];
+  if (!items.length) lines.push('', 'В этом периоде банкетов нет.');
+  items.forEach(function(item) {
+    const waiters = (item.responsibleWaiters || []).join(', ') || 'не указаны';
+    const bartenders = foxBanquetReportBartenders_(item.date).join(', ') || 'не указаны';
+    lines.push('', '<b>' + escapeTelegramHtml_(item.date + (item.time ? ' · ' + item.time : '') + ' · ' + (item.name || 'Банкет')) + '</b>');
+    lines.push('Сервис 1: ' + escapeTelegramHtml_(formatFoxBanquetReportAmount_(item.service1)));
+    lines.push('Сервис 2: ' + escapeTelegramHtml_(formatFoxBanquetReportAmount_(item.service2)));
+    lines.push('Сервис кальян: ' + escapeTelegramHtml_(formatFoxBanquetReportAmount_(item.serviceHookah)));
+    lines.push('Ответственные официанты: ' + escapeTelegramHtml_(waiters));
+    lines.push('Бармены: ' + escapeTelegramHtml_(bartenders));
+  });
+  return { range:range, count:items.length, text:lines.join('\n') };
+}
+
+function formatFoxBanquetReportAmount_(amount) {
+  return amount == null || amount === '' || !isFinite(Number(amount)) ? '—' : formatTelegramAmount_(Number(amount)) + ' ₽';
+}
+
+function sendFoxBanquetPeriodReport_(input, auth) {
+  const report = buildFoxBanquetPeriodReport_(input);
+  const props = PropertiesService.getScriptProperties();
+  const token = String(props.getProperty('TELEGRAM_BOT_TOKEN') || '');
+  if (!token) throw new Error('Не настроен Telegram-бот для отчёта.');
+  // Периодная выгрузка — персональный ответ тому, кто её запросил. Не отправляем
+  // её молча в общий chat из Script Properties.
+  const chatId = String(auth.chatId || auth.userId || props.getProperty('TELEGRAM_TARGET_CHAT_ID') || '');
+  if (!chatId) throw new Error('Не удалось определить чат для отчёта.');
+  telegramApiCall_(token, 'sendMessage', { chat_id:chatId, text:report.text, parse_mode:'HTML', disable_web_page_preview:true });
+  return { dateFrom:report.range.dateFrom, dateTo:report.range.dateTo, count:report.count };
+}
+
 function activeFoxScheduleIdForMonth_(month) {
   const sh = foxScheduleSheet_('foxSchedules', false);
   if (!sh || sh.getLastRow() < 3) return '';
@@ -4843,7 +5025,7 @@ function getFoxScheduleForMonth_(month) {
   if (!id) return { month:month, active:false, rows:[] };
   const sh = foxScheduleSheet_('foxScheduleShifts', false);
   const rows = foxScheduleRows_(sh).filter(function(row) { return String(row[0]) === id; });
-  return { id:id, month:month, active:true, rows:rows.map(function(row) { return { date:String(row[1]), employeeId:String(row[2]), name:String(row[3]), rawValue:String(row[4]), isWorking:parseFoxScheduleShift_(row[4]).isWorking, shiftStart:String(row[6]), shiftEnd:String(row[7]), shiftType:normalizeFoxScheduleShiftType_(row[10]) }; }) };
+  return { id:id, month:month, active:true, rows:rows.map(function(row) { return { date:String(row[1]), employeeId:String(row[2]), name:String(row[3]), rawValue:String(row[4]), isWorking:parseFoxScheduleShift_(row[4]).isWorking, shiftStart:String(row[6]), shiftEnd:String(row[7]), shiftType:normalizeFoxScheduleShiftType_(row[10]), workRole:String(row[11] || '') }; }) };
 }
 
 function saveFoxSchedule_(p, auth) {
@@ -4867,7 +5049,7 @@ function saveFoxSchedule_(p, auth) {
     const name = String(row.name || '').trim();
     const matched = employees.filter(function(item) { return foxScheduleNamesMatch_(item.name, name); });
     const shiftType = parsed.shiftType === 'inventory' ? 'inventory' : normalizeFoxScheduleShiftType_(row.shiftType);
-    return [id,date,String(row.employeeId || (matched.length === 1 ? matched[0].userId : '')),name,parsed.rawValue,isWorking ? 'YES' : 'NO',parsed.shiftStart,parsed.shiftEnd,now,now,shiftType];
+    return [id,date,String(row.employeeId || (matched.length === 1 ? matched[0].userId : '')),name,parsed.rawValue,isWorking ? 'YES' : 'NO',parsed.shiftStart,parsed.shiftEnd,now,now,shiftType,''];
   }).filter(function(row) { return row[3] && row[4] && !/^x$/i.test(row[4]); });
   if (!values.length) throw new Error('Не найдено сотрудников для сохранения.');
   const scheduleRow = scheduleSh.getLastRow() + 1;
