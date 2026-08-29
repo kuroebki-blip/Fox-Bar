@@ -373,15 +373,31 @@ test('периодный отчёт выводит каждый банкет о�
   assert.equal(report.count, 2);
   assert.match(report.text, /b-report-a/);
   assert.match(report.text, /b-report-b/);
-  assert.match(report.text, /Сервис 1: 100 ₽/);
-  assert.match(report.text, /Ответственные официанты: Анна/);
-  assert.match(report.text, /Бармены: Бармен Пётр · с 18:00/);
+  assert.match(report.text, /🗓 28\/08\/26 — 28\/08\/26/);
+  assert.match(report.text, /🎉 28\/08\/26 · b-report-a/);
+  assert.doesNotMatch(report.text, /19:00/);
+  assert.match(report.text, /💰 Сервис 1: 100 ₽/);
+  assert.match(report.text, /👔 Ответственные официанты: Анна/);
+  assert.match(report.text, /🍸 Бармены: Бармен Пётр · с 18:00/);
+});
+
+test('ручной бармен сохраняется в списке и отчёте после замены OCR-графика месяца', () => {
+  const { context, scheduleShiftSheet } = makeRuntime();
+  scheduleShiftSheet.rows.push([
+    'schedule_previous', '2026-08-28', '', 'Пётр Бармен', '18:00', 'YES', '18:00', '', '', '', 'regular', 'bartender'
+  ]);
+  const workers = context.listFoxScheduleWorkers_('2026-08-28');
+  assert.equal(workers.scheduleFound, true);
+  assert.deepEqual(JSON.parse(JSON.stringify(workers.items)), [{
+    employeeId:'', name:'Пётр Бармен', rawValue:'18:00', shiftStart:'18:00', shiftEnd:'', shiftType:'regular', workRole:'bartender'
+  }]);
+  assert.deepEqual(JSON.parse(JSON.stringify(context.foxBanquetReportBartenders_('2026-08-28'))), ['Пётр Бармен · с 18:00']);
 });
 
 test('ручной бармен — отдельная защищённая операция графика, а не поле старой итоговой суммы', () => {
   assert.match(stockSource, /action === 'foxScheduleAddBartender'/);
   assert.match(stockSource, /function addFoxScheduleBartender_/);
-  assert.match(stockSource, /workRole === 'bartender'/);
+  assert.match(stockSource, /function normalizeFoxScheduleWorkRole_/);
   assert.match(frontendSource, /action:'foxScheduleAddBartender'/);
   assert.doesNotMatch(frontendSource.slice(frontendSource.indexOf('function renderBanqDay()'), frontendSource.indexOf('function changeBanquetStatus')), /Итоговая сумма/);
 });

@@ -4838,6 +4838,11 @@ function normalizeFoxScheduleShiftType_(value) {
   return type === 'preparation' || type.indexOf('заготов') >= 0 ? 'preparation' : 'regular';
 }
 
+function normalizeFoxScheduleWorkRole_(value) {
+  const role = normalizeText_(value);
+  return role === 'bartender' || role.indexOf('бармен') >= 0 ? 'bartender' : '';
+}
+
 function dedupeFoxScheduleRows_(rows) {
   const seen = {};
   return (Array.isArray(rows) ? rows : []).filter(function(row) {
@@ -4875,9 +4880,26 @@ function listFoxScheduleWorkers_(date) {
   const rows = foxScheduleRows_(sh);
   const active = activeFoxScheduleIdForMonth_(targetDate.slice(0, 7));
   if (!active) return { date:targetDate, scheduleFound:false, items:[] };
-  return { date:targetDate, scheduleFound:true, items:rows.filter(function(row) {
-    return String(row[0]) === active && String(row[1]) === targetDate && parseFoxScheduleShift_(row[4]).isWorking;
-  }).map(function(row) { return { employeeId:String(row[2] || ''), name:String(row[3] || ''), rawValue:String(row[4] || ''), shiftStart:String(row[6] || ''), shiftEnd:String(row[7] || ''), shiftType:normalizeFoxScheduleShiftType_(row[10]), workRole:String(row[11] || '') }; }) };
+  // OCR-графики можно загружать повторно. Ручной бармен — это явное
+  // операционное дополнение, поэтому не теряем его при смене ID OCR-графика.
+  // Для обычных смен используем только актуальную версию, для барменов —
+  // последнюю ручную запись на эту дату с дедупликацией по имени.
+  const selected = {};
+  rows.filter(function(row) {
+    return String(row[1]) === targetDate && parseFoxScheduleShift_(row[4]).isWorking &&
+      (String(row[0]) === active || normalizeFoxScheduleWorkRole_(row[11]) === 'bartender');
+  }).forEach(function(row) {
+    const role = normalizeFoxScheduleWorkRole_(row[11]);
+    const key = foxScheduleNameKey_(row[3]);
+    if (!key) return;
+    const current = selected[key];
+    // A manually selected bartender wins over an OCR row with the same name.
+    if (!current || (role === 'bartender' && normalizeFoxScheduleWorkRole_(current[11]) !== 'bartender')) selected[key] = row;
+  });
+  return { date:targetDate, scheduleFound:true, items:Object.keys(selected).sort().map(function(key) {
+    const row = selected[key];
+    return { employeeId:String(row[2] || ''), name:String(row[3] || ''), rawValue:String(row[4] || ''), shiftStart:String(row[6] || ''), shiftEnd:String(row[7] || ''), shiftType:normalizeFoxScheduleShiftType_(row[10]), workRole:normalizeFoxScheduleWorkRole_(row[11]) };
+  }) };
 }
 
 function addFoxScheduleBartender_(input, auth) {
@@ -4894,7 +4916,7 @@ function addFoxScheduleBartender_(input, auth) {
     const sh = foxScheduleSheet_('foxScheduleShifts', true);
     const rows = foxScheduleRows_(sh);
     const duplicate = rows.some(function(row) {
-      return String(row[0]) === scheduleId && String(row[1]) === date && String(row[11] || '') === 'bartender' && foxScheduleNamesMatch_(row[3], name);
+      return String(row[1]) === date && normalizeFoxScheduleWorkRole_(row[11]) === 'bartender' && foxScheduleNamesMatch_(row[3], name);
     });
     if (!duplicate) {
       const users = tatooineUserRows_(tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, false));
@@ -4969,9 +4991,14 @@ function foxBanquetReportDateRange_(input) {
 
 function foxBanquetReportBartenders_(date) {
   const schedule = listFoxScheduleWorkers_(date);
-  return (schedule.items || []).filter(function(item) { return item.workRole === 'bartender'; }).map(function(item) {
+  return (schedule.items || []).filter(function(item) { return normalizeFoxScheduleWorkRole_(item.workRole) === 'bartender'; }).map(function(item) {
     return item.name + (item.shiftStart ? ' · с ' + item.shiftStart : '');
   });
+}
+
+function formatFoxBanquetReportDate_(value) {
+  const date = foxScheduleStoredDate_(value);
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date.slice(8, 10) + '/' + date.slice(5, 7) + '/' + date.slice(2, 4) : date;
 }
 
 function buildFoxBanquetPeriodReport_(input) {
@@ -4979,17 +5006,17 @@ function buildFoxBanquetPeriodReport_(input) {
   const items = listFoxCalendarBanquets_().items.filter(function(item) { return item.date >= range.dateFrom && item.date <= range.dateTo; }).sort(function(a, b) {
     return (a.date + ' ' + a.time + ' ' + a.id).localeCompare(b.date + ' ' + b.time + ' ' + b.id);
   });
-  const lines = ['<b>FO’X · банкеты</b>', escapeTelegramHtml_(range.dateFrom) + ' — ' + escapeTelegramHtml_(range.dateTo)];
-  if (!items.length) lines.push('', 'В этом периоде банкетов нет.');
+  const lines = ['<b>📋 FO’X · банкетный отчёт</b>', '🗓 ' + escapeTelegramHtml_(formatFoxBanquetReportDate_(range.dateFrom)) + ' — ' + escapeTelegramHtml_(formatFoxBanquetReportDate_(range.dateTo))];
+  if (!items.length) lines.push('', 'ℹ️ В этом периоде банкетов нет.');
   items.forEach(function(item) {
     const waiters = (item.responsibleWaiters || []).join(', ') || 'не указаны';
     const bartenders = foxBanquetReportBartenders_(item.date).join(', ') || 'не указаны';
-    lines.push('', '<b>' + escapeTelegramHtml_(item.date + (item.time ? ' · ' + item.time : '') + ' · ' + (item.name || 'Банкет')) + '</b>');
-    lines.push('Сервис 1: ' + escapeTelegramHtml_(formatFoxBanquetReportAmount_(item.service1)));
-    lines.push('Сервис 2: ' + escapeTelegramHtml_(formatFoxBanquetReportAmount_(item.service2)));
-    lines.push('Сервис кальян: ' + escapeTelegramHtml_(formatFoxBanquetReportAmount_(item.serviceHookah)));
-    lines.push('Ответственные официанты: ' + escapeTelegramHtml_(waiters));
-    lines.push('Бармены: ' + escapeTelegramHtml_(bartenders));
+    lines.push('', '<b>🎉 ' + escapeTelegramHtml_(formatFoxBanquetReportDate_(item.date) + ' · ' + (item.name || 'Банкет')) + '</b>');
+    lines.push('💰 Сервис 1: ' + escapeTelegramHtml_(formatFoxBanquetReportAmount_(item.service1)));
+    lines.push('💳 Сервис 2: ' + escapeTelegramHtml_(formatFoxBanquetReportAmount_(item.service2)));
+    lines.push('💨 Сервис кальян: ' + escapeTelegramHtml_(formatFoxBanquetReportAmount_(item.serviceHookah)));
+    lines.push('👔 Ответственные официанты: ' + escapeTelegramHtml_(waiters));
+    lines.push('🍸 Бармены: ' + escapeTelegramHtml_(bartenders));
   });
   return { range:range, count:items.length, text:lines.join('\n') };
 }
