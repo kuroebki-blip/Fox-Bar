@@ -4545,6 +4545,37 @@ function normalizeFoxScheduleDate_(value) {
   if (!/^\d{4}-(0[1-9]|1[0-2])-([012]\d|3[01])$/.test(date)) throw new Error('Дата смены должна иметь формат ГГГГ-ММ-ДД.');
   return date;
 }
+function isRealFoxScheduleDate_(date) {
+  const normalized = normalizeFoxScheduleDate_(date);
+  const parts = normalized.split('-').map(Number);
+  const check = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+  return check.getUTCFullYear() === parts[0] && check.getUTCMonth() === parts[1] - 1 && check.getUTCDate() === parts[2];
+}
+function foxScheduleNeighbourMonths_(month) {
+  month = normalizeFoxScheduleMonth_(month);
+  const parts = month.split('-').map(Number);
+  const cursor = new Date(Date.UTC(parts[0], parts[1] - 1, 1));
+  const format = function(value) { return value.getUTCFullYear() + '-' + String(value.getUTCMonth() + 1).padStart(2, '0'); };
+  const previous = new Date(cursor.getTime()); previous.setUTCMonth(previous.getUTCMonth() - 1);
+  const next = new Date(cursor.getTime()); next.setUTCMonth(next.getUTCMonth() + 1);
+  return [format(previous), month, format(next)];
+}
+function normalizeFoxScheduleOcrDate_(value, requestedMonth) {
+  let date = normalizeFoxScheduleDate_(value);
+  if (isRealFoxScheduleDate_(date)) return date;
+  // A weekly sheet named after September may start with 31 August. OCR often
+  // expresses that cell as 2026-09-31; recover the only valid adjacent date.
+  const day = Number(date.slice(8, 10));
+  const month = normalizeFoxScheduleMonth_(requestedMonth);
+  const parts = month.split('-').map(Number);
+  const previousLastDay = new Date(Date.UTC(parts[0], parts[1] - 1, 0)).getUTCDate();
+  if (date.slice(0, 7) === month && day <= previousLastDay) {
+    const previous = new Date(Date.UTC(parts[0], parts[1] - 2, day));
+    date = previous.getUTCFullYear() + '-' + String(previous.getUTCMonth() + 1).padStart(2, '0') + '-' + String(previous.getUTCDate()).padStart(2, '0');
+  }
+  if (!isRealFoxScheduleDate_(date)) throw new Error('Не удалось определить календарную дату смены: ' + value + '.');
+  return date;
+}
 function foxScheduleStoredMonth_(value) {
   if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM');
   const match = String(value || '').trim().match(/^(\d{4}-(0[1-9]|1[0-2]))/);
@@ -5061,16 +5092,34 @@ function saveFoxSchedule_(p, auth) {
   if (!Array.isArray(rows) || !rows.length) throw new Error('Добавьте хотя бы одну строку графика.');
   const scheduleSh = foxScheduleSheet_('foxSchedules', true);
   const shiftSh = foxScheduleSheet_('foxScheduleShifts', true);
-  const activeId = activeFoxScheduleIdForMonth_(month);
-  const now = new Date(); const id = 'schedule_' + Date.now();
   const employees = tatooineUserRows_(tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, false));
-  if (activeId) {
-    const existing = scheduleSh.getRange(3, 1, scheduleSh.getLastRow() - 2, FOX_RECEIPT_HEADERS.foxSchedules.length).getValues();
-    existing.forEach(function(row, index) { if (String(row[0]) === activeId) scheduleSh.getRange(index + 3, 3).setValue('REPLACED'); });
-  }
-  const values = rows.map(function(row) {
+  const allowedMonths = foxScheduleNeighbourMonths_(month);
+  const rowsByMonth = {};
+  rows.forEach(function(row) {
     const date = normalizeFoxScheduleDate_(row.date);
-    if (date.slice(0, 7) !== month) throw new Error('Все даты должны относиться к выбранному месяцу.');
+    if (!isRealFoxScheduleDate_(date)) throw new Error('Некорректная календарная дата смены: ' + date + '.');
+    const rowMonth = date.slice(0, 7);
+    if (allowedMonths.indexOf(rowMonth) < 0) throw new Error('Недельный график может захватывать только выбранный месяц и соседние месяцы.');
+    (rowsByMonth[rowMonth] || (rowsByMonth[rowMonth] = [])).push(Object.assign({}, row, { date:date }));
+  });
+  const now = new Date();
+  const saved = [];
+  Object.keys(rowsByMonth).sort().forEach(function(targetMonth, monthIndex) {
+    const incoming = rowsByMonth[targetMonth];
+    const incomingDates = {};
+    incoming.forEach(function(row) { incomingDates[row.date] = true; });
+    const activeId = activeFoxScheduleIdForMonth_(targetMonth);
+    // A file is a weekly fragment. Keep active rows for every other date of
+    // the month and replace only dates contained in this upload.
+    const previousRows = activeId ? foxScheduleRows_(shiftSh).filter(function(row) {
+      return String(row[0]) === activeId && !incomingDates[String(row[1])];
+    }).map(function(row) {
+      return { date:String(row[1]), employeeId:String(row[2] || ''), name:String(row[3] || ''), rawValue:String(row[4] || ''), shiftType:String(row[10] || ''), workRole:String(row[11] || '') };
+    }) : [];
+    const merged = dedupeFoxScheduleRows_(previousRows.concat(incoming));
+    const id = 'schedule_' + Date.now() + '_' + Math.floor(Math.random() * 1000000) + '_' + monthIndex;
+    const values = merged.map(function(row) {
+      const date = normalizeFoxScheduleDate_(row.date);
     const parsed = parseFoxScheduleShift_(row.rawValue);
     const isWorking = parsed.isWorking;
     const name = String(row.name || '').trim();
@@ -5079,19 +5128,25 @@ function saveFoxSchedule_(p, auth) {
     const workRole = normalizeFoxScheduleWorkRole_(row.workRole);
     return [id,date,String(row.employeeId || (matched.length === 1 ? matched[0].userId : '')),name,parsed.rawValue,isWorking ? 'YES' : 'NO',parsed.shiftStart,parsed.shiftEnd,now,now,shiftType,workRole];
   }).filter(function(row) { return row[3] && row[4] && !/^x$/i.test(row[4]); });
-  if (!values.length) throw new Error('Не найдено сотрудников для сохранения.');
-  const scheduleRow = scheduleSh.getLastRow() + 1;
-  const shiftFirstRow = shiftSh.getLastRow() + 1;
-  // Sheets otherwise coerces ISO keys to Date values, breaking exact lookup of
-  // the active month and individual shift dates after the save.
-  scheduleSh.getRange(scheduleRow, 2, 1, 1).setNumberFormat('@');
-  shiftSh.getRange(shiftFirstRow, 2, values.length, 1).setNumberFormat('@');
-  shiftSh.getRange(shiftFirstRow, 7, values.length, 2).setNumberFormat('@');
-  scheduleSh.getRange(scheduleRow, 1, 1, FOX_RECEIPT_HEADERS.foxSchedules.length).setValues([[id,month,'ACTIVE',String(p.imageUrl || ''),now,now,auth.userId]]);
-  shiftSh.getRange(shiftFirstRow, 1, values.length, FOX_RECEIPT_HEADERS.foxScheduleShifts.length).setValues(values);
+    if (!values.length) throw new Error('Не найдено сотрудников для сохранения.');
+    if (activeId) {
+      const existing = scheduleSh.getRange(3, 1, scheduleSh.getLastRow() - 2, FOX_RECEIPT_HEADERS.foxSchedules.length).getValues();
+      existing.forEach(function(row, index) { if (String(row[0]) === activeId) scheduleSh.getRange(index + 3, 3).setValue('REPLACED'); });
+    }
+    const scheduleRow = scheduleSh.getLastRow() + 1;
+    const shiftFirstRow = shiftSh.getLastRow() + 1;
+    // Sheets otherwise coerces ISO keys to Date values, breaking exact lookup of
+    // the active month and individual shift dates after the save.
+    scheduleSh.getRange(scheduleRow, 2, 1, 1).setNumberFormat('@');
+    shiftSh.getRange(shiftFirstRow, 2, values.length, 1).setNumberFormat('@');
+    shiftSh.getRange(shiftFirstRow, 7, values.length, 2).setNumberFormat('@');
+    scheduleSh.getRange(scheduleRow, 1, 1, FOX_RECEIPT_HEADERS.foxSchedules.length).setValues([[id,targetMonth,'ACTIVE',String(p.imageUrl || ''),now,now,auth.userId]]);
+    shiftSh.getRange(shiftFirstRow, 1, values.length, FOX_RECEIPT_HEADERS.foxScheduleShifts.length).setValues(values);
+    saved.push({ id:id, month:targetMonth, rows:values.length });
+  });
   SpreadsheetApp.flush();
-  if (activeFoxScheduleIdForMonth_(month) !== id) throw new Error('График не удалось активировать. Повторите подтверждение.');
-  return { id:id, month:month, active:true, savedRows:values.length };
+  saved.forEach(function(item) { if (activeFoxScheduleIdForMonth_(item.month) !== item.id) throw new Error('График не удалось активировать. Повторите подтверждение.'); });
+  return { id:saved[0].id, month:month, months:saved.map(function(item) { return item.month; }), active:true, savedRows:rows.length };
 }
 
 function recognizeFoxScheduleImage_(imageUrl, requestedMonth) {
@@ -5106,15 +5161,16 @@ function recognizeFoxScheduleImage_(imageUrl, requestedMonth) {
   const schema = { type:'OBJECT', properties:{ month:{type:'STRING'}, rows:{type:'ARRAY',items:{type:'OBJECT',properties:{name:{type:'STRING'}, section:{type:'STRING'}, work_role:{type:'STRING'}, shifts:{type:'ARRAY',items:{type:'OBJECT',properties:{date:{type:'STRING'},raw_value:{type:'STRING'}},required:['date','raw_value']}}},required:['name','section','work_role','shifts']} } }, required:['month','rows'] };
   const prompt = [
     'Распознай рабочий график сотрудников на изображении.',
-    'График относится к месяцу ' + requestedMonth + '. Используй этот месяц для всех дат, даже если месяц или год на фото не видны.',
-    'Числа в верхней строке — дни месяца, например 28 означает ' + requestedMonth + '-28. Цифра в ячейке сотрудника (10, 11, 12, 13) — начало смены, а не количество часов.',
+    'Это недельный, а не месячный график. Основной месяц на фото/в форме — ' + requestedMonth + ', но неделя может начинаться в предыдущем месяце или заканчиваться в следующем.',
+    'Числа в верхней строке — дни месяца. Определи их реальные календарные даты: например у графика за сентябрь строка «31, 1, 2, 3, 4, 5, 6» означает 31 августа и 1–6 сентября. Не приписывай всем дням один месяц.',
+    'Цифра в ячейке сотрудника (10, 11, 12, 13) — начало смены, а не количество часов.',
     'Если блок подписан «ЗАГОТОВКА», верни section="preparation" для каждого сотрудника этого блока. Для основного графика верни section="regular". Не создавай разных сотрудников, если имя встречается в обоих блоках.',
     'Если строка находится в отдельном блоке/списке «БАР», «БАРМЕНЫ», «БАРМЕН» или явно относится к барменам, обязательно верни work_role="bartender". Для всех остальных строк верни work_role="". section при этом остаётся regular/preparation.',
     'X и пустая ячейка — пожелание/отсутствие смены: не возвращай их как строки. «Инв» означает инвентаризацию: сохрани raw_value как специальную смену, но не превращай в время.',
     'Верни месяц строго YYYY-MM и каждую видимую строку сотрудника.',
     'Каждая date строго YYYY-MM-DD. raw_value сохраняй буквально: пусто, X, число, диапазон или текст.',
     'Перед ответом проверь полноту: последовательно пройди каждую видимую строку сотрудника и каждый столбец с датой. Верни все непустые смены, включая форматы 10, 10:00, 10.00, 10-18 и 10:00-18:00. Не сокращай список и не возвращай только примеры.',
-    'Не выдумывай имена, дни и ячейки. Месяц уже задан выше.',
+    'Не выдумывай имена, дни и ячейки. Основной месяц задан выше только как ориентир для переходящей недели.',
     'Верни только JSON по схеме.'
   ].join('\n');
   const body = { contents:[{role:'user',parts:[{inlineData:{mimeType:blob.getContentType() || 'image/jpeg',data:Utilities.base64Encode(bytes)}},{text:prompt}]}], generationConfig:{responseMimeType:'application/json',responseSchema:schema,temperature:0,maxOutputTokens:12000} };
@@ -5132,7 +5188,7 @@ function recognizeFoxScheduleImage_(imageUrl, requestedMonth) {
     // the person in a "Бармены" section. Persist one normalized role for both.
     const workRole = normalizeFoxScheduleWorkRole_(person.work_role) || normalizeFoxScheduleWorkRole_(person.section);
     (person.shifts || []).forEach(function(shift) {
-      const date = normalizeFoxScheduleDate_(shift.date); if (date.slice(0,7) !== month) return;
+      const date = normalizeFoxScheduleOcrDate_(shift.date, month);
       const parsedShift = parseFoxScheduleShift_(shift.raw_value);
       if (!parsedShift.rawValue || /^x$/i.test(parsedShift.rawValue)) return;
       rows.push({date:date,name:name,employeeId:matches.length === 1 ? matches[0].userId : '',rawValue:parsedShift.rawValue,isWorking:parsedShift.isWorking,shiftStart:parsedShift.shiftStart,shiftEnd:parsedShift.shiftEnd,shiftType:parsedShift.shiftType === 'inventory' ? 'inventory' : normalizeFoxScheduleShiftType_(person.section),workRole:workRole,needsEmployeeMatch:matches.length !== 1});

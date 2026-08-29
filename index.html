@@ -666,7 +666,7 @@ body.mode-cash-report #backBtn{display:inline-flex}
 
   <div class="banq-form" id="foxScheduleAdmin" hidden>
     <div class="group-label">График сотрудников</div>
-    <div class="form-grid"><div class="form-field"><label>Месяц</label><input id="foxScheduleMonth" type="month"></div><div class="form-field full"><label>Изображение графика</label><input id="foxScheduleImage" type="file" accept="image/*"><button class="small-btn" id="foxScheduleRecognize" type="button">Распознать график</button><div id="foxScheduleStatus" class="sync-status" aria-live="polite"></div></div></div>
+    <div class="form-grid"><div class="form-field"><label>Основной месяц недели</label><input id="foxScheduleMonth" type="month"><div class="banq-comment">Выберите месяц из заголовка недельного графика. Переходящие дни сохранятся в соседнем месяце.</div></div><div class="form-field full"><label>Изображение недельного графика</label><input id="foxScheduleImage" type="file" accept="image/*"><button class="small-btn" id="foxScheduleRecognize" type="button">Распознать график</button><div id="foxScheduleStatus" class="sync-status" aria-live="polite"></div></div></div>
     <div id="foxEmployeeDirectory" class="fox-employee-directory" hidden></div>
     <div id="foxScheduleReview" hidden></div>
   </div>
@@ -1632,15 +1632,15 @@ async function recognizeFoxSchedule_(){
   const month=document.getElementById('foxScheduleMonth').value;
   const button=document.getElementById('foxScheduleRecognize');button.disabled=true;button.textContent='Распознаю…';
   try{
-    if(!month)throw new Error('Выберите месяц графика.');
+    if(!month)throw new Error('Выберите основной месяц недели.');
     if(!file)throw new Error('Выберите изображение графика.');
     setFoxScheduleStatus_('','Загружаю изображение…');
     const uploaded=await uploadPhotoToCloudinary(file);
     setFoxScheduleStatus_('','Gemini распознаёт график… Это может занять до минуты.');
     const res=await jsonp(STOCK_API_URL,Object.assign({action:'foxScheduleRecognize',imageUrl:uploaded.url,month:month},receiptAuthParams()),90000);
     if(!res||!res.ok)throw new Error(res&&res.error||'График не распознан.');
-    // Keep the month selected by the manager. The backend treats it as the
-    // authoritative destination for short (for example weekly) schedules.
+    // The selected month is the heading/orientation for a weekly image; the
+    // backend keeps actual dates, including days in its adjacent months.
     document.getElementById('foxScheduleMonth').value=month;
     foxSchedulePreview=(res.preview.rows||[]).map(row=>Object.assign({imageUrl:uploaded.url},row));
     if(!foxSchedulePreview.length)throw new Error('Gemini не нашёл строки смен. Проверьте, что на фото видны имена, даты и ячейки графика.');
@@ -1654,7 +1654,7 @@ async function saveFoxSchedule_(){
   foxScheduleSaveInFlight=true;
   const button=document.getElementById('foxScheduleSave');if(button){button.disabled=true;button.textContent='Сохраняю…';}
   try{
-    const month=document.getElementById('foxScheduleMonth').value;if(!month)throw new Error('Проверьте месяц графика.');
+    const month=document.getElementById('foxScheduleMonth').value;if(!month)throw new Error('Проверьте основной месяц недели.');
     setFoxScheduleStatus_('','Сохраняю график…');
     const rows=foxScheduleSaveRows_();
     const chunks=foxScheduleSaveChunks_(rows),saveId=foxScheduleSaveId_();

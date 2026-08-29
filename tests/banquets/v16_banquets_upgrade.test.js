@@ -301,6 +301,38 @@ test('график не сохраняет дубль одной смены со
   assert.deepEqual(JSON.parse(JSON.stringify(result.map(row => row.shiftType))), ['regular', 'preparation']);
 });
 
+test('недельные графики объединяются по датам и переходящая неделя сохраняется в оба месяца', () => {
+  const { context } = makeRuntime();
+  const auth = { userId:'1036250074', userName:'Админ' };
+  context.saveFoxSchedule_({
+    month:'2026-08', imageUrl:'https://image/week-1',
+    rowsJson:JSON.stringify([
+      { date:'2026-08-24', name:'Макс', rawValue:'10' },
+      { date:'2026-08-30', name:'Макс', rawValue:'11' }
+    ])
+  }, auth);
+  context.saveFoxSchedule_({
+    month:'2026-09', imageUrl:'https://image/week-2',
+    rowsJson:JSON.stringify([
+      { date:'2026-08-31', name:'Макс', rawValue:'12' },
+      { date:'2026-09-01', name:'Макс', rawValue:'13' },
+      { date:'2026-09-06', name:'Макс', rawValue:'14' }
+    ])
+  }, auth);
+  assert.deepEqual(JSON.parse(JSON.stringify(context.getFoxScheduleForMonth_('2026-08').rows.map(row => [row.date, row.rawValue]))), [
+    ['2026-08-24', '10'], ['2026-08-30', '11'], ['2026-08-31', '12']
+  ]);
+  assert.deepEqual(JSON.parse(JSON.stringify(context.getFoxScheduleForMonth_('2026-09').rows.map(row => [row.date, row.rawValue]))), [
+    ['2026-09-01', '13'], ['2026-09-06', '14']
+  ]);
+});
+
+test('OCR нормализует 31 сентября в 31 августа для переходящей недели сентября', () => {
+  const { context } = makeRuntime();
+  assert.equal(context.normalizeFoxScheduleOcrDate_('2026-09-31', '2026-09'), '2026-08-31');
+  assert.equal(context.normalizeFoxScheduleOcrDate_('2026-09-01', '2026-09'), '2026-09-01');
+});
+
 test('график не теряет смену, если OCR вернул время с двоеточием, и сохраняет исходное время как источник истины', () => {
   const { context } = makeRuntime();
   assert.deepEqual(JSON.parse(JSON.stringify(context.parseFoxScheduleShift_('10:30'))), { rawValue:'10:30', isWorking:true, shiftStart:'10:30', shiftEnd:'' });
@@ -552,8 +584,8 @@ test('подтверждение графика не перечитывает в
   const saveEnd = stockSource.indexOf('function recognizeFoxScheduleImage_', saveStart);
   const saveSource = stockSource.slice(saveStart, saveEnd);
   assert.doesNotMatch(saveSource, /getFoxScheduleForMonth_\(month\)/);
-  assert.match(saveSource, /activeFoxScheduleIdForMonth_\(month\) !== id/);
-  assert.match(saveSource, /savedRows:values\.length/);
+  assert.match(saveSource, /activeFoxScheduleIdForMonth_\(item\.month\) !== item\.id/);
+  assert.match(saveSource, /savedRows:rows\.length/);
   assert.match(saveSource, /const employees = tatooineUserRows_/);
   assert.match(frontendSource, /function foxScheduleReviewGroups_/);
   assert.match(frontendSource, /<details class="fox-schedule-review-item">/);
