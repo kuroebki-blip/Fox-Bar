@@ -5158,17 +5158,17 @@ function recognizeFoxScheduleImage_(imageUrl, requestedMonth) {
   if (response.getResponseCode() < 200 || response.getResponseCode() >= 300) throw new Error('Изображение графика не загрузилось.');
   const blob = response.getBlob(); const bytes = blob.getBytes();
   if (!bytes || bytes.length < 100 || bytes.length > 12 * 1024 * 1024) throw new Error('Некорректный размер изображения графика.');
-  const schema = { type:'OBJECT', properties:{ month:{type:'STRING'}, rows:{type:'ARRAY',items:{type:'OBJECT',properties:{name:{type:'STRING'}, section:{type:'STRING'}, work_role:{type:'STRING'}, shifts:{type:'ARRAY',items:{type:'OBJECT',properties:{date:{type:'STRING'},raw_value:{type:'STRING'}},required:['date','raw_value']}}},required:['name','section','work_role','shifts']} } }, required:['month','rows'] };
+  const schema = { type:'OBJECT', properties:{ month:{type:'STRING'}, week_dates:{type:'ARRAY',items:{type:'OBJECT',properties:{day:{type:'STRING'},date:{type:'STRING'}},required:['day','date']}}, rows:{type:'ARRAY',items:{type:'OBJECT',properties:{name:{type:'STRING'}, section:{type:'STRING'}, work_role:{type:'STRING'}, shifts:{type:'ARRAY',items:{type:'OBJECT',properties:{day:{type:'STRING'},date:{type:'STRING'},raw_value:{type:'STRING'}},required:['day','raw_value']}}},required:['name','section','work_role','shifts']} } }, required:['month','week_dates','rows'] };
   const prompt = [
     'Распознай рабочий график сотрудников на изображении.',
     'Это недельный, а не месячный график. Основной месяц на фото/в форме — ' + requestedMonth + ', но неделя может начинаться в предыдущем месяце или заканчиваться в следующем.',
-    'Числа в верхней строке — дни месяца. Определи их реальные календарные даты: например у графика за сентябрь строка «31, 1, 2, 3, 4, 5, 6» означает 31 августа и 1–6 сентября. Не приписывай всем дням один месяц.',
+    'Сначала верни week_dates: каждый видимый день из шапки ровно один раз в виде {day,date}. Определи реальные календарные даты: например у графика за сентябрь строка «31, 1, 2, 3, 4, 5, 6» означает 31 августа и 1–6 сентября. Не приписывай всем дням один месяц.',
     'Цифра в ячейке сотрудника (10, 11, 12, 13) — начало смены, а не количество часов.',
     'Если блок подписан «ЗАГОТОВКА», верни section="preparation" для каждого сотрудника этого блока. Для основного графика верни section="regular". Не создавай разных сотрудников, если имя встречается в обоих блоках.',
     'Если строка находится в отдельном блоке/списке «БАР», «БАРМЕНЫ», «БАРМЕН» или явно относится к барменам, обязательно верни work_role="bartender". Для всех остальных строк верни work_role="". section при этом остаётся regular/preparation.',
     'X и пустая ячейка — пожелание/отсутствие смены: не возвращай их как строки. «Инв» означает инвентаризацию: сохрани raw_value как специальную смену, но не превращай в время.',
     'Верни месяц строго YYYY-MM и каждую видимую строку сотрудника.',
-    'Каждая date строго YYYY-MM-DD. raw_value сохраняй буквально: пусто, X, число, диапазон или текст.',
+    'В каждой смене верни day — номер столбца из week_dates. date в смене можно не возвращать: backend сопоставит day с шапкой. Каждая date в week_dates строго YYYY-MM-DD. raw_value сохраняй буквально: пусто, X, число, диапазон или текст.',
     'Перед ответом проверь полноту: последовательно пройди каждую видимую строку сотрудника и каждый столбец с датой. Верни все непустые смены, включая форматы 10, 10:00, 10.00, 10-18 и 10:00-18:00. Не сокращай список и не возвращай только примеры.',
     'Не выдумывай имена, дни и ячейки. Основной месяц задан выше только как ориентир для переходящей недели.',
     'Верни только JSON по схеме.'
@@ -5180,6 +5180,12 @@ function recognizeFoxScheduleImage_(imageUrl, requestedMonth) {
   // valid schedule under a different calendar month.
   const month = requestedMonth;
   const employees = tatooineUserRows_(tatooineRbacSheet_(FOX_RECEIPTS.sheets.tatooineUsers, false));
+  const weekDates = {};
+  (parsed.week_dates || []).forEach(function(item) {
+    const day = String(Number(item && item.day));
+    if (!/^\d{1,2}$/.test(day)) return;
+    weekDates[day] = normalizeFoxScheduleOcrDate_(item.date, month);
+  });
   const rows = [];
   (parsed.rows || []).forEach(function(person) {
     const name = String(person.name || '').trim(); if (!name) return;
@@ -5188,7 +5194,8 @@ function recognizeFoxScheduleImage_(imageUrl, requestedMonth) {
     // the person in a "Бармены" section. Persist one normalized role for both.
     const workRole = normalizeFoxScheduleWorkRole_(person.work_role) || normalizeFoxScheduleWorkRole_(person.section);
     (person.shifts || []).forEach(function(shift) {
-      const date = normalizeFoxScheduleOcrDate_(shift.date, month);
+      const shiftDay = String(Number(shift && shift.day));
+      const date = weekDates[shiftDay] || normalizeFoxScheduleOcrDate_(shift.date, month);
       const parsedShift = parseFoxScheduleShift_(shift.raw_value);
       if (!parsedShift.rawValue || /^x$/i.test(parsedShift.rawValue)) return;
       rows.push({date:date,name:name,employeeId:matches.length === 1 ? matches[0].userId : '',rawValue:parsedShift.rawValue,isWorking:parsedShift.isWorking,shiftStart:parsedShift.shiftStart,shiftEnd:parsedShift.shiftEnd,shiftType:parsedShift.shiftType === 'inventory' ? 'inventory' : normalizeFoxScheduleShiftType_(person.section),workRole:workRole,needsEmployeeMatch:matches.length !== 1});

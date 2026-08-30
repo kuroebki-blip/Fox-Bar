@@ -333,6 +333,28 @@ test('OCR нормализует 31 сентября в 31 августа для
   assert.equal(context.normalizeFoxScheduleOcrDate_('2026-09-01', '2026-09'), '2026-09-01');
 });
 
+test('OCR графика сопоставляет смены с шапкой переходящей недели, а не с одним месяцем', () => {
+  const { context } = makeRuntime();
+  context.PropertiesService.getScriptProperties().setProperty('GEMINI_API_KEY', 'test-key');
+  context.UrlFetchApp.fetch = () => ({
+    getResponseCode: () => 200,
+    getBlob: () => ({ getBytes: () => Array(120).fill(1), getContentType: () => 'image/jpeg' })
+  });
+  context.callGeminiGenerateContent_ = () => ({ text: JSON.stringify({
+    month:'2026-09',
+    week_dates:[
+      { day:'31', date:'2026-08-31' }, { day:'1', date:'2026-09-01' }, { day:'2', date:'2026-09-02' }
+    ],
+    rows:[{ name:'Макс', section:'regular', work_role:'', shifts:[
+      { day:'31', raw_value:'10' }, { day:'1', raw_value:'11' }, { day:'2', raw_value:'12' }
+    ] }]
+  }) });
+  const result = context.recognizeFoxScheduleImage_('https://image/week', '2026-09');
+  assert.deepEqual(JSON.parse(JSON.stringify(result.rows.map(row => [row.date, row.rawValue]))), [
+    ['2026-08-31', '10'], ['2026-09-01', '11'], ['2026-09-02', '12']
+  ]);
+});
+
 test('график не теряет смену, если OCR вернул время с двоеточием, и сохраняет исходное время как источник истины', () => {
   const { context } = makeRuntime();
   assert.deepEqual(JSON.parse(JSON.stringify(context.parseFoxScheduleShift_('10:30'))), { rawValue:'10:30', isWorking:true, shiftStart:'10:30', shiftEnd:'' });
