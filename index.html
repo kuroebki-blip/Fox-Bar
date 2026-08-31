@@ -1508,6 +1508,10 @@ let banqReplaceIndex=-1;
 let banqGalleryUrls=[];
 let banqGalleryIndex=0;
 const banqScheduleWorkersByDate=new Map();
+// Loading the schedule or reserve re-renders the selected day. Keep accordion
+// state outside that transient DOM so an async response cannot close a spoiler
+// the user has just opened.
+const banqSpoilerOpenState=new Map();
 let myScheduleMonthLoaded='';
 let myScheduleWorkingDates=new Set();
 let banquetsLoadPromise_=null;
@@ -1515,6 +1519,11 @@ function invalidateBanqScheduleCache_(){
   myScheduleMonthLoaded='';
   myScheduleWorkingDates.clear();
   banqScheduleWorkersByDate.clear();
+}
+function bindBanqSpoilerState_(details,name){
+  const key=selectedBanqDate+'::'+name;
+  if(banqSpoilerOpenState.has(key)) details.open=banqSpoilerOpenState.get(key);
+  details.addEventListener('toggle',()=>banqSpoilerOpenState.set(key,details.open));
 }
 
 async function loadMySchedule_(){
@@ -2068,7 +2077,13 @@ function renderBanqDay(){
   const items=banquets.filter(b=>b.date===selectedBanqDate).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
   loadBanqScheduleWorkers_(selectedBanqDate);
   const scheduleCard=document.getElementById('dayScheduleCard'),daySchedule=banqScheduleWorkersByDate.get(selectedBanqDate);
-  if(scheduleCard){scheduleCard.hidden=false;scheduleCard.innerHTML=renderBanqScheduleWorkers_(daySchedule);bindDayScheduleControls_(scheduleCard);}
+  if(scheduleCard){
+    scheduleCard.hidden=false;
+    scheduleCard.innerHTML=renderBanqScheduleWorkers_(daySchedule);
+    const scheduleSpoiler=scheduleCard.querySelector('.banq-spoiler');
+    if(scheduleSpoiler) bindBanqSpoilerState_(scheduleSpoiler,'workers');
+    bindDayScheduleControls_(scheduleCard);
+  }
   document.getElementById('banqSelectedTitle').textContent=humanDate(selectedBanqDate);
   document.getElementById('banqSelectedCount').textContent=items.length+' '+pluralRu(items.length,'заказ','заказа','заказов');
 
@@ -2084,6 +2099,7 @@ function renderBanqDay(){
   const banquetsContent=document.createElement('div');
   banquetsContent.className='banq-spoiler-content';
   banquetsSpoiler.appendChild(banquetsContent);
+  bindBanqSpoilerState_(banquetsSpoiler,'banquets');
   list.appendChild(banquetsSpoiler);
   items.forEach(b=>{
     const meta=getBanqStatusMeta(b.status);

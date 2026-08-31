@@ -643,6 +643,15 @@ test('календарь показывает персонал и банкеты
   assert.match(frontendSource, /\.banq-spoiler\{/);
 });
 
+test('повторный рендер календаря сохраняет раскрытый spoiler банкета', () => {
+  const dayStart = frontendSource.indexOf('function renderBanqDay()');
+  const dayEnd = frontendSource.indexOf('function renderBanqPhotoHtml', dayStart);
+  const daySource = frontendSource.slice(dayStart, dayEnd);
+  assert.match(frontendSource, /const banqSpoilerOpenState=new Map\(\)/);
+  assert.match(daySource, /bindBanqSpoilerState_\(banquetsSpoiler,'banquets'\)/);
+  assert.match(frontendSource, /details\.addEventListener\('toggle'/);
+});
+
 test('календарь загружает персонал выбранного дня, не выводит список моих смен и отдельно выделяет сегодня', () => {
   const dayStart = frontendSource.indexOf('function renderBanqDay()');
   const dayEnd = frontendSource.indexOf('function renderBanqPhotoHtml', dayStart);
