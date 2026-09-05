@@ -13,12 +13,11 @@ jobs:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout branch
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
         with:
           ref: fix/remove-scanner-camera
 
-      - name: Remove scanner camera paths
+      - name: Remove camera paths and keep gallery OCR intact
         shell: bash
         run: |
           python3 - <<'PY'
@@ -43,140 +42,124 @@ jobs:
                   raise SystemExit(f'{label}: expected 1 occurrence, found {count}')
               text = updated
 
-          # Release version.
+          def remove_js_function(name):
+              global text
+              match = re.search(r'(?m)^(?:async\s+)?function\s+' + re.escape(name) + r'\s*\(', text)
+              if not match:
+                  raise SystemExit(f'function not found: {name}')
+              start = match.start()
+              brace = text.find('{', match.end())
+              if brace < 0:
+                  raise SystemExit(f'opening brace not found: {name}')
+              depth = 0
+              quote = None
+              escape = False
+              line_comment = False
+              block_comment = False
+              i = brace
+              while i < len(text):
+                  ch = text[i]
+                  nxt = text[i+1] if i + 1 < len(text) else ''
+                  if line_comment:
+                      if ch == '\n': line_comment = False
+                  elif block_comment:
+                      if ch == '*' and nxt == '/': block_comment = False; i += 1
+                  elif quote:
+                      if escape: escape = False
+                      elif ch == '\\': escape = True
+                      elif ch == quote: quote = None
+                  else:
+                      if ch == '/' and nxt == '/': line_comment = True; i += 1
+                      elif ch == '/' and nxt == '*': block_comment = True; i += 1
+                      elif ch in "'\"`": quote = ch
+                      elif ch == '{': depth += 1
+                      elif ch == '}':
+                          depth -= 1
+                          if depth == 0:
+                              end = i + 1
+                              if end < len(text) and text[end] == '\n': end += 1
+                              text = text[:start] + text[end:]
+                              return
+                  i += 1
+              raise SystemExit(f'unclosed function: {name}')
+
           replace_once("v15.16.0", "v15.16.1", 'frontend version')
 
-          # Camera-only CSS. Keep the manual crop editor and gallery styles.
-          sub_once(
-              r"\n\.receipt-camera-overlay\{.*?@keyframes receiptFlash\{0%\{opacity:\.9\}100%\{opacity:0\}\}\n",
-              "\n",
-              'camera CSS block',
-              re.S,
-          )
-          replace_once(
-              '.receipt-page-actions{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:8px}',
-              '.receipt-page-actions{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px}',
-              'receipt page action columns',
-          )
-          replace_once(
-              '.cash-source-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}',
-              '.cash-source-actions{display:grid;grid-template-columns:1fr;gap:10px}',
-              'cash source columns',
-          )
+          # Camera-specific styling only.
+          sub_once(r'\n\.receipt-camera-overlay\{.*?@keyframes receiptFlash\{0%\{opacity:\.9\}100%\{opacity:0\}\}\n', '\n', 'camera CSS', re.S)
+          replace_once('.receipt-page-actions{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:8px}', '.receipt-page-actions{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px}', 'receipt actions grid')
+          replace_once('.cash-source-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}', '.cash-source-actions{display:grid;grid-template-columns:1fr;gap:10px}', 'cash source grid')
 
-          # Documents / receipts scanner: gallery only.
-          replace_once(
-              'Выбери режим → сними все страницы → получи один PDF → проверь результат',
-              'Выбери режим → добавь все страницы из галереи → получи один PDF → проверь результат',
-              'receipt subtitle',
-          )
-          replace_once(
-              'Сфотографируй страницы или выбери готовые фото. Края можно обрезать вручную перед распознаванием.',
-              'Выбери готовые фото страниц из галереи. Края можно обрезать вручную перед распознаванием.',
-              'receipt status copy',
-          )
-          sub_once(
-              r'''\n      <input id="receiptCameraFallback".*?<div class="receipt-source-actions">\n        <label class="receipt-scan-btn" for="receiptCameraFallback">.*?</label>\n        (<label class="receipt-scan-btn alt" for="receiptGallery">.*?</label>)\n      </div>''',
-              '\n      <input id="receiptGallery" class="receipt-scan-input" type="file" accept="image/*" multiple>\n      <div class="receipt-source-actions">\n        \\1\n      </div>',
-              'receipt camera controls',
-              re.S,
-          )
+          # Scanner copy and source controls.
+          replace_once('Выбери режим → сними все страницы → получи один PDF → проверь результат', 'Выбери режим → добавь все страницы из галереи → получи один PDF → проверь результат', 'receipt subtitle')
+          replace_once('Сфотографируй страницы или выбери готовые фото. Края можно обрезать вручную перед распознаванием.', 'Выбери готовые фото страниц из галереи. Края можно обрезать вручную перед распознаванием.', 'receipt status')
+          sub_once(r'\n      <input id="receiptCameraFallback".*?<div class="receipt-source-actions">\n        <label class="receipt-scan-btn" for="receiptCameraFallback">.*?</label>\n        (<label class="receipt-scan-btn alt" for="receiptGallery">.*?</label>)\n      </div>', '\n      <input id="receiptGallery" class="receipt-scan-input" type="file" accept="image/*" multiple>\n      <div class="receipt-source-actions">\n        \\1\n      </div>', 'receipt controls', re.S)
 
-          # Cash report scanner: gallery only.
-          replace_once(
-              'Сфотографируй отчёт iiko и все сводные слипы терминалов. Их можно разместить на одном фото или добавить несколькими страницами.',
-              'Выбери из галереи фото отчёта iiko и всех сводных слипов терминалов. Их можно разместить на одном фото или добавить несколькими страницами.',
-              'cash subtitle',
-          )
-          sub_once(
-              r'''\n    <input id="cashReportCameraFallback".*?<div class="cash-source-actions">\n      <label class="cash-source-btn" for="cashReportCameraFallback">.*?</label>\n      (<label class="cash-source-btn alt" for="cashReportGallery">.*?</label>)\n    </div>''',
-              '\n    <input id="cashReportGallery" class="cash-file-input" type="file" accept="image/*" multiple>\n    <div class="cash-source-actions">\n      \\1\n    </div>',
-              'cash camera controls',
-              re.S,
-          )
-
-          # Remove the fullscreen getUserMedia camera UI.
-          sub_once(
-              r'''\n<div class="receipt-camera-overlay" id="receiptCameraOverlay".*?</div>\n\n<div class="receipt-editor-overlay"''',
-              '\n<div class="receipt-editor-overlay"',
-              'camera overlay',
-              re.S,
-          )
-
-          # Camera-only state and runtime. Preserve appendReceiptFiles + gallery handler.
-          sub_once(
-              r'''\nlet receiptReshootIndex = -1;\nlet receiptCameraStream = null;\nlet receiptCameraFacing = 'environment';\nlet receiptCameraTorchOn = false;\nlet receiptCameraTorchSupported = false;\nlet receiptCameraImageCapture = null;\nlet receiptCameraReplaceIndex = -1;\nlet receiptCameraSessionShots = 0;\nlet receiptCameraDirty = false;\nlet receiptCameraPurpose = 'receipt';\nlet receiptCameraAllowNativePicker = false;''',
-              '',
-              'camera state',
-          )
-          replace_once(
-              "    ? 'Кассовый, фискальный или онлайн-чек. Несколько кадров одного длинного чека объединятся в один PDF.'",
-              "    ? 'Кассовый, фискальный или онлайн-чек. Несколько фото одного длинного чека объединятся в один PDF.'",
-              'receipt mode note',
-          )
-          replace_once(
-              "    ? 'Сними весь чек → получи один PDF → проверь сообщение → отправь в Telegram'\n    : 'Сними все страницы → получи один PDF → проверь товары → подтверди сток';\n  document.getElementById('receiptCameraTitle').textContent=isCheck?'Сфотографировать часть чека':'Сфотографировать страницу';",
-              "    ? 'Добавь фото всего чека → получи один PDF → проверь сообщение → отправь в Telegram'\n    : 'Добавь фото всех страниц → получи один PDF → проверь товары → подтверди сток';",
-              'receipt mode camera copy',
-          )
-          sub_once(
-              r'''\nfunction updateReceiptTorchButton_\(\)\{.*?\nconst receiptGallery=''',
-              '\nconst receiptGallery=',
-              'camera runtime',
-              re.S,
-          )
-          sub_once(
-              r'''\nconst receiptReshootFallback=document\.getElementById\('receiptReshootFallback'\);.*?\n\}\ndocument\.getElementById\('receiptReset'\)''',
-              "\ndocument.getElementById('receiptReset')",
-              'reshoot fallback handler',
-              re.S,
-          )
-          replace_once(
-              "  closeReceiptCamera();closeReceiptCropEditor();\n  receiptPages=[];invalidateReceiptRecognition_();receiptReshootIndex=-1;",
-              "  closeReceiptCropEditor();\n  receiptPages=[];invalidateReceiptRecognition_();",
-              'receipt reset camera cleanup',
-          )
-          replace_once(
-              "<button type=\"button\" data-rotate aria-label=\"Повернуть по часовой стрелке\" title=\"Повернуть по часовой стрелке\">↻</button><label for=\"receiptReshootFallback\" data-reshoot title=\"Переснять страницу\">📷</label><button type=\"button\" class=\"del\" data-del title=\"Удалить\">✕</button>",
-              "<button type=\"button\" data-rotate aria-label=\"Повернуть по часовой стрелке\" title=\"Повернуть по часовой стрелке\">↻</button><button type=\"button\" class=\"del\" data-del title=\"Удалить\">✕</button>",
-              'reshoot page action',
-          )
-          replace_once(
-              "    card.querySelector('[data-rotate]').onclick=()=>rotateReceiptPage(i);\n    card.querySelector('[data-reshoot]').addEventListener('click',()=>{receiptReshootIndex=i;});\n    card.querySelector('[data-del]').onclick=()=>{receiptPages.splice(i,1);invalidateReceiptRecognition_();renderReceiptPages();};root.appendChild(card);",
-              "    card.querySelector('[data-rotate]').onclick=()=>rotateReceiptPage(i);\n    card.querySelector('[data-del]').onclick=()=>{receiptPages.splice(i,1);invalidateReceiptRecognition_();renderReceiptPages();};root.appendChild(card);",
-              'reshoot click handler',
-          )
-          replace_once(
-              "  closeReceiptCamera();cashReportPages=[];invalidateCashReportRecognition_();cashReportTerminalSlips=[];cashReportPrepayments=[];",
-              "  cashReportPages=[];invalidateCashReportRecognition_();cashReportTerminalSlips=[];cashReportPrepayments=[];",
-              'cash reset camera cleanup',
-          )
-          sub_once(
-              r'''\nconst cashCameraFallback=document\.getElementById\('cashReportCameraFallback'\);if\(cashCameraFallback\).*?\nconst cashGallery=''',
-              '\nconst cashGallery=',
-              'cash camera fallback handler',
-              re.S,
-          )
-
-          # Gallery labels should describe the only available path clearly.
+          replace_once('Сфотографируй отчёт iiko и все сводные слипы терминалов. Их можно разместить на одном фото или добавить несколькими страницами.', 'Выбери из галереи фото отчёта iiko и всех сводных слипов терминалов. Их можно разместить на одном фото или добавить несколькими страницами.', 'cash subtitle')
+          sub_once(r'\n    <input id="cashReportCameraFallback".*?<div class="cash-source-actions">\n      <label class="cash-source-btn" for="cashReportCameraFallback">.*?</label>\n      (<label class="cash-source-btn alt" for="cashReportGallery">.*?</label>)\n    </div>', '\n    <input id="cashReportGallery" class="cash-file-input" type="file" accept="image/*" multiple>\n    <div class="cash-source-actions">\n      \\1\n    </div>', 'cash controls', re.S)
           text = text.replace('<b>Выбрать готовые фото</b>', '<b>Выбрать фото из галереи</b>')
 
-          # Guardrails: only the banquet camera is allowed to remain.
-          forbidden = [
-              'receiptCamera', 'receiptReshoot', 'cashReportCameraFallback',
-              'getUserMedia', 'ImageCapture', 'Сфотографировать страницу',
-              '<b>Сфотографировать</b>',
-          ]
+          # Fullscreen camera DOM.
+          sub_once(r'\n<div class="receipt-camera-overlay" id="receiptCameraOverlay".*?\n<div class="receipt-editor-overlay"', '\n<div class="receipt-editor-overlay"', 'camera overlay', re.S)
+
+          # Camera state.
+          for line in [
+              'let receiptReshootIndex = -1;\n',
+              'let receiptCameraStream = null;\n',
+              "let receiptCameraFacing = 'environment';\n",
+              'let receiptCameraTorchOn = false;\n',
+              'let receiptCameraTorchSupported = false;\n',
+              'let receiptCameraImageCapture = null;\n',
+              'let receiptCameraReplaceIndex = -1;\n',
+              'let receiptCameraSessionShots = 0;\n',
+              'let receiptCameraDirty = false;\n',
+              "let receiptCameraPurpose = 'receipt';\n",
+              'let receiptCameraAllowNativePicker = false;\n',
+          ]:
+              replace_once(line, '', 'camera state ' + line.strip())
+
+          replace_once("    ? 'Кассовый, фискальный или онлайн-чек. Несколько кадров одного длинного чека объединятся в один PDF.'", "    ? 'Кассовый, фискальный или онлайн-чек. Несколько фото одного длинного чека объединятся в один PDF.'", 'check mode note')
+          replace_once("    ? 'Сними весь чек → получи один PDF → проверь сообщение → отправь в Telegram'\n    : 'Сними все страницы → получи один PDF → проверь товары → подтверди сток';\n  document.getElementById('receiptCameraTitle').textContent=isCheck?'Сфотографировать часть чека':'Сфотографировать страницу';", "    ? 'Добавь фото всего чека → получи один PDF → проверь сообщение → отправь в Telegram'\n    : 'Добавь фото всех страниц → получи один PDF → проверь товары → подтверди сток';", 'mode camera copy')
+
+          # Remove only camera functions. canvasToJpegDataUrl_ is intentionally retained: OCR uses it.
+          for name in [
+              'updateReceiptTorchButton_', 'stopReceiptCamera', 'closeReceiptCamera',
+              'nextAnimationFrame_', 'getReceiptCameraStream_', 'startReceiptCameraStream',
+              'openReceiptCamera', 'usesAndroidTelegramCamera_', 'openNativeReceiptCameraPicker_',
+              'routeAndroidTelegramCamera_', 'updateReceiptCameraCount', 'drawCameraSourceToCanvas_',
+              'videoFrameToCanvas', 'stillBlobToCanvas_', 'cameraFrameToReceiptPage',
+              'captureReceiptCameraFrame'
+          ]:
+              remove_js_function(name)
+
+          # Camera event bindings and native camera inputs.
+          sub_once(r"\ndocument\.getElementById\('receiptCameraClose'\)\.addEventListener.*?\nconst receiptCameraFallback=", '\nconst receiptCameraFallback=', 'camera event bindings', re.S)
+          sub_once(r"\nconst receiptCameraFallback=document\.getElementById\('receiptCameraFallback'\);.*?\nconst receiptGallery=", '\nconst receiptGallery=', 'receipt native camera handler', re.S)
+          sub_once(r"\nconst receiptReshootFallback=document\.getElementById\('receiptReshootFallback'\);.*?\ndocument\.getElementById\('receiptReset'\)", "\ndocument.getElementById('receiptReset')", 'receipt reshoot handler', re.S)
+          sub_once(r"\nconst cashCameraFallback=document\.getElementById\('cashReportCameraFallback'\);.*?\nconst cashGallery=", '\nconst cashGallery=', 'cash native camera handler', re.S)
+
+          replace_once("  closeReceiptCamera();closeReceiptCropEditor();\n  receiptPages=[];invalidateReceiptRecognition_();receiptReshootIndex=-1;", "  closeReceiptCropEditor();\n  receiptPages=[];invalidateReceiptRecognition_();", 'receipt reset')
+          replace_once("  closeReceiptCamera();cashReportPages=[];invalidateCashReportRecognition_();cashReportTerminalSlips=[];cashReportPrepayments=[];", "  cashReportPages=[];invalidateCashReportRecognition_();cashReportTerminalSlips=[];cashReportPrepayments=[];", 'cash reset')
+
+          replace_once('<button type="button" data-rotate aria-label="Повернуть по часовой стрелке" title="Повернуть по часовой стрелке">↻</button><label for="receiptReshootFallback" data-reshoot title="Переснять страницу">📷</label><button type="button" class="del" data-del title="Удалить">✕</button>', '<button type="button" data-rotate aria-label="Повернуть по часовой стрелке" title="Повернуть по часовой стрелке">↻</button><button type="button" class="del" data-del title="Удалить">✕</button>', 'reshoot action')
+          replace_once("    card.querySelector('[data-rotate]').onclick=()=>rotateReceiptPage(i);\n    card.querySelector('[data-reshoot]').addEventListener('click',()=>{receiptReshootIndex=i;});\n    card.querySelector('[data-del]').onclick=()=>{receiptPages.splice(i,1);invalidateReceiptRecognition_();renderReceiptPages();};root.appendChild(card);", "    card.querySelector('[data-rotate]').onclick=()=>rotateReceiptPage(i);\n    card.querySelector('[data-del]').onclick=()=>{receiptPages.splice(i,1);invalidateReceiptRecognition_();renderReceiptPages();};root.appendChild(card);", 'reshoot click')
+
+          # Guardrails: gallery + OCR must remain, and banquet camera is the only capture input.
+          for required in [
+              'id="receiptGallery"', 'id="cashReportGallery"', 'appendReceiptFiles',
+              'appendCashReportFiles', 'function canvasToJpegDataUrl_', 'function dataUrlToOcrImage_',
+              'id="banqPhotoCamera"'
+          ]:
+              if required not in text:
+                  raise SystemExit('missing required gallery/OCR path: ' + required)
+          forbidden = ['receiptCamera', 'receiptReshoot', 'cashReportCameraFallback', 'getUserMedia', 'ImageCapture']
           leftovers = [token for token in forbidden if token in text]
           if leftovers:
               raise SystemExit('camera leftovers: ' + ', '.join(leftovers))
-          if text.count('capture="environment"') != 1 or 'id="banqPhotoCamera"' not in text:
-              raise SystemExit('expected only banquet capture input to remain')
-          for required in ['id="receiptGallery"', 'id="cashReportGallery"', 'appendReceiptFiles', 'appendCashReportFiles']:
-              if required not in text:
-                  raise SystemExit('missing gallery path: ' + required)
+          if text.count('capture="environment"') != 1:
+              raise SystemExit('expected exactly one capture input: banquet camera')
           if text == original:
-              raise SystemExit('index.html was not changed')
+              raise SystemExit('index.html unchanged')
           path.write_text(text, encoding='utf-8')
 
           changelog = Path('CHANGELOG.md')
@@ -186,23 +169,26 @@ jobs:
                    'Осталась только загрузка готовых изображений из галереи; OCR, сборка PDF и backend не менялись. '
                    'Камера фотографий банкетов сохранена без изменений.\n\n')
           if entry not in log:
-              if marker not in log:
-                  raise SystemExit('CHANGELOG Unreleased marker not found')
-              log = log.replace(marker, marker + entry, 1)
-              changelog.write_text(log, encoding='utf-8')
+              if marker not in log: raise SystemExit('CHANGELOG marker missing')
+              changelog.write_text(log.replace(marker, marker + entry, 1), encoding='utf-8')
           PY
 
-      - name: Validate diff
+      - name: Validate source
         shell: bash
         run: |
           git diff --check
           grep -q 'id="receiptGallery"' index.html
           grep -q 'id="cashReportGallery"' index.html
+          grep -q 'function canvasToJpegDataUrl_' index.html
+          grep -q 'function dataUrlToOcrImage_' index.html
+          grep -q 'id="banqPhotoCamera"' index.html
           ! grep -q 'receiptCamera' index.html
+          ! grep -q 'receiptReshoot' index.html
           ! grep -q 'cashReportCameraFallback' index.html
+          ! grep -q 'getUserMedia' index.html
           test "$(grep -o 'capture="environment"' index.html | wc -l)" -eq 1
 
-      - name: Commit change
+      - name: Commit application change
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
