@@ -99,14 +99,14 @@
     </div>
 
     <section class="card">
-      <input id="cashReportCamera" class="file-input" type="file" accept="image/*" capture="environment">
+      <input id="cashReportCamera" class="file-input" type="file" accept="image/*" capture="environment" hidden>
       <input id="cashReportGallery" class="file-input" type="file" accept="image/*" multiple>
       <div class="source-grid">
-        <button class="source primary" id="cashReportCameraButton" type="button">
+        <button class="source primary" id="cashReportCameraButton" type="button" hidden>
           <span class="source-icon">📷</span>
           <span><b>Сфотографировать</b><small>Откроется основная камера телефона.</small></span>
         </button>
-        <label class="source" for="cashReportGallery">
+        <label class="source primary" for="cashReportGallery">
           <span class="source-icon">🖼️</span>
           <span><b>Выбрать фотографии</b><small>Можно выбрать несколько файлов сразу.</small></span>
         </label>
