@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.16.0 — SECURE CALENDAR & STAFF ACCESS</title>
+<title>FO'X App v15.16.1 — SECURE CALENDAR & STAFF ACCESS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -403,7 +403,7 @@ body.mode-hub #backBtn{display:none}
 .receipt-page img{display:block;width:100%;height:164px;object-fit:contain;background:#0C0A08;border-radius:10px}
 .receipt-page-num{position:absolute;left:14px;top:14px;background:rgba(0,0,0,.72);color:#fff;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:700}
 .receipt-page-orientation{position:absolute;right:14px;top:14px;background:rgba(0,0,0,.72);color:#fff;border-radius:999px;padding:4px 8px;font-size:10px;font-weight:700}
-.receipt-page-actions{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:8px}
+.receipt-page-actions{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px}
 .receipt-page-actions button,.receipt-page-actions label{border:1px solid var(--line-strong);background:var(--bg);color:var(--muted);border-radius:9px;padding:8px 2px;font-size:13px;cursor:pointer;text-align:center}
 .receipt-page-actions button[data-rotate]{font-size:20px;line-height:1;color:var(--amber)}
 .receipt-page-actions button:disabled{opacity:.28}.receipt-page-actions .del{color:#F0B0A7}
@@ -460,41 +460,6 @@ body.mode-hub #backBtn{display:none}
 .receipt-crop-handle[data-handle="sw"]{left:-15px;bottom:-15px;cursor:nesw-resize}
 .receipt-editor-hint{padding:10px 14px calc(env(safe-area-inset-bottom) + 12px);background:#15110d;color:rgba(255,255,255,.75);font-size:12px;text-align:center;line-height:1.4}
 
-.receipt-camera-overlay{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;z-index:120;background:#000;
-  display:flex;flex-direction:column;overflow:hidden;overscroll-behavior:none}
-.receipt-camera-overlay[hidden]{display:none!important}
-.receipt-camera-head{flex:0 0 auto;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;
-  padding:calc(env(safe-area-inset-top) + 8px) 10px 8px;background:rgba(0,0,0,.78);color:#fff;z-index:3}
-.receipt-camera-head b{font-family:"Unbounded",sans-serif;font-size:12px;text-align:center;min-width:0}
-.receipt-camera-head-actions{display:flex;gap:6px;align-items:center}
-.receipt-camera-close,.receipt-camera-switch,.receipt-camera-torch{border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12);color:#fff;
-  border-radius:10px;padding:9px 10px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
-.receipt-camera-torch.active{background:rgba(238,142,58,.28);border-color:var(--amber);color:#FFD9B7}
-.receipt-camera-torch:disabled{opacity:.48;cursor:not-allowed}
-.receipt-camera-stage{position:relative;flex:1 1 auto;min-height:0;width:100%;overflow:hidden;background:#050505}
-.receipt-camera-video-bg{position:absolute;inset:-18px;width:calc(100% + 36px);height:calc(100% + 36px);object-fit:cover;object-position:center center;filter:blur(20px) brightness(.45);transform:scale(1.08);background:#050505;pointer-events:none}
-.receipt-camera-video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center center;background:transparent}
-.receipt-camera-video.front{transform:scaleX(-1)}
-.receipt-camera-guide{position:absolute;inset:12px;border:1px dashed rgba(255,255,255,.58);border-radius:14px;
-  box-shadow:none;pointer-events:none;transition:border-color .2s ease}
-.receipt-camera-guide.portrait,.receipt-camera-guide.landscape{inset:12px;aspect-ratio:auto}
-.receipt-camera-guide:before,.receipt-camera-guide:after{content:"";position:absolute;width:34px;height:34px;border-color:var(--amber);border-style:solid}
-.receipt-camera-guide:before{left:-2px;top:-2px;border-width:4px 0 0 4px;border-radius:12px 0 0 0}
-.receipt-camera-guide:after{right:-2px;bottom:-2px;border-width:0 4px 4px 0;border-radius:0 0 12px 0}
-.receipt-camera-bottom{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:14px;
-  padding:12px 18px calc(env(safe-area-inset-bottom) + 14px);background:rgba(0,0,0,.84);color:#fff;z-index:3}
-.receipt-camera-count{min-width:78px;font-size:12px;color:rgba(255,255,255,.78)}
-.receipt-camera-shot{width:72px;height:72px;border-radius:50%;border:5px solid #fff;background:var(--amber);
-  box-shadow:0 0 0 3px rgba(255,255,255,.28);cursor:pointer;flex:0 0 auto}
-.receipt-camera-shot:disabled{opacity:.45;cursor:wait}
-.receipt-camera-done{min-width:78px;border:none;background:var(--done);color:#102019;border-radius:12px;padding:12px 13px;
-  font-family:inherit;font-size:13px;font-weight:800;cursor:pointer}
-.receipt-camera-hint{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);max-width:calc(100% - 28px);
-  background:rgba(0,0,0,.66);color:#fff;border-radius:12px;padding:7px 11px;font-size:11px;line-height:1.3;text-align:center;
-  white-space:normal;pointer-events:none}
-.receipt-camera-flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
-.receipt-camera-flash.show{animation:receiptFlash .22s ease}
-@keyframes receiptFlash{0%{opacity:.9}100%{opacity:0}}
 @media (max-width:420px){.receipt-pages{grid-template-columns:1fr}.receipt-grid{grid-template-columns:1fr}.receipt-field.full{grid-column:auto}}
 
 
@@ -530,7 +495,7 @@ body.mode-cash-report #backBtn{display:inline-flex}
 .cash-secondary{border:1px solid var(--amber-line);background:var(--amber-soft);color:var(--amber)}
 .cash-danger{border:1px solid rgba(240,139,125,.35);background:transparent;color:#F0B0A7}
 .cash-primary:disabled,.cash-secondary:disabled{opacity:.5;cursor:wait}
-.cash-source-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cash-source-actions{display:grid;grid-template-columns:1fr;gap:10px}
 .cash-source-btn{display:flex;align-items:center;gap:11px;text-align:left;border:1px solid var(--amber-line);background:var(--amber-soft);
   color:var(--text);border-radius:14px;padding:13px;cursor:pointer;font-family:inherit}
 .cash-source-btn.alt{border-color:var(--line-strong);background:var(--surface-2)}
@@ -748,12 +713,12 @@ body.mode-cash-report #backBtn{display:inline-flex}
   <div class="receipt-top">
     <div>
       <div class="receipt-title">Документы и чеки</div>
-      <div class="receipt-sub" id="receiptScreenSub">Выбери режим → сними все страницы → получи один PDF → проверь результат</div>
+      <div class="receipt-sub" id="receiptScreenSub">Выбери режим → добавь все страницы из галереи → получи один PDF → проверь результат</div>
     </div>
   </div>
 
   <div class="receipt-status" id="receiptStatus">
-    Сфотографируй страницы или выбери готовые фото. Края можно обрезать вручную перед распознаванием.
+    Выбери готовые фото страниц из галереи. Края можно обрезать вручную перед распознаванием.
     <div class="receipt-progress"><i id="receiptProgress"></i></div>
   </div>
 
@@ -781,21 +746,12 @@ body.mode-cash-report #backBtn{display:inline-flex}
         </div>
       </div>
 
-      <input id="receiptCameraFallback" class="receipt-scan-input" type="file" accept="image/*" capture="environment">
       <input id="receiptGallery" class="receipt-scan-input" type="file" accept="image/*" multiple>
-      <input id="receiptReshootFallback" class="receipt-scan-input" type="file" accept="image/*" capture="environment">
       <div class="receipt-source-actions">
-        <label class="receipt-scan-btn" for="receiptCameraFallback">
-          <span class="receipt-scan-ico">📷</span>
-          <span class="receipt-scan-text">
-            <b id="receiptCameraTitle">Сфотографировать страницу</b>
-            <span>Откроется системная камера телефона. После каждого снимка можно добавить следующий.</span>
-          </span>
-        </label>
         <label class="receipt-scan-btn alt" for="receiptGallery">
           <span class="receipt-scan-ico">🖼️</span>
           <span class="receipt-scan-text">
-            <b>Выбрать готовые фото</b>
+            <b>Выбрать фото из галереи</b>
             <span>Можно выбрать сразу несколько изображений из галереи.</span>
           </span>
         </label>
@@ -897,7 +853,7 @@ body.mode-cash-report #backBtn{display:inline-flex}
 <section class="app-screen" id="cashReportScreen">
   <div>
     <div class="cash-title">Кассовый отчёт</div>
-    <div class="cash-sub">Сфотографируй отчёт iiko и все сводные слипы терминалов. Их можно разместить на одном фото или добавить несколькими страницами.</div>
+    <div class="cash-sub">Выбери из галереи фото отчёта iiko и всех сводных слипов терминалов. Их можно разместить на одном фото или добавить несколькими страницами.</div>
   </div>
 
   <div class="cash-status" id="cashReportStatus">
@@ -906,14 +862,10 @@ body.mode-cash-report #backBtn{display:inline-flex}
   </div>
 
   <div class="cash-card">
-    <input id="cashReportCameraFallback" class="cash-file-input" type="file" accept="image/*" capture="environment">
     <input id="cashReportGallery" class="cash-file-input" type="file" accept="image/*" multiple>
     <div class="cash-source-actions">
-      <label class="cash-source-btn" for="cashReportCameraFallback">
-        <span class="cash-source-ico">📷</span><span><b>Сфотографировать</b><small>Откроется системная камера телефона.</small></span>
-      </label>
       <label class="cash-source-btn alt" for="cashReportGallery">
-        <span class="cash-source-ico">🖼️</span><span><b>Выбрать готовые фото</b><small>Можно выбрать несколько изображений сразу.</small></span>
+        <span class="cash-source-ico">🖼️</span><span><b>Выбрать фото из галереи</b><small>Можно выбрать несколько изображений сразу.</small></span>
       </label>
     </div>
     <div class="cash-pages" id="cashReportPages"></div>
@@ -967,30 +919,6 @@ body.mode-cash-report #backBtn{display:inline-flex}
     <div class="cash-summary" id="cashReportActionHint">Все суммы можно исправить вручную перед отправкой.</div>
   </div>
 </section>
-
-<div class="receipt-camera-overlay" id="receiptCameraOverlay" hidden role="dialog" aria-modal="true" aria-label="Камера документов">
-  <div class="receipt-camera-head">
-    <button class="receipt-camera-close" id="receiptCameraClose" type="button">Закрыть</button>
-    <b id="receiptCameraHeading">Съёмка страницы</b>
-    <div class="receipt-camera-head-actions">
-      <button class="receipt-camera-torch" id="receiptCameraTorch" type="button" disabled>⚡ Вспышка</button>
-      <button class="receipt-camera-switch" id="receiptCameraSwitch" type="button">↻ Камера</button>
-    </div>
-  </div>
-  <div class="receipt-camera-stage" id="receiptCameraStage">
-    <video class="receipt-camera-video-bg" id="receiptCameraVideoBg" autoplay playsinline muted aria-hidden="true"></video>
-    <video class="receipt-camera-video" id="receiptCameraVideo" autoplay playsinline muted></video>
-    <div class="receipt-camera-guide" id="receiptCameraGuide"></div>
-    <div class="receipt-camera-flash" id="receiptCameraFlash"></div>
-    <div class="receipt-camera-hint" id="receiptCameraHint">HD-снимок сохраняется без автообрезки. При необходимости используй ✂</div>
-  </div>
-  <div class="receipt-camera-bottom">
-    <div class="receipt-camera-count" id="receiptCameraCount">Снято: 0</div>
-    <button class="receipt-camera-shot" id="receiptCameraShot" type="button" aria-label="Сделать снимок"></button>
-    <button class="receipt-camera-done" id="receiptCameraDone" type="button">Готово</button>
-  </div>
-  <canvas id="receiptCameraCanvas" hidden></canvas>
-</div>
 
 <div class="receipt-editor-overlay" id="receiptEditorOverlay" hidden role="dialog" aria-modal="true" aria-label="Обрезка страницы">
   <div class="receipt-editor-head">
@@ -2624,17 +2552,6 @@ let receiptJobId = '';
 let receiptResult = null;
 let receiptCatalog = [];
 let receiptPollingToken = 0;
-let receiptReshootIndex = -1;
-let receiptCameraStream = null;
-let receiptCameraFacing = 'environment';
-let receiptCameraTorchOn = false;
-let receiptCameraTorchSupported = false;
-let receiptCameraImageCapture = null;
-let receiptCameraReplaceIndex = -1;
-let receiptCameraSessionShots = 0;
-let receiptCameraDirty = false;
-let receiptCameraPurpose = 'receipt';
-let receiptCameraAllowNativePicker = false;
 const foxDocumentScanner = new DocumentScanner({ maxLongSide: 1800, allowOriginal: true });
 let receiptEditorPageIndex = -1;
 let receiptEditorSourceImage = null;
@@ -2789,12 +2706,11 @@ function updateReceiptModeUi(resetResult){
   const mode=getReceiptMode();
   const isCheck=mode==='check';
   document.getElementById('receiptModeNote').textContent=isCheck
-    ? 'Кассовый, фискальный или онлайн-чек. Несколько кадров одного длинного чека объединятся в один PDF.'
+    ? 'Кассовый, фискальный или онлайн-чек. Несколько фото одного длинного чека объединятся в один PDF.'
     : 'Накладная, счёт, УПД, ТТН или комплект документов одной поставки.';
   document.getElementById('receiptScreenSub').textContent=isCheck
-    ? 'Сними весь чек → получи один PDF → проверь сообщение → отправь в Telegram'
-    : 'Сними все страницы → получи один PDF → проверь товары → подтверди сток';
-  document.getElementById('receiptCameraTitle').textContent=isCheck?'Сфотографировать часть чека':'Сфотографировать страницу';
+    ? 'Добавь фото всего чека → получи один PDF → проверь сообщение → отправь в Telegram'
+    : 'Добавь фото всех страниц → получи один PDF → проверь товары → подтверди сток';
   document.getElementById('receiptScan').textContent=isCheck?'Собрать PDF и распознать чек':'Собрать PDF и распознать';
   if(resetResult){
     invalidateReceiptRecognition_();
@@ -2842,368 +2758,12 @@ async function appendReceiptFiles(files, preparingText){
     setReceiptStatus('', 'Страницы готовы. Проверь порядок и нажми распознавание.',0);
   }catch(err){setReceiptStatus('err',String(err&&err.message?err.message:err),0);}
 }
-function updateReceiptTorchButton_(){
-  const btn=document.getElementById('receiptCameraTorch');
-  if(!btn) return;
-  btn.disabled=!receiptCameraTorchSupported;
-  btn.classList.toggle('active',receiptCameraTorchOn&&receiptCameraTorchSupported);
-  btn.textContent=receiptCameraTorchSupported
-    ? (receiptCameraTorchOn?'⚡ Включена':'⚡ Вспышка')
-    : '⚡ Нет вспышки';
-}
-function stopReceiptCamera(){
-  receiptCameraTorchOn=false;
-  receiptCameraTorchSupported=false;
-  receiptCameraImageCapture=null;
-  updateReceiptTorchButton_();
-  if(receiptCameraStream){
-    receiptCameraStream.getTracks().forEach(track=>{try{track.stop();}catch(e){}});
-    receiptCameraStream=null;
-  }
-  const video=document.getElementById('receiptCameraVideo');
-  const videoBg=document.getElementById('receiptCameraVideoBg');
-  if(video){video.pause();video.srcObject=null;video.classList.remove('front');}
-  if(videoBg){videoBg.pause();videoBg.srcObject=null;}
-}
-function closeReceiptCamera(){
-  stopReceiptCamera();
-  const overlay=document.getElementById('receiptCameraOverlay');
-  if(overlay) overlay.hidden=true;
-  receiptCameraReplaceIndex=-1;
-  if(receiptCameraDirty){
-    receiptCameraDirty=false;
-    if(receiptCameraPurpose==='cash-report'){
-      renderCashReportPages();
-      setCashReportStatus('', 'Снимки готовы. Проверь страницы и нажми распознавание.',0);
-    }else{
-      renderReceiptPages();
-      setReceiptStatus('', 'Снимки готовы. Автообрезка отключена — при необходимости используй кнопку ✂.',0);
-    }
-  }
-}
-function nextAnimationFrame_(){return new Promise(resolve=>requestAnimationFrame(()=>resolve()));}
-async function getReceiptCameraStream_(){
-  // Просим максимальное доступное разрешение без resizeMode/crop-and-scale.
-  // Значения ideal не обязаны применяться буквально и не создают цифровой зум.
-  const highQuality={
-    facingMode:receiptCameraFacing==='environment'?{exact:'environment'}:{exact:'user'},
-    width:{ideal:3840},
-    height:{ideal:2160},
-    frameRate:{ideal:30,max:30}
-  };
-  const fallbackQuality={
-    facingMode:{ideal:receiptCameraFacing},
-    width:{ideal:2560},
-    height:{ideal:1440}
-  };
-  try{return await navigator.mediaDevices.getUserMedia({audio:false,video:highQuality});}
-  catch(_){return await navigator.mediaDevices.getUserMedia({audio:false,video:fallbackQuality});}
-}
-async function startReceiptCameraStream(){
-  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
-    throw new Error('Встроенная камера не поддерживается этим Telegram/WebView.');
-  }
-  stopReceiptCamera();
-  await nextAnimationFrame_();
-  receiptCameraStream=await getReceiptCameraStream_();
-  const video=document.getElementById('receiptCameraVideo');
-  const videoBg=document.getElementById('receiptCameraVideoBg');
-  video.srcObject=receiptCameraStream;
-  if(videoBg) videoBg.srcObject=receiptCameraStream;
-  video.classList.toggle('front',receiptCameraFacing==='user');
-  await new Promise((resolve,reject)=>{
-    const timer=setTimeout(()=>reject(new Error('Камера долго запускается. Закрой её и открой снова.')),10000);
-    const ready=()=>{clearTimeout(timer);video.removeEventListener('loadedmetadata',ready);resolve();};
-    if(video.readyState>=1) ready(); else video.addEventListener('loadedmetadata',ready,{once:true});
-  });
-  await video.play();
-  if(videoBg){try{await videoBg.play();}catch(_){}}
-
-  const track=receiptCameraStream.getVideoTracks()[0];
-  const caps=track&&track.getCapabilities?track.getCapabilities():{};
-  receiptCameraTorchOn=false;
-  receiptCameraTorchSupported=Boolean(receiptCameraFacing==='environment'&&caps&&caps.torch);
-  receiptCameraImageCapture=(typeof ImageCapture!=='undefined'&&track)?new ImageCapture(track):null;
-  updateReceiptTorchButton_();
-
-  // Сбрасываем аппаратный/цифровой zoom на минимальное доступное значение.
-  try{
-    const track=receiptCameraStream.getVideoTracks()[0];
-    const caps=track&&track.getCapabilities?track.getCapabilities():null;
-    if(caps&&caps.zoom&&Number.isFinite(caps.zoom.min)){
-      await track.applyConstraints({advanced:[{zoom:caps.zoom.min}]});
-    }
-  }catch(_){}
-
-  // Мягко просим непрерывный фокус, только если Android/WebView его поддерживает.
-  try{
-    const track=receiptCameraStream.getVideoTracks()[0];
-    const caps=track&&track.getCapabilities?track.getCapabilities():null;
-    if(caps&&Array.isArray(caps.focusMode)&&caps.focusMode.includes('continuous')){
-      await track.applyConstraints({advanced:[{focusMode:'continuous'}]});
-    }
-  }catch(_){}
-}
-async function openReceiptCamera(replaceIndex=-1,purpose='receipt'){
-  receiptCameraPurpose=purpose==='cash-report'?'cash-report':'receipt';
-  receiptCameraReplaceIndex=Number.isInteger(replaceIndex)?replaceIndex:-1;
-  receiptCameraSessionShots=0;
-  receiptCameraDirty=false;
-  const overlay=document.getElementById('receiptCameraOverlay');
-  const heading=document.getElementById('receiptCameraHeading');
-  const hint=document.getElementById('receiptCameraHint');
-  if(heading){
-    if(receiptCameraPurpose==='cash-report') heading.textContent='Съёмка кассового отчёта';
-    else heading.textContent=receiptCameraReplaceIndex>=0?'Переснять страницу '+(receiptCameraReplaceIndex+1):(getReceiptMode()==='check'?'Съёмка чека':'Съёмка документа');
-  }
-  if(hint) hint.textContent=receiptCameraPurpose==='cash-report'
-    ? 'Сними отчёт iiko и все терминальные слипы. Можно сделать несколько кадров.'
-    : 'HD-снимок сохраняется в максимальном доступном качестве. Края можно поправить кнопкой ✂';
-  updateReceiptCameraCount();
-  overlay.hidden=false;
-  try{
-    await startReceiptCameraStream();
-  }catch(err){
-    const fallbackReplaceIndex=receiptCameraReplaceIndex;
-    const purposeNow=receiptCameraPurpose;
-    closeReceiptCamera();
-    const msg=String(err&&err.message?err.message:err);
-    if(purposeNow==='cash-report'){
-      setCashReportStatus('warn',msg+' Открываю системную камеру как запасной вариант.',0);
-      openNativeReceiptCameraPicker_('cashReportCameraFallback');
-    }else{
-      setReceiptStatus('warn',msg+' Открываю системную камеру как запасной вариант.',0);
-      if(fallbackReplaceIndex>=0){
-        receiptReshootIndex=fallbackReplaceIndex;
-        openNativeReceiptCameraPicker_('receiptReshootFallback');
-      }else{
-        openNativeReceiptCameraPicker_('receiptCameraFallback');
-      }
-    }
-  }
-}
-function usesAndroidTelegramCamera_(){
-  return Boolean(window.Telegram&&window.Telegram.WebApp&&/Android/i.test(String(navigator.userAgent||'')));
-}
-function openNativeReceiptCameraPicker_(inputId){
-  receiptCameraAllowNativePicker=true;
-  document.getElementById(inputId).click();
-}
-function routeAndroidTelegramCamera_(input,replaceIndex,purpose){
-  input.addEventListener('click',event=>{
-    if(receiptCameraAllowNativePicker){
-      receiptCameraAllowNativePicker=false;
-      return;
-    }
-    if(!usesAndroidTelegramCamera_()||!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) return;
-    event.preventDefault();
-    openReceiptCamera(replaceIndex(),purpose);
-  });
-}
-function updateReceiptCameraCount(){
-  const el=document.getElementById('receiptCameraCount');
-  if(!el) return;
-  el.textContent=receiptCameraReplaceIndex>=0?'Замена страницы':('Снято: '+receiptCameraSessionShots);
-}
-function canvasToJpegDataUrl_(canvas,quality=.94){
-  return new Promise((resolve,reject)=>{
-    if(!canvas.toBlob){try{resolve(canvas.toDataURL('image/jpeg',quality));}catch(err){reject(err);}return;}
-    canvas.toBlob(blob=>{
-      if(!blob){reject(new Error('Не удалось сохранить снимок'));return;}
-      const reader=new FileReader();
-      reader.onload=()=>resolve(String(reader.result||''));
-      reader.onerror=()=>reject(new Error('Не удалось прочитать снимок'));
-      reader.readAsDataURL(blob);
-    },'image/jpeg',quality);
-  });
-}
-function drawCameraSourceToCanvas_(source,sourceW,sourceH,maxSide=3400){
-  const stage=document.getElementById('receiptCameraStage');
-  const stagePortrait=(stage?stage.clientHeight:window.innerHeight)>=(stage?stage.clientWidth:window.innerWidth);
-  const sourcePortrait=sourceH>=sourceW;
-  const rotate=stagePortrait!==sourcePortrait;
-  const rawW=rotate?sourceH:sourceW;
-  const rawH=rotate?sourceW:sourceH;
-  const scale=Math.min(1,maxSide/Math.max(rawW,rawH));
-  const canvas=document.createElement('canvas');
-  canvas.width=Math.max(1,Math.round(rawW*scale));
-  canvas.height=Math.max(1,Math.round(rawH*scale));
-  const ctx=canvas.getContext('2d',{alpha:false});
-  ctx.imageSmoothingEnabled=true;
-  ctx.imageSmoothingQuality='high';
-  ctx.fillStyle='#fff';
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-  if(rotate){
-    ctx.save();
-    ctx.translate(canvas.width,0);
-    ctx.rotate(Math.PI/2);
-    ctx.drawImage(source,0,0,canvas.height,canvas.width);
-    ctx.restore();
-  }else{
-    ctx.drawImage(source,0,0,canvas.width,canvas.height);
-  }
-  return canvas;
-}
-function videoFrameToCanvas(){
-  const video=document.getElementById('receiptCameraVideo');
-  if(!video||!video.videoWidth||!video.videoHeight) throw new Error('Камера ещё не готова. Подожди секунду.');
-  const maxSide=receiptCameraPurpose==='cash-report'?2200:3200;
-  return drawCameraSourceToCanvas_(video,video.videoWidth,video.videoHeight,maxSide);
-}
-async function stillBlobToCanvas_(blob){
-  const url=URL.createObjectURL(blob);
-  try{
-    const img=await new Promise((resolve,reject)=>{
-      const el=new Image();
-      el.onload=()=>resolve(el);
-      el.onerror=()=>reject(new Error('Не удалось открыть полноразмерный снимок камеры'));
-      el.src=url;
-    });
-    const maxSide=receiptCameraPurpose==='cash-report'?2400:3400;
-    return drawCameraSourceToCanvas_(img,img.naturalWidth||img.width,img.naturalHeight||img.height,maxSide);
-  }finally{
-    URL.revokeObjectURL(url);
-  }
-}
-async function cameraFrameToReceiptPage(){
-  let canvas;
-  let captureMode='HD-кадр видеопотока';
-  if(receiptCameraImageCapture&&typeof receiptCameraImageCapture.takePhoto==='function'){
-    try{
-      const blob=await receiptCameraImageCapture.takePhoto();
-      if(blob&&blob.size>0){
-        canvas=await stillBlobToCanvas_(blob);
-        captureMode='полноразмерное фото камеры';
-      }
-    }catch(_){
-      canvas=null;
-    }
-  }
-  if(!canvas) canvas=videoFrameToCanvas();
-  const dataUrl=await canvasToJpegDataUrl_(canvas,.94);
-  return {
-    id:'p'+Date.now()+Math.random().toString(36).slice(2,7),
-    name:'camera_'+Date.now()+'.jpg',
-    width:canvas.width,
-    height:canvas.height,
-    orientation:canvas.width>canvas.height?'landscape':'portrait',
-    cropped:false,
-    cropNote:'Сохранено '+captureMode+' без автообрезки.',
-    originalDataUrl:dataUrl,
-    dataUrl
-  };
-}
-
-async function captureReceiptCameraFrame(){
-  const shot=document.getElementById('receiptCameraShot');
-  const hint=document.getElementById('receiptCameraHint');
-  if(shot) shot.disabled=true;
-  if(hint) hint.textContent='Сохраняю снимок…';
-  try{
-    const page=await cameraFrameToReceiptPage();
-    const flash=document.getElementById('receiptCameraFlash');
-    flash.classList.remove('show');void flash.offsetWidth;flash.classList.add('show');
-    if(receiptCameraPurpose==='cash-report'){
-      cashReportPages.push(page);
-      invalidateCashReportRecognition_();
-      document.getElementById('cashReportResultCard').hidden=true;
-    }else if(receiptCameraReplaceIndex>=0){
-      receiptPages[receiptCameraReplaceIndex]=page;
-      invalidateReceiptRecognition_();
-      document.getElementById('receiptResultCard').hidden=true;
-      receiptCameraDirty=true;
-      closeReceiptCamera();
-      setReceiptStatus('', 'Страница заменена. Автообрезка не применялась.',0);
-      return;
-    }else{
-      receiptPages.push(page);
-      invalidateReceiptRecognition_();
-      document.getElementById('receiptResultCard').hidden=true;
-    }
-    receiptCameraSessionShots++;
-    receiptCameraDirty=true;
-    updateReceiptCameraCount();
-    if(hint) hint.textContent='Снимок сохранён. Можно снять следующий кадр.';
-    hap('ok');
-  }catch(err){
-    if(receiptCameraPurpose==='cash-report') setCashReportStatus('err',String(err&&err.message?err.message:err),0);
-    else setReceiptStatus('err',String(err&&err.message?err.message:err),0);
-  }finally{
-    if(shot) shot.disabled=false;
-    setTimeout(()=>{
-      const overlay=document.getElementById('receiptCameraOverlay');
-      if(hint&&overlay&&!overlay.hidden) hint.textContent=receiptCameraPurpose==='cash-report'
-        ? 'Сними отчёт iiko и все терминальные слипы. Можно сделать несколько кадров.'
-        : 'HD-снимок сохраняется без автообрезки. При необходимости используй ✂';
-    },800);
-  }
-}
-document.getElementById('receiptCameraClose').addEventListener('click',closeReceiptCamera);
-document.getElementById('receiptCameraDone').addEventListener('click',closeReceiptCamera);
-document.getElementById('receiptCameraShot').addEventListener('click',captureReceiptCameraFrame);
-document.getElementById('receiptCameraTorch').addEventListener('click',async()=>{
-  const track=receiptCameraStream&&receiptCameraStream.getVideoTracks()[0];
-  if(!track||!receiptCameraTorchSupported){
-    if(receiptCameraPurpose==='cash-report') setCashReportStatus('warn','На этой камере вспышка недоступна.',0); else setReceiptStatus('warn','На этой камере вспышка недоступна.',0);
-    return;
-  }
-  const next=!receiptCameraTorchOn;
-  try{
-    await track.applyConstraints({advanced:[{torch:next}]});
-    receiptCameraTorchOn=next;
-    updateReceiptTorchButton_();
-    const hint=document.getElementById('receiptCameraHint');
-    if(hint) hint.textContent=next?'Вспышка включена. Наведи камеру и сделай снимок.':'Вспышка выключена.';
-  }catch(err){
-    receiptCameraTorchOn=false;
-    updateReceiptTorchButton_();
-    if(receiptCameraPurpose==='cash-report') setCashReportStatus('warn','Телефон не разрешил включить вспышку в Telegram.',0); else setReceiptStatus('warn','Телефон не разрешил включить вспышку в Telegram.',0);
-  }
-});
-document.getElementById('receiptCameraSwitch').addEventListener('click',async()=>{
-  receiptCameraFacing=receiptCameraFacing==='environment'?'user':'environment';
-  try{await startReceiptCameraStream();}
-  catch(err){if(receiptCameraPurpose==='cash-report') setCashReportStatus('warn','Не удалось переключить камеру: '+String(err&&err.message?err.message:err),0); else setReceiptStatus('warn','Не удалось переключить камеру: '+String(err&&err.message?err.message:err),0);}
-});
-document.addEventListener('visibilitychange',()=>{if(document.hidden) stopReceiptCamera();});
-window.addEventListener('orientationchange',()=>{
-  const overlay=document.getElementById('receiptCameraOverlay');
-  if(overlay&&!overlay.hidden){
-    setTimeout(()=>startReceiptCameraStream().catch(()=>{}),250);
-  }
-});
-
-const receiptCameraFallback=document.getElementById('receiptCameraFallback');
-if(receiptCameraFallback){
-  routeAndroidTelegramCamera_(receiptCameraFallback,()=>-1,'receipt');
-  receiptCameraFallback.addEventListener('change',async()=>{
-    const files=Array.from(receiptCameraFallback.files||[]);
-    try{await appendReceiptFiles(files,'Обрабатываю новый снимок…');}
-    finally{receiptCameraFallback.value='';}
-  });
-}
 const receiptGallery=document.getElementById('receiptGallery');
 if(receiptGallery){
   receiptGallery.addEventListener('change',async()=>{
     const files=Array.from(receiptGallery.files||[]);
     try{await appendReceiptFiles(files,'Подготавливаю выбранные фотографии…');}
     finally{receiptGallery.value='';}
-  });
-}
-const receiptReshootFallback=document.getElementById('receiptReshootFallback');
-if(receiptReshootFallback){
-  routeAndroidTelegramCamera_(receiptReshootFallback,()=>receiptReshootIndex,'receipt');
-  receiptReshootFallback.addEventListener('change',async()=>{
-    const file=receiptReshootFallback.files&&receiptReshootFallback.files[0];const index=receiptReshootIndex;
-    receiptReshootFallback.value='';receiptReshootIndex=-1;
-    if(!file||index<0||index>=receiptPages.length) return;
-    try{
-      setReceiptStatus('', 'Переснимаю страницу '+(index+1)+'…', .05);
-      receiptPages[index]=await imageFileToReceiptPage(file);
-      invalidateReceiptRecognition_();
-      document.getElementById('receiptResultCard').hidden=true;
-      renderReceiptPages();setReceiptStatus('', 'Страница заменена. Проверь порядок.',0);
-    }catch(err){setReceiptStatus('err',String(err&&err.message?err.message:err),0);}
   });
 }
 document.getElementById('receiptReset').onclick=()=>{
@@ -3218,8 +2778,8 @@ document.getElementById('receiptOpenPdf').onclick=()=>{
   const url=receiptResult&&receiptResult.pdfUrl;if(url){if(TG) TG.openLink(url);else window.open(url,'_blank');}
 };
 function resetReceiptScanner(){
-  closeReceiptCamera();closeReceiptCropEditor();
-  receiptPages=[];invalidateReceiptRecognition_();receiptReshootIndex=-1;
+  closeReceiptCropEditor();
+  receiptPages=[];invalidateReceiptRecognition_();
   renderReceiptPages();updateReceiptModeUi(true);saveReceiptDraft_();
 }
 function invalidateReceiptRecognition_(){
@@ -3243,11 +2803,10 @@ function renderReceiptPages(){
     const isLandscape=p.width>p.height;
     const card=document.createElement('div');card.className='receipt-page';
     card.innerHTML='<span class="receipt-page-num">'+(i+1)+'</span><span class="receipt-page-orientation">'+(isLandscape?'Горизонтально':'Вертикально')+'</span><img src="'+p.dataUrl+'" alt="Страница '+(i+1)+'">'+
-      '<div class="receipt-page-actions"><button type="button" data-up title="Выше" '+(i===0?'disabled':'')+'>↑</button><button type="button" data-down title="Ниже" '+(i===receiptPages.length-1?'disabled':'')+'>↓</button><button type="button" data-crop title="Обрезать края">✂</button><button type="button" data-rotate aria-label="Повернуть по часовой стрелке" title="Повернуть по часовой стрелке">↻</button><label for="receiptReshootFallback" data-reshoot title="Переснять страницу">📷</label><button type="button" class="del" data-del title="Удалить">✕</button></div>';
+      '<div class="receipt-page-actions"><button type="button" data-up title="Выше" '+(i===0?'disabled':'')+'>↑</button><button type="button" data-down title="Ниже" '+(i===receiptPages.length-1?'disabled':'')+'>↓</button><button type="button" data-crop title="Обрезать края">✂</button><button type="button" data-rotate aria-label="Повернуть по часовой стрелке" title="Повернуть по часовой стрелке">↻</button><button type="button" class="del" data-del title="Удалить">✕</button></div>';
     card.querySelector('[data-up]').onclick=()=>moveReceiptPage(i,-1);card.querySelector('[data-down]').onclick=()=>moveReceiptPage(i,1);
     card.querySelector('[data-crop]').onclick=()=>openReceiptCropEditor(i);
     card.querySelector('[data-rotate]').onclick=()=>rotateReceiptPage(i);
-    card.querySelector('[data-reshoot]').addEventListener('click',()=>{receiptReshootIndex=i;});
     card.querySelector('[data-del]').onclick=()=>{receiptPages.splice(i,1);invalidateReceiptRecognition_();renderReceiptPages();};root.appendChild(card);
   });
   scan.disabled=!receiptPages.length;
@@ -3703,7 +3262,7 @@ function invalidateCashReportRecognition_(){
   resetCashReportSendButton_();
 }
 function resetCashReport(){
-  closeReceiptCamera();cashReportPages=[];invalidateCashReportRecognition_();cashReportTerminalSlips=[];cashReportPrepayments=[];
+  cashReportPages=[];invalidateCashReportRecognition_();cashReportTerminalSlips=[];cashReportPrepayments=[];
   renderCashReportPages();setCashReportStatus('', 'Добавь фото отчёта iiko и всех сводных слипов терминалов.',0);
 }
 async function buildCashReportPdf(){
@@ -3853,7 +3412,6 @@ async function sendCashReportToTelegram(){
   }
 }
 
-const cashCameraFallback=document.getElementById('cashReportCameraFallback');if(cashCameraFallback){routeAndroidTelegramCamera_(cashCameraFallback,()=>-1,'cash-report');cashCameraFallback.addEventListener('change',async()=>{const files=Array.from(cashCameraFallback.files||[]);cashCameraFallback.value='';await appendCashReportFiles(files);});}
 const cashGallery=document.getElementById('cashReportGallery');if(cashGallery)cashGallery.addEventListener('change',async()=>{const files=Array.from(cashGallery.files||[]);cashGallery.value='';await appendCashReportFiles(files);});
 document.getElementById('cashReportReset').addEventListener('click',()=>{if(cashReportPages.length&&!confirm('Удалить фотографии кассового отчёта?'))return;resetCashReport();});
 document.getElementById('cashReportRecognize').addEventListener('click',startCashReportRecognition);
