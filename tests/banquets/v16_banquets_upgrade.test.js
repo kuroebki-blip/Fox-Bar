@@ -701,3 +701,12 @@ test('импортный save обновляет snapshot по стабильн�
   assert.equal(banquetSheet.rows[1][2], '14:30');
   assert.equal(banquetSheet.rows[1][4], 'Обновлён');
 });
+
+
+test('контактные данные вырезаются перед сохранением комментария банкета', () => {
+  const { context } = makeRuntime();
+  const syntheticContact = '+' + ['7','900','000','00','00'].join(' ');
+  const redacted = context.redactBanquetContactData_('бронь ' + syntheticContact + ' test@example.com');
+  assert.equal(redacted.includes('900'), false);
+  assert.equal(redacted.includes('@'), false);
+});

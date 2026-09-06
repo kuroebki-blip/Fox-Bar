@@ -1420,22 +1420,30 @@ function normalizeEstimateGuruBanquetDate_(value, messageDate) {
 function sanitizeEstimateGuruBanquet_(parsed, message) {
   parsed = parsed && typeof parsed === 'object' ? parsed : {};
   const orderItems = Array.isArray(parsed.order_items) ? parsed.order_items.map(function(item) {
-    return { category:String(item && item.category || '').trim(), name:String(item && item.name || '').trim(), quantity:number_(item && item.quantity), unit:String(item && item.unit || '').trim(), servingTime:normalizeEstimateGuruBanquetTime_(item && item.serving_time), lineTotal:number_(item && item.line_total) };
+    return { category:redactBanquetContactData_(item && item.category), name:redactBanquetContactData_(item && item.name), quantity:number_(item && item.quantity), unit:String(item && item.unit || '').trim(), servingTime:normalizeEstimateGuruBanquetTime_(item && item.serving_time), lineTotal:number_(item && item.line_total) };
   }).filter(function(item) { return item.name && item.quantity > 0; }) : [];
   const reserveItems = Array.isArray(parsed.reserve_items) ? parsed.reserve_items.map(function(item) {
-    return { rawName:String(item && item.raw_name || '').trim(), quantity:number_(item && item.quantity), unit:String(item && item.unit || '').trim(), suggestedStockName:String(item && item.suggested_stock_name || '').trim(), notes:String(item && item.notes || '').trim() };
+    return { rawName:redactBanquetContactData_(item && item.raw_name), quantity:number_(item && item.quantity), unit:String(item && item.unit || '').trim(), suggestedStockName:String(item && item.suggested_stock_name || '').trim(), notes:redactBanquetContactData_(item && item.notes) };
   }).filter(function(item) { return item.rawName && item.quantity > 0; }) : [];
   return {
     date:normalizeEstimateGuruBanquetDate_(parsed.event_date, message && message.date),
     time:normalizeEstimateGuruBanquetTime_(parsed.event_time),
-    guestName:String(parsed.guest_name || '').trim(), guestCount:Math.max(0, Math.round(number_(parsed.guest_count))), eventType:String(parsed.event_type || '').trim(),
+    guestName:redactBanquetContactData_(parsed.guest_name), guestCount:Math.max(0, Math.round(number_(parsed.guest_count))), eventType:redactBanquetContactData_(parsed.event_type),
     totalAmount:number_(parsed.total_amount), orderItems:orderItems, reserveItems:reserveItems,
-    ignored:Array.isArray(parsed.ignored) ? parsed.ignored.map(String).filter(Boolean) : []
+    ignored:Array.isArray(parsed.ignored) ? parsed.ignored.map(redactBanquetContactData_).filter(Boolean) : []
   };
 }
 
+function redactBanquetContactData_(value) {
+  return String(value || '')
+    .replace(/\+?\d[\d\s().-]{8,}\d/g, '')
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 function buildEstimateGuruBanquetComment_(data, message, snapshotUrl) {
-  const sourceText = String(message && (message.text || message.caption) || '').replace(/https:\/\/app\.estimates\.guru\/snapshot\/[A-Za-z0-9_-]{6,128}(?:[/?#][^\s<>]*)?/ig, '').replace(/\n{3,}/g, '\n\n').trim();
+  const sourceText = redactBanquetContactData_(String(message && (message.text || message.caption) || '').replace(/https:\/\/app\.estimates\.guru\/snapshot\/[A-Za-z0-9_-]{6,128}(?:[/?#][^\s<>]*)?/ig, '').replace(/\n{3,}/g, '\n\n'));
   const lines = [];
   if (data.eventType) lines.push('Событие: ' + data.eventType);
   if (data.guestCount) lines.push('Гостей: ' + data.guestCount);
