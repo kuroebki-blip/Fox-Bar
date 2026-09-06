@@ -6,6 +6,14 @@ Mini App → Cloudinary → URL → Banquets Apps Script → Google Sheets.
 
 Фото не должно передаваться через Apps Script/base64. В таблице хранится URL и, при необходимости, public ID.
 
+## Автоимпорт из Telegram / Estimates Guru
+
+Backend `v9.11.0` умеет принимать сообщения из одной настроенной Telegram-группы. Триггером служит публичная ссылка `https://app.estimates.guru/snapshot/...`. Backend получает PDF/снимок, извлекает дату, время, имя гостя, количество персон, итог и полный предзаказ, затем создаёт или обновляет банкет с ID `estimate_<snapshot-id>`. Контактные данные из документа намеренно игнорируются и не сохраняются.
+
+Полный предзаказ хранится в комментарии банкета. В складской резерв отдельно попадают только готовые товарные позиции; блюда кухни, услуги и коктейли исключаются. Новые колонки Google Sheets автоматически не создаются.
+
+Перед включением: добавить FO’X-бота в нужную группу и дать ему возможность видеть обычные сообщения; задать `TELEGRAM_BANQUET_SOURCE_CHAT_ID` (либо до включения webhook выполнить `foxBanquetsCaptureTelegramSourceChat()`); выполнить deployment Apps Script; затем выполнить `foxBanquetsConfigureTelegramWebhook()`. Если у бота уже настроен другой webhook, функция остановится и ничего не перезапишет. Откат webhook — `foxBanquetsDisableTelegramWebhook()`.
+
 ## Candidate v16.0.0: несколько фотографий
 
 Изменение находится в ветке `feature/v16-banquets-upgrade`; оно не является production-релизом до ручного deployment и пользовательской проверки.

@@ -661,3 +661,52 @@ test('календарь загружает персонал выбранног�
   assert.match(frontendSource, /\.cal-day\.today\.selected\{/);
   assert.match(frontendSource, /\.cal-day\.today span:first-child\{/);
 });
+
+
+test('Telegram autoimport принимает только публичную ссылку Estimates Guru', () => {
+  const { context } = makeRuntime();
+  assert.equal(context.telegramBanquetSnapshotUrlFromMessage_({ text:'Банкет https://app.estimates.guru/snapshot/Hh9n7rv0F17f11YD' }), 'https://app.estimates.guru/snapshot/Hh9n7rv0F17f11YD');
+  assert.equal(context.telegramBanquetSnapshotUrlFromMessage_({ text:'Открыть', entities:[{ type:'text_link', offset:0, length:7, url:'https://app.estimates.guru/snapshot/ABCdef_123' }] }), 'https://app.estimates.guru/snapshot/ABCdef_123');
+  assert.equal(context.telegramBanquetSnapshotUrlFromMessage_({ text:'https://example.com/snapshot/Hh9n7rv0F17f11YD' }), '');
+});
+
+test('дата Estimates Guru без года получает год публикации', () => {
+  const { context } = makeRuntime();
+  assert.equal(context.normalizeEstimateGuruBanquetDate_('06.09', Date.UTC(2026,8,6,9)/1000), '2026-09-06');
+  assert.equal(context.normalizeEstimateGuruBanquetDate_('10.01', Date.UTC(2026,11,20,9)/1000), '2027-01-10');
+});
+
+test('комментарий автоимпорта хранит полный предзаказ без контактных полей', () => {
+  const { context } = makeRuntime();
+  const comment = context.buildEstimateGuruBanquetComment_({
+    eventType:'др', guestCount:11, totalAmount:17201.70,
+    orderItems:[
+      { category:'Безалкогольные напитки', name:'Вода Dausuz 850 мл', quantity:3, unit:'шт.', servingTime:'14:00' },
+      { category:'Горячие закуски', name:'Хоровац', quantity:2, unit:'порция', servingTime:'14:15' }
+    ]
+  }, { text:'✅ дата 06.09 14:00 бронь стола\nhttps://app.estimates.guru/snapshot/Hh9n7rv0F17f11YD' }, 'https://app.estimates.guru/snapshot/Hh9n7rv0F17f11YD');
+  assert.match(comment, /Гостей: 11/);
+  assert.match(comment, /Вода Dausuz 850 мл/);
+  assert.match(comment, /Хоровац/);
+  assert.doesNotMatch(comment, /Телефон|phone|contact/i);
+});
+
+test('импортный save обновляет snapshot по стабильному ID без новой колонки Media JSON', () => {
+  const { context, banquetSheet } = makeRuntime();
+  const auth = { userId:'100', userName:'Ella' };
+  context.saveImportedFoxCalendarBanquet_({ id:'estimate_ABC12345', date:'2026-09-06', time:'14:00', name:'Елена · 11 персон', comment:'Первый', totalAmount:17201.70 }, auth);
+  context.saveImportedFoxCalendarBanquet_({ id:'estimate_ABC12345', date:'2026-09-06', time:'14:30', name:'Елена · 11 персон', comment:'Обновлён', totalAmount:18000 }, auth);
+  assert.equal(banquetSheet.getLastRow(), 2);
+  assert.equal(banquetSheet.getLastColumn(), 12);
+  assert.equal(banquetSheet.rows[1][2], '14:30');
+  assert.equal(banquetSheet.rows[1][4], 'Обновлён');
+});
+
+
+test('контактные данные вырезаются перед сохранением комментария банкета', () => {
+  const { context } = makeRuntime();
+  const syntheticContact = '+' + ['7','900','000','00','00'].join(' ');
+  const redacted = context.redactBanquetContactData_('бронь ' + syntheticContact + ' test@example.com');
+  assert.equal(redacted.includes('900'), false);
+  assert.equal(redacted.includes('@'), false);
+});
