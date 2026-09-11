@@ -39,3 +39,17 @@ test('FO\'X inline frontend JavaScript compiles', () => {
   assert.ok(inline.includes('startReceiptRecognition'), 'main inline script not found');
   assert.doesNotThrow(() => new Function(inline));
 });
+
+
+test('Telegram PDF is recompressed before attach upload', () => {
+  assert.match(frontend, /RECEIPT_PDF_MAX_SIDE\s*=\s*1500/);
+  assert.match(frontend, /RECEIPT_PDF_JPEG_QUALITY\s*=\s*\.76/);
+  assert.match(frontend, /buildReceiptPdfUploadPages_\(pagesSnapshot\)[\s\S]*?buildReceiptPdf\(pdfPages\)/);
+});
+
+test('attachPdf Load failed is recovered without blind duplicate retry', () => {
+  assert.match(frontend, /RECEIPT_PDF_ATTACH_ATTEMPTS\s*=\s*3/);
+  assert.match(frontend, /async function attachReceiptPdfWithRecovery_/);
+  assert.match(frontend, /state&&state\.ok&&state\.pdfFileId/);
+  assert.match(frontend, /attachReceiptPdfWithRecovery_\(jobId,base64,'FO_X_'\+jobId\+'\.pdf'\)/);
+});

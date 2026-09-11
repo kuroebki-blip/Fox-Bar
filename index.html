@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.16.3 — RECEIPT POLLING RECOVERY</title>
+<title>FO'X App v15.16.4 — COMPACT PDF UPLOAD</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="shared/document-scanner/scanner.css">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="shared/document-scanner/geometry.js"></script>
-<script src="shared/document-scanner/document-scanner.js?v=15.16.3"></script>
+<script src="shared/document-scanner/document-scanner.js?v=15.16.4"></script>
 <style>
 
   :root{
@@ -2573,6 +2573,9 @@ const RECEIPT_MAX_OCR_TOTAL_BYTES = 12 * 1024 * 1024;
 const RECEIPT_STATUS_REQUEST_TIMEOUT_MS = 6500;
 const RECEIPT_JOB_START_GRACE_MS = 30000;
 const RECEIPT_POLL_INTERVAL_MS = 1500;
+const RECEIPT_PDF_MAX_SIDE = 1500;
+const RECEIPT_PDF_JPEG_QUALITY = .76;
+const RECEIPT_PDF_ATTACH_ATTEMPTS = 3;
 
 function isTransientReceiptStatusError_(error){
   const message=String(error&&error.message?error.message:error||'');
@@ -3018,6 +3021,34 @@ async function buildCashOcrImagesPayload_(pages,onProgress){
   validateOcrImagesPayload_(images);
   return images;
 }
+async function buildReceiptPdfUploadPages_(pages){
+  const compact=[];
+  for(let i=0;i<pages.length;i++){
+    const prepared=await dataUrlToOcrImage_(pages[i].dataUrl,RECEIPT_PDF_MAX_SIDE,RECEIPT_PDF_JPEG_QUALITY);
+    compact.push({dataUrl:'data:'+prepared.mimeType+';base64,'+prepared.data,width:prepared.width,height:prepared.height});
+  }
+  return compact;
+}
+async function attachReceiptPdfWithRecovery_(jobId,pdfBase64,pdfName){
+  let lastError=null;
+  for(let attempt=1;attempt<=RECEIPT_PDF_ATTACH_ATTEMPTS;attempt++){
+    try{
+      await postReceipt({action:'attachPdf',jobId,pdfBase64,pdfName});
+      return;
+    }catch(error){
+      lastError=error;
+      if(!isTransientReceiptStatusError_(error))throw error;
+      await new Promise(resolve=>setTimeout(resolve,1200*attempt));
+      try{
+        const state=await getReceiptJobStatus_(jobId);
+        if(state&&state.ok&&state.pdfFileId)return;
+      }catch(statusError){
+        if(!isTransientReceiptStatusError_(statusError))throw statusError;
+      }
+    }
+  }
+  throw lastError||new Error('Не удалось загрузить PDF.');
+}
 async function waitForReceiptJob_(jobId,maxMs=25000){
   const started=Date.now();
   while(Date.now()-started<maxMs){
@@ -3037,9 +3068,12 @@ async function uploadReceiptPdfForJob_(jobId,pagesSnapshot,knownStatus){
   try{
     // Сборка PDF идёт параллельно с Gemini, но запись на Drive начинается
     // только после завершения распознавания — так два процесса не перезапишут JSON задания.
-    const pdfBlob=await buildReceiptPdf(pagesSnapshot);
+    // После OCR собираем отдельный компактный PDF для Telegram. Это снижает
+    // нагрузку на iOS WebView и размер cross-origin POST в Apps Script.
+    const pdfPages=await buildReceiptPdfUploadPages_(pagesSnapshot);
+    const pdfBlob=await buildReceiptPdf(pdfPages);
     if(!receiptJobIsActive_(receiptJobId,jobId))throw new Error('Операция отменена.');
-    if(pdfBlob.size>15*1024*1024)throw new Error('PDF больше 15 МБ. Уменьши количество страниц.');
+    if(pdfBlob.size>12*1024*1024)throw new Error('PDF больше 12 МБ после оптимизации. Уменьши количество страниц.');
     const base64=await blobToBase64(pdfBlob);
     if(!receiptJobIsActive_(receiptJobId,jobId))throw new Error('Операция отменена.');
     const ready=knownStatus||await waitForReceiptJob_(jobId,210000);
@@ -3051,7 +3085,7 @@ async function uploadReceiptPdfForJob_(jobId,pagesSnapshot,knownStatus){
       if(next&&next.ok){Object.assign(ready,next);if(next.status==='ERROR')throw new Error(next.error||'Распознавание завершилось ошибкой.');}
     }
     if(!receiptJobIsActive_(receiptJobId,jobId))throw new Error('Операция отменена.');
-    await postReceipt({action:'attachPdf',jobId,pdfBase64:base64,pdfName:'FO_X_'+jobId+'.pdf'});
+    await attachReceiptPdfWithRecovery_(jobId,base64,'FO_X_'+jobId+'.pdf');
     const started=Date.now();
     while(Date.now()-started<90000){
       if(!receiptJobIsActive_(receiptJobId,jobId))throw new Error('Операция отменена.');
