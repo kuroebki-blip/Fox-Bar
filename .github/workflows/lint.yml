@@ -32,3 +32,6 @@ jobs:
 
       - name: Run ESLint
         run: pnpm lint:check
+
+      - name: Test receipt scanner polling
+        run: node --test tests/receipts/scanner_polling_resilience.test.js
