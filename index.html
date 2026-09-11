@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.16.1 — SECURE CALENDAR & STAFF ACCESS</title>
+<title>FO'X App v15.16.3 — RECEIPT POLLING RECOVERY</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="shared/document-scanner/scanner.css">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="shared/document-scanner/geometry.js"></script>
-<script src="shared/document-scanner/document-scanner.js"></script>
+<script src="shared/document-scanner/document-scanner.js?v=15.16.3"></script>
 <style>
 
   :root{
@@ -2570,6 +2570,17 @@ const RECEIPT_MAX_OCR_IMAGE_BYTES = 6 * 1024 * 1024;
 // 12 MiB decoded becomes about 16 MiB as base64 and leaves room for the prompt
 // inside Gemini's full inline request limit.
 const RECEIPT_MAX_OCR_TOTAL_BYTES = 12 * 1024 * 1024;
+const RECEIPT_STATUS_REQUEST_TIMEOUT_MS = 6500;
+const RECEIPT_JOB_START_GRACE_MS = 30000;
+const RECEIPT_POLL_INTERVAL_MS = 1500;
+
+function isTransientReceiptStatusError_(error){
+  const message=String(error&&error.message?error.message:error||'');
+  return /timeout|не ответил вовремя|jsonp error|network|failed to fetch|failed to load|load failed/i.test(message);
+}
+function getReceiptJobStatus_(jobId){
+  return jsonp(STOCK_API_URL,Object.assign({action:'status',jobId},receiptAuthParams()),RECEIPT_STATUS_REQUEST_TIMEOUT_MS);
+}
 
 function receiptJobIsActive_(currentJobId, expectedJobId){
   return Boolean(expectedJobId) && currentJobId===expectedJobId;
@@ -3011,12 +3022,18 @@ async function waitForReceiptJob_(jobId,maxMs=25000){
   const started=Date.now();
   while(Date.now()-started<maxMs){
     if(!receiptJobIsActive_(receiptJobId,jobId))throw new Error('Операция отменена.');
-    try{const res=await jsonp(STOCK_API_URL,Object.assign({action:'status',jobId},receiptAuthParams()));if(res&&res.ok)return res;}catch(_){}
+    try{
+      const res=await getReceiptJobStatus_(jobId);
+      if(res&&res.ok)return res;
+      if(res&&res.error&&!/не найден/i.test(String(res.error)))throw new Error(res.error);
+    }catch(error){
+      if(!isTransientReceiptStatusError_(error))throw error;
+    }
     await new Promise(resolve=>setTimeout(resolve,700));
   }
   throw new Error('Backend не создал задание для PDF.');
 }
-async function uploadReceiptPdfForJob_(jobId,pagesSnapshot){
+async function uploadReceiptPdfForJob_(jobId,pagesSnapshot,knownStatus){
   try{
     // Сборка PDF идёт параллельно с Gemini, но запись на Drive начинается
     // только после завершения распознавания — так два процесса не перезапишут JSON задания.
@@ -3025,12 +3042,12 @@ async function uploadReceiptPdfForJob_(jobId,pagesSnapshot){
     if(pdfBlob.size>15*1024*1024)throw new Error('PDF больше 15 МБ. Уменьши количество страниц.');
     const base64=await blobToBase64(pdfBlob);
     if(!receiptJobIsActive_(receiptJobId,jobId))throw new Error('Операция отменена.');
-    const ready=await waitForReceiptJob_(jobId,210000);
+    const ready=knownStatus||await waitForReceiptJob_(jobId,210000);
     if(ready.status==='ERROR')throw new Error(ready.error||'Распознавание завершилось ошибкой.');
     while(ready.status!=='DONE'&&ready.status!=='CONFIRMED'&&ready.status!=='SENT'&&ready.status!=='SENT_UNCONFIRMED'){
       if(!receiptJobIsActive_(receiptJobId,jobId))throw new Error('Операция отменена.');
       await new Promise(resolve=>setTimeout(resolve,900));
-      const next=await jsonp(STOCK_API_URL,Object.assign({action:'status',jobId},receiptAuthParams()));
+      const next=await getReceiptJobStatus_(jobId);
       if(next&&next.ok){Object.assign(ready,next);if(next.status==='ERROR')throw new Error(next.error||'Распознавание завершилось ошибкой.');}
     }
     if(!receiptJobIsActive_(receiptJobId,jobId))throw new Error('Операция отменена.');
@@ -3038,7 +3055,8 @@ async function uploadReceiptPdfForJob_(jobId,pagesSnapshot){
     const started=Date.now();
     while(Date.now()-started<90000){
       if(!receiptJobIsActive_(receiptJobId,jobId))throw new Error('Операция отменена.');
-      const status=await jsonp(STOCK_API_URL,Object.assign({action:'status',jobId},receiptAuthParams()));
+      let status=null;
+      try{status=await getReceiptJobStatus_(jobId);}catch(error){if(!isTransientReceiptStatusError_(error))throw error;}
       if(status&&status.ok&&status.pdfFileId){
         receiptPdfBlob=pdfBlob;
         if(receiptResult&&receiptJobIsActive_(receiptJobId,jobId)){receiptResult.pdfFileId=status.pdfFileId;receiptResult.pdfUrl=status.pdfUrl||'';}
@@ -3098,14 +3116,15 @@ async function startReceiptRecognition(){
     document.getElementById('receiptResultCard').hidden=true;
     setReceiptStatus('', mode==='check'?'Отправляю изображения и распознаю чек…':'Отправляю изображения и распознаю документы…', .15);
     postReceipt({action:'scanImages',jobId:receiptJobId,scanMode:mode,warehouse:document.getElementById('receiptWarehouse').value,pagesCount:pagesSnapshot.length,imagesJson:JSON.stringify(images)}).catch(()=>{});
-    // Полный PDF собирается и загружается параллельно, не блокируя Gemini.
-    receiptPdfUploadPromise=uploadReceiptPdfForJob_(activeJobId,pagesSnapshot);
-    receiptPdfUploadPromise.catch(()=>{});
+    // Сначала ждём только Gemini. Сборка PDF на iPhone заметно грузит CPU и раньше
+    // конкурировала с polling, из-за чего интерфейс выглядел зависшим.
     const status=await pollReceiptJob(activeJobId,['DONE','ERROR'],210000);if(status.status==='ERROR')throw new Error(status.error||'Ошибка распознавания');
     if(!receiptJobIsActive_(receiptJobId,activeJobId))throw new Error('Операция отменена.');
     receiptResult=status.result||{};receiptResult.pdfUrl=status.pdfUrl||receiptResult.pdfUrl||'';renderReceiptRecognition(receiptResult);
     saveReceiptDraft_();updateReceiptPdfRecoveryUi_();
-    setReceiptStatus('ok',mode==='check'?'Чек распознан. Проверь текст; PDF готовится параллельно.':'Документ распознан. Проверь позиции; PDF готовится параллельно.',1);hap('ok');
+    setReceiptStatus('ok',mode==='check'?'Чек распознан. Проверь текст; PDF готовится в фоне.':'Документ распознан. Проверь позиции; PDF готовится в фоне.',1);hap('ok');
+    receiptPdfUploadPromise=new Promise(resolve=>setTimeout(resolve,50)).then(()=>uploadReceiptPdfForJob_(activeJobId,pagesSnapshot,status));
+    receiptPdfUploadPromise.catch(()=>{});
   }catch(err){
     saveReceiptDraft_();
     const message=String(err&&err.message?err.message:err);
@@ -3116,12 +3135,29 @@ async function startReceiptRecognition(){
   finally{btn.disabled=!receiptPages.length;}
 }
 async function pollReceiptJob(jobId,finalStatuses,maxMs){
-  const token=++receiptPollingToken;const started=Date.now();let notFoundCount=0;
+  const token=++receiptPollingToken;const started=Date.now();let notFoundSince=0;let transientFailures=0;
   while(Date.now()-started<maxMs){
-    if(token!==receiptPollingToken) throw new Error('Операция отменена.');
-    try{const res=await jsonp(STOCK_API_URL,Object.assign({action:'status',jobId},receiptAuthParams()));if(res&&res.ok){setReceiptStatus(res.status==='ERROR'?'err':'',res.step||'Обработка…',Number(res.progress)||.2);if(finalStatuses.includes(res.status))return res;}else{notFoundCount++;if(notFoundCount>12&&res&&res.error&&!String(res.error).includes('не найден'))throw new Error(res.error);}}catch(err){if(Date.now()-started>30000&&!String(err&&err.message||err).includes('timeout'))throw err;}await new Promise(r=>setTimeout(r,2200));
+    if(token!==receiptPollingToken)throw new Error('Операция отменена.');
+    try{
+      const res=await getReceiptJobStatus_(jobId);
+      if(res&&res.ok){
+        notFoundSince=0;transientFailures=0;
+        setReceiptStatus(res.status==='ERROR'?'err':'',res.step||'Обработка…',Number(res.progress)||.2);
+        if(finalStatuses.includes(res.status))return res;
+      }else if(res&&/не найден/i.test(String(res.error||''))){
+        if(!notFoundSince)notFoundSince=Date.now();
+        if(Date.now()-notFoundSince>=RECEIPT_JOB_START_GRACE_MS)throw new Error('Backend не получил изображения. Проверь соединение и повтори попытку.');
+      }else if(res&&res.error){
+        throw new Error(res.error);
+      }
+    }catch(error){
+      if(!isTransientReceiptStatusError_(error))throw error;
+      transientFailures+=1;
+      if(transientFailures>=3)setReceiptStatus('warn','Связь с сервером нестабильна, продолжаю ждать результат…',.2);
+    }
+    await new Promise(resolve=>setTimeout(resolve,RECEIPT_POLL_INTERVAL_MS));
   }
-  throw new Error('Сервер отвечает слишком долго. Повтори через минуту.');
+  throw new Error('Распознавание не завершилось вовремя. Фото сохранены — повтори попытку позже.');
 }
 function catalogOptionKey(sheet,name){return String(sheet||'')+'|||'+String(name||'');}
 function splitCatalogKey(v){const p=String(v||'').split('|||');return{sheet:p.shift()||'',name:p.join('|||')||''};}

@@ -2,7 +2,6 @@
   'use strict';
   const G = root.DocumentScannerGeometry;
   const OPENCV_URL = 'https://docs.opencv.org/4.10.0/opencv.js';
-  const STATUS_JSONP_TIMEOUT_MS = 6500;
   let cvPromise;
   function loadOpenCv(timeoutMs) {
     if (root.cv && root.cv.Mat) return Promise.resolve(root.cv);
@@ -26,37 +25,7 @@
   function documentPreview(base) { const out=document.createElement('canvas');out.width=base.width;out.height=base.height;const ctx=out.getContext('2d',{alpha:false});ctx.drawImage(base,0,0);const image=ctx.getImageData(0,0,out.width,out.height), d=image.data;for(let i=0;i<d.length;i+=4){const l=.2126*d[i]+.7152*d[i+1]+.0722*d[i+2];const v=Math.max(0,Math.min(255,(l-128)*1.25+138));d[i]=Math.min(255,v*1.03);d[i+1]=v;d[i+2]=Math.max(0,v*.96);}ctx.putImageData(image,0,0);return out; }
   function applyOverlayLayoutFallback(overlay) { const card=overlay.querySelector('.ds-card'), preview=overlay.querySelector('.ds-preview'), warning=overlay.querySelector('.ds-warning'), actions=overlay.querySelector('.ds-actions'); overlay.style.cssText='position:fixed;inset:0;z-index:200;display:flex;align-items:flex-end;justify-content:center;padding:14px;background:rgba(12,10,8,.9);backdrop-filter:blur(8px)'; card.style.cssText='width:min(680px,100%);max-height:94vh;overflow:auto;background:var(--surface,#1e1913);color:var(--text,#f3ece1);border:1px solid var(--line-strong,rgba(255,255,255,.14));border-radius:18px;padding:14px;font-family:Inter,system-ui,sans-serif'; preview.style.cssText='display:block;width:100%;max-height:55vh;object-fit:contain;background:#090807;border-radius:12px'; warning.style.cssText='min-height:18px;margin-top:8px;font-size:12px;color:var(--warn,#e6b450)'; actions.style.cssText='display:flex;gap:8px;margin-top:12px'; actions.querySelectorAll('button').forEach(button=>{button.style.cssText='flex:1;border:1px solid var(--line-strong,rgba(255,255,255,.16));border-radius:10px;padding:11px 12px;background:var(--surface-2,#28221a);color:var(--text,#f3ece1);font:600 13px Inter,system-ui,sans-serif';}); const primary=actions.querySelector('.primary'); if(primary) primary.style.cssText+=';background:var(--sand,#ee8e3a);border-color:var(--sand,#ee8e3a);color:var(--sand-dark,#1a1208)'; }
   function openUi(base, meta, labels) { return new Promise(resolve => { const active=documentPreview(base); const overlay=document.createElement('div');overlay.className='ds-overlay';const status=meta.documentDetected?'Автообрезка и выравнивание уже применены.':'Границы не распознаны — сохранён полный кадр.';overlay.innerHTML='<div class="ds-card" role="dialog" aria-modal="true"><h2>'+ (labels.title||'Проверь скан') +'</h2><div class="ds-status'+(meta.documentDetected?' applied':'')+'">'+status+'</div><img class="ds-preview"><div class="ds-warning"></div><div class="ds-actions"><button class="danger" data-action="cancel">Отмена</button><button data-action="original">Использовать оригинал</button><button class="primary" data-action="confirm">'+(labels.confirm||'Использовать')+'</button></div></div>'; applyOverlayLayoutFallback(overlay); document.body.appendChild(overlay); const preview=overlay.querySelector('.ds-preview'), warning=overlay.querySelector('.ds-warning'); preview.src=active.toDataURL('image/jpeg',.88); warning.textContent=meta.quality.warnings.join(' '); const finish=async usedOriginal=>{overlay.remove();const canvas=usedOriginal?meta.original:active;resolve({confirmed:true,canvas,blob:await canvasBlob(canvas,.9),filter:usedOriginal?'original':'document',corners:meta.corners,documentDetected:meta.documentDetected,usedOriginal,quality:meta.quality,width:canvas.width,height:canvas.height});};overlay.querySelector('[data-action="confirm"]').onclick=()=>finish(false);overlay.querySelector('[data-action="original"]').onclick=()=>finish(true);overlay.querySelector('[data-action="cancel"]').onclick=()=>{overlay.remove();resolve({confirmed:false});}; }); }
-  function installStatusJsonpCompatibility() {
-    let attempts = 0;
-    const install = () => {
-      const current = root.jsonp;
-      if (typeof current !== 'function') {
-        attempts += 1;
-        if (attempts < 40) setTimeout(install, 50);
-        return;
-      }
-      if (current.__foxScannerStatusWrapped) return;
-      const wrapped = function(url, params, timeoutMs) {
-        const isStatus = Boolean(params && params.action === 'status');
-        const effectiveTimeout = isStatus && timeoutMs == null ? STATUS_JSONP_TIMEOUT_MS : timeoutMs;
-        return current(url, params, effectiveTimeout).catch(error => {
-          const message = String(error && error.message ? error.message : error || '');
-          if (isStatus && /не ответил вовремя|jsonp error|network|failed to fetch|failed to load/i.test(message)) {
-            const transient = new Error('timeout: ' + message);
-            transient.cause = error;
-            throw transient;
-          }
-          throw error;
-        });
-      };
-      wrapped.__foxScannerStatusWrapped = true;
-      root.jsonp = wrapped;
-    };
-    setTimeout(install, 0);
-  }
   class DocumentScanner { constructor(options){this.options=Object.assign({maxLongSide:1800,allowOriginal:true},options||{});} async process(file, labels){if(!file||!String(file.type||'').startsWith('image/'))throw new Error('Выбери изображение JPG или PNG.');const image=await loadImage(file),original=sourceCanvas(image,this.options.maxLongSide),meta={original,corners:null,documentDetected:false,quality:null};try{const cv=await loadOpenCv();const found=detect(original,cv);if(found){meta.corners=found.corners;meta.documentDetected=true;meta.areaRatio=found.areaRatio;meta.base=transform(original,found.corners,cv,this.options.maxLongSide);}else meta.base=original;}catch(error){console.warn('Document scanner fallback:',error);meta.base=original;}meta.quality=quality(meta.base,meta.areaRatio,meta.documentDetected);return openUi(meta.base,meta,labels||{});} }
   DocumentScanner.warmup = () => loadOpenCv(20000);
-  DocumentScanner.statusRequestTimeoutMs = STATUS_JSONP_TIMEOUT_MS;
   root.DocumentScanner = DocumentScanner;
-  installStatusJsonpCompatibility();
 })(window);
