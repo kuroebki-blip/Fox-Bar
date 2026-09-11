@@ -1,0 +1,165 @@
+from pathlib import Path
+
+index = Path('index.html')
+text = index.read_text()
+
+def replace_once(old, new):
+    global text
+    count = text.count(old)
+    if count != 1:
+        raise SystemExit(f'expected one match, got {count}: {old[:120]!r}')
+    text = text.replace(old, new, 1)
+
+replace_once("<title>FO'X App v15.16.1 — SECURE CALENDAR & STAFF ACCESS</title>", "<title>FO'X App v15.16.3 — RECEIPT POLLING RECOVERY</title>")
+replace_once('<script src="shared/document-scanner/document-scanner.js"></script>', '<script src="shared/document-scanner/document-scanner.js?v=15.16.3"></script>')
+
+marker = "const RECEIPT_MAX_OCR_TOTAL_BYTES = 12 * 1024 * 1024;\n"
+insert = marker + "const RECEIPT_STATUS_REQUEST_TIMEOUT_MS = 6500;\nconst RECEIPT_JOB_START_GRACE_MS = 30000;\nconst RECEIPT_POLL_INTERVAL_MS = 1500;\n\nfunction isTransientReceiptStatusError_(error){\n  const message=String(error&&error.message?error.message:error||'');\n  return /timeout|не ответил вовремя|jsonp error|network|failed to fetch|failed to load|load failed/i.test(message);\n}\nfunction getReceiptJobStatus_(jobId){\n  return jsonp(STOCK_API_URL,Object.assign({action:'status',jobId},receiptAuthParams()),RECEIPT_STATUS_REQUEST_TIMEOUT_MS);\n}\n"
+replace_once(marker, insert)
+
+old_wait = """async function waitForReceiptJob_(jobId,maxMs=25000){
+  const started=Date.now();
+  while(Date.now()-started<maxMs){
+    if(!receiptJobIsActive_(receiptJobId,jobId))throw new Error('Операция отменена.');
+    try{const res=await jsonp(STOCK_API_URL,Object.assign({action:'status',jobId},receiptAuthParams()));if(res&&res.ok)return res;}catch(_){}
+    await new Promise(resolve=>setTimeout(resolve,700));
+  }
+  throw new Error('Backend не создал задание для PDF.');
+}
+"""
+new_wait = """async function waitForReceiptJob_(jobId,maxMs=25000){
+  const started=Date.now();
+  while(Date.now()-started<maxMs){
+    if(!receiptJobIsActive_(receiptJobId,jobId))throw new Error('Операция отменена.');
+    try{
+      const res=await getReceiptJobStatus_(jobId);
+      if(res&&res.ok)return res;
+      if(res&&res.error&&!/не найден/i.test(String(res.error)))throw new Error(res.error);
+    }catch(error){
+      if(!isTransientReceiptStatusError_(error))throw error;
+    }
+    await new Promise(resolve=>setTimeout(resolve,700));
+  }
+  throw new Error('Backend не создал задание для PDF.');
+}
+"""
+replace_once(old_wait, new_wait)
+
+replace_once("async function uploadReceiptPdfForJob_(jobId,pagesSnapshot){", "async function uploadReceiptPdfForJob_(jobId,pagesSnapshot,knownStatus){")
+replace_once("    const ready=await waitForReceiptJob_(jobId,210000);", "    const ready=knownStatus||await waitForReceiptJob_(jobId,210000);")
+replace_once("      const next=await jsonp(STOCK_API_URL,Object.assign({action:'status',jobId},receiptAuthParams()));", "      const next=await getReceiptJobStatus_(jobId);")
+replace_once("      const status=await jsonp(STOCK_API_URL,Object.assign({action:'status',jobId},receiptAuthParams()));", "      let status=null;\n      try{status=await getReceiptJobStatus_(jobId);}catch(error){if(!isTransientReceiptStatusError_(error))throw error;}")
+
+old_start = """    postReceipt({action:'scanImages',jobId:receiptJobId,scanMode:mode,warehouse:document.getElementById('receiptWarehouse').value,pagesCount:pagesSnapshot.length,imagesJson:JSON.stringify(images)}).catch(()=>{});
+    // Полный PDF собирается и загружается параллельно, не блокируя Gemini.
+    receiptPdfUploadPromise=uploadReceiptPdfForJob_(activeJobId,pagesSnapshot);
+    receiptPdfUploadPromise.catch(()=>{});
+    const status=await pollReceiptJob(activeJobId,['DONE','ERROR'],210000);if(status.status==='ERROR')throw new Error(status.error||'Ошибка распознавания');
+    if(!receiptJobIsActive_(receiptJobId,activeJobId))throw new Error('Операция отменена.');
+    receiptResult=status.result||{};receiptResult.pdfUrl=status.pdfUrl||receiptResult.pdfUrl||'';renderReceiptRecognition(receiptResult);
+    saveReceiptDraft_();updateReceiptPdfRecoveryUi_();
+    setReceiptStatus('ok',mode==='check'?'Чек распознан. Проверь текст; PDF готовится параллельно.':'Документ распознан. Проверь позиции; PDF готовится параллельно.',1);hap('ok');
+"""
+new_start = """    postReceipt({action:'scanImages',jobId:receiptJobId,scanMode:mode,warehouse:document.getElementById('receiptWarehouse').value,pagesCount:pagesSnapshot.length,imagesJson:JSON.stringify(images)}).catch(()=>{});
+    // Сначала ждём только Gemini. Сборка PDF на iPhone заметно грузит CPU и раньше
+    // конкурировала с polling, из-за чего интерфейс выглядел зависшим.
+    const status=await pollReceiptJob(activeJobId,['DONE','ERROR'],210000);if(status.status==='ERROR')throw new Error(status.error||'Ошибка распознавания');
+    if(!receiptJobIsActive_(receiptJobId,activeJobId))throw new Error('Операция отменена.');
+    receiptResult=status.result||{};receiptResult.pdfUrl=status.pdfUrl||receiptResult.pdfUrl||'';renderReceiptRecognition(receiptResult);
+    saveReceiptDraft_();updateReceiptPdfRecoveryUi_();
+    setReceiptStatus('ok',mode==='check'?'Чек распознан. Проверь текст; PDF готовится в фоне.':'Документ распознан. Проверь позиции; PDF готовится в фоне.',1);hap('ok');
+    receiptPdfUploadPromise=new Promise(resolve=>setTimeout(resolve,50)).then(()=>uploadReceiptPdfForJob_(activeJobId,pagesSnapshot,status));
+    receiptPdfUploadPromise.catch(()=>{});
+"""
+replace_once(old_start, new_start)
+
+old_poll = """async function pollReceiptJob(jobId,finalStatuses,maxMs){
+  const token=++receiptPollingToken;const started=Date.now();let notFoundCount=0;
+  while(Date.now()-started<maxMs){
+    if(token!==receiptPollingToken) throw new Error('Операция отменена.');
+    try{const res=await jsonp(STOCK_API_URL,Object.assign({action:'status',jobId},receiptAuthParams()));if(res&&res.ok){setReceiptStatus(res.status==='ERROR'?'err':'',res.step||'Обработка…',Number(res.progress)||.2);if(finalStatuses.includes(res.status))return res;}else{notFoundCount++;if(notFoundCount>12&&res&&res.error&&!String(res.error).includes('не найден'))throw new Error(res.error);}}catch(err){if(Date.now()-started>30000&&!String(err&&err.message||err).includes('timeout'))throw err;}await new Promise(r=>setTimeout(r,2200));
+  }
+  throw new Error('Сервер отвечает слишком долго. Повтори через минуту.');
+}
+"""
+new_poll = """async function pollReceiptJob(jobId,finalStatuses,maxMs){
+  const token=++receiptPollingToken;const started=Date.now();let notFoundSince=0;let transientFailures=0;
+  while(Date.now()-started<maxMs){
+    if(token!==receiptPollingToken)throw new Error('Операция отменена.');
+    try{
+      const res=await getReceiptJobStatus_(jobId);
+      if(res&&res.ok){
+        notFoundSince=0;transientFailures=0;
+        setReceiptStatus(res.status==='ERROR'?'err':'',res.step||'Обработка…',Number(res.progress)||.2);
+        if(finalStatuses.includes(res.status))return res;
+      }else if(res&&/не найден/i.test(String(res.error||''))){
+        if(!notFoundSince)notFoundSince=Date.now();
+        if(Date.now()-notFoundSince>=RECEIPT_JOB_START_GRACE_MS)throw new Error('Backend не получил изображения. Проверь соединение и повтори попытку.');
+      }else if(res&&res.error){
+        throw new Error(res.error);
+      }
+    }catch(error){
+      if(!isTransientReceiptStatusError_(error))throw error;
+      transientFailures+=1;
+      if(transientFailures>=3)setReceiptStatus('warn','Связь с сервером нестабильна, продолжаю ждать результат…',.2);
+    }
+    await new Promise(resolve=>setTimeout(resolve,RECEIPT_POLL_INTERVAL_MS));
+  }
+  throw new Error('Распознавание не завершилось вовремя. Фото сохранены — повтори попытку позже.');
+}
+"""
+replace_once(old_poll, new_poll)
+index.write_text(text)
+
+scanner = Path('shared/document-scanner/document-scanner.js')
+s = scanner.read_text()
+s = s.replace("  const STATUS_JSONP_TIMEOUT_MS = 6500;\n", "", 1)
+block_start = s.index("  function installStatusJsonpCompatibility() {")
+block_end = s.index("  class DocumentScanner", block_start)
+s = s[:block_start] + s[block_end:]
+s = s.replace("  DocumentScanner.statusRequestTimeoutMs = STATUS_JSONP_TIMEOUT_MS;\n", "")
+s = s.replace("  installStatusJsonpCompatibility();\n", "")
+scanner.write_text(s)
+
+test = Path('tests/receipts/scanner_polling_resilience.test.js')
+test.write_text("""const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const frontend = fs.readFileSync(path.join(__dirname, '../../index.html'), 'utf8');
+const scanner = fs.readFileSync(path.join(__dirname, '../../shared/document-scanner/document-scanner.js'), 'utf8');
+
+test('receipt polling uses an explicit short status timeout', () => {
+  assert.match(frontend, /RECEIPT_STATUS_REQUEST_TIMEOUT_MS\\s*=\\s*6500/);
+  assert.match(frontend, /function getReceiptJobStatus_[\\s\\S]*?RECEIPT_STATUS_REQUEST_TIMEOUT_MS/);
+  assert.match(frontend, /timeout\\|не ответил вовремя\\|jsonp error\\|network\\|failed to fetch/);
+});
+
+test('scanner no longer relies on a global JSONP monkey patch', () => {
+  assert.doesNotMatch(scanner, /installStatusJsonpCompatibility/);
+  assert.doesNotMatch(scanner, /__foxScannerStatusWrapped/);
+});
+
+test('OCR finishes before PDF work starts', () => {
+  const start = frontend.indexOf('async function startReceiptRecognition');
+  const end = frontend.indexOf('async function pollReceiptJob', start);
+  const body = frontend.slice(start, end);
+  const poll = body.indexOf("pollReceiptJob(activeJobId,['DONE','ERROR'],210000)");
+  const pdf = body.indexOf('uploadReceiptPdfForJob_(activeJobId,pagesSnapshot,status)');
+  assert.ok(poll >= 0 && pdf > poll, 'PDF upload must start after OCR polling completes');
+});
+
+test('missing upload fails fast instead of hanging for the full OCR timeout', () => {
+  assert.match(frontend, /RECEIPT_JOB_START_GRACE_MS\\s*=\\s*30000/);
+  assert.match(frontend, /Backend не получил изображения/);
+});
+""")
+
+changelog = Path('CHANGELOG.md')
+c = changelog.read_text()
+anchor = '## Unreleased\n\n'
+entry = "- FO’X `v15.16.3`: сканер документов/чеков больше не строит PDF одновременно с Gemini OCR на мобильном устройстве, использует один явный устойчивый status-polling без глобального JSONP monkey-patch и прекращает ожидание через 30 секунд, если backend вообще не получил тяжёлый upload. Добавлен cache-busting для scanner JS, чтобы Telegram WebView гарантированно получил исправление.\n\n"
+if entry not in c:
+    c = c.replace(anchor, anchor + entry, 1)
+changelog.write_text(c)
