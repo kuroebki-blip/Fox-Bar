@@ -6,17 +6,27 @@ const path = require('node:path');
 const frontend = fs.readFileSync(path.join(__dirname, '../../index.html'), 'utf8');
 const scanner = fs.readFileSync(path.join(__dirname, '../../shared/document-scanner/document-scanner.js'), 'utf8');
 
-test('document scanner wraps status JSONP with a short timeout', () => {
-  assert.match(scanner, /STATUS_JSONP_TIMEOUT_MS\s*=\s*6500/);
-  assert.match(scanner, /params\s*&&\s*params\.action\s*===\s*'status'/);
-  assert.match(scanner, /effectiveTimeout\s*=\s*isStatus\s*&&\s*timeoutMs\s*==\s*null\s*\?\s*STATUS_JSONP_TIMEOUT_MS/);
+test('receipt polling uses an explicit short status timeout', () => {
+  assert.match(frontend, /RECEIPT_STATUS_REQUEST_TIMEOUT_MS\s*=\s*6500/);
+  assert.match(frontend, /function getReceiptJobStatus_[\s\S]*?RECEIPT_STATUS_REQUEST_TIMEOUT_MS/);
+  assert.match(frontend, /timeout\|не ответил вовремя\|jsonp error\|network\|failed to fetch/);
 });
 
-test('Russian JSONP timeout is normalized as transient timeout', () => {
-  assert.match(scanner, /не ответил вовремя\|jsonp error\|network\|failed to fetch\|failed to load/i);
-  assert.match(scanner, /new Error\('timeout: '\s*\+\s*message\)/);
+test('scanner no longer relies on a global JSONP monkey patch', () => {
+  assert.doesNotMatch(scanner, /installStatusJsonpCompatibility/);
+  assert.doesNotMatch(scanner, /__foxScannerStatusWrapped/);
 });
 
-test('receipt polling already keeps transient timeout errors alive', () => {
-  assert.match(frontend, /async function pollReceiptJob[\s\S]*?includes\('timeout'\)[\s\S]*?210000|pollReceiptJob\(activeJobId,\['DONE','ERROR'\],210000\)/);
+test('OCR finishes before PDF work starts', () => {
+  const start = frontend.indexOf('async function startReceiptRecognition');
+  const end = frontend.indexOf('async function pollReceiptJob', start);
+  const body = frontend.slice(start, end);
+  const poll = body.indexOf("pollReceiptJob(activeJobId,['DONE','ERROR'],210000)");
+  const pdf = body.indexOf('uploadReceiptPdfForJob_(activeJobId,pagesSnapshot,status)');
+  assert.ok(poll >= 0 && pdf > poll, 'PDF upload must start after OCR polling completes');
+});
+
+test('missing upload fails fast instead of hanging for the full OCR timeout', () => {
+  assert.match(frontend, /RECEIPT_JOB_START_GRACE_MS\s*=\s*30000/);
+  assert.match(frontend, /Backend не получил изображения/);
 });
