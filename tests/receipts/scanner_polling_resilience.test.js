@@ -30,3 +30,12 @@ test('missing upload fails fast instead of hanging for the full OCR timeout', ()
   assert.match(frontend, /RECEIPT_JOB_START_GRACE_MS\s*=\s*30000/);
   assert.match(frontend, /Backend не получил изображения/);
 });
+
+test('FO\'X inline frontend JavaScript compiles', () => {
+  const scripts = [...frontend.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
+    .map(match => match[1])
+    .filter(Boolean);
+  const inline = scripts.at(-1) || '';
+  assert.ok(inline.includes('startReceiptRecognition'), 'main inline script not found');
+  assert.doesNotThrow(() => new Function(inline));
+});
