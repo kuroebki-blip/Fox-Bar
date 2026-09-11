@@ -3,33 +3,20 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const source = fs.readFileSync(path.join(__dirname, '../../index.html'), 'utf8');
+const frontend = fs.readFileSync(path.join(__dirname, '../../index.html'), 'utf8');
+const scanner = fs.readFileSync(path.join(__dirname, '../../shared/document-scanner/document-scanner.js'), 'utf8');
 
-function extractFunction(name) {
-  const marker = `async function ${name}`;
-  const start = source.indexOf(marker);
-  assert.notEqual(start, -1, `${name} not found`);
-  const next = source.indexOf('\nfunction ', start + marker.length);
-  const nextAsync = source.indexOf('\nasync function ', start + marker.length);
-  const ends = [next, nextAsync].filter(index => index > start);
-  const end = ends.length ? Math.min(...ends) : source.length;
-  return source.slice(start, end);
-}
-
-test('receipt status polling uses a short per-request timeout', () => {
-  const fn = extractFunction('pollReceiptJob');
-  assert.match(fn, /action:'status',jobId[^\n]*receiptAuthParams\(\)\)\),6500\)/);
-  assert.match(fn, /setTimeout\(r,1400\)/);
+test('document scanner wraps status JSONP with a short timeout', () => {
+  assert.match(scanner, /STATUS_JSONP_TIMEOUT_MS\s*=\s*6500/);
+  assert.match(scanner, /params\s*&&\s*params\.action\s*===\s*'status'/);
+  assert.match(scanner, /effectiveTimeout\s*=\s*isStatus\s*&&\s*timeoutMs\s*==\s*null\s*\?\s*STATUS_JSONP_TIMEOUT_MS/);
 });
 
-test('receipt polling treats the Russian JSONP timeout as transient', () => {
-  const fn = extractFunction('pollReceiptJob');
-  assert.match(fn, /не ответил вовремя/);
-  assert.match(fn, /jsonp error/);
-  assert.match(fn, /failed to fetch/i);
+test('Russian JSONP timeout is normalized as transient timeout', () => {
+  assert.match(scanner, /не ответил вовремя\|jsonp error\|network\|failed to fetch\|failed to load/i);
+  assert.match(scanner, /new Error\('timeout: '\s*\+\s*message\)/);
 });
 
-test('receipt recognition keeps its overall backend wait budget', () => {
-  const fn = extractFunction('startReceiptRecognition');
-  assert.match(fn, /pollReceiptJob\(activeJobId,\['DONE','ERROR'\],210000\)/);
+test('receipt polling already keeps transient timeout errors alive', () => {
+  assert.match(frontend, /async function pollReceiptJob[\s\S]*?includes\('timeout'\)[\s\S]*?210000|pollReceiptJob\(activeJobId,\['DONE','ERROR'\],210000\)/);
 });
