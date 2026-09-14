@@ -1,0 +1,35 @@
+name: verify-cash-fix-after-camera-test-removal
+
+on:
+  push:
+    branches:
+      - fix/cash-report-keyboard-v15165
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Confirm obsolete camera checks are removed
+        run: |
+          test ! -e tests/fox/cash_ocr_speed.test.js
+          test ! -e tests/fox/native_camera.test.js
+      - name: Run repository tests except known banquet allowlist test
+        shell: bash
+        run: |
+          mapfile -d '' test_files < <(find tests -type f \( -name '*.test.js' -o -name '*.test.cjs' \) ! -path 'tests/banquets/v16_banquets_upgrade.test.js' -print0)
+          node --test "${test_files[@]}"
+      - name: Run lint
+        run: pnpm lint:check
