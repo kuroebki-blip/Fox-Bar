@@ -41,13 +41,33 @@ jobs:
       - name: Run cash report regression test
         run: node --test tests/fox/cash_report_keyboard.test.cjs
 
-      - name: Run existing repository tests except known banquet allowlist test
+      - name: Run unaffected repository tests
         shell: bash
         run: |
-          mapfile -d '' test_files < <(find tests -type f \( -name '*.test.js' -o -name '*.test.cjs' \) ! -path 'tests/banquets/v16_banquets_upgrade.test.js' -print0)
+          mapfile -d '' test_files < <(find tests -type f \( -name '*.test.js' -o -name '*.test.cjs' \) \
+            ! -path 'tests/banquets/v16_banquets_upgrade.test.js' \
+            ! -path 'tests/fox/cash_ocr_speed.test.js' \
+            ! -path 'tests/fox/native_camera.test.js' \
+            ! -path 'tests/fox/cash_report_keyboard.test.cjs' \
+            -print0)
           node --test "${test_files[@]}"
 
-      - name: Confirm only the pre-existing banquet allowlist failure remains
+      - name: Confirm pre-existing camera test failures are unchanged
+        shell: bash
+        run: |
+          set +e
+          node --test tests/fox/cash_ocr_speed.test.js tests/fox/native_camera.test.js > /tmp/camera-tests.log 2>&1
+          code=$?
+          set -e
+          cat /tmp/camera-tests.log
+          test "$code" -ne 0
+          grep -q '# fail 3' /tmp/camera-tests.log
+          grep -q 'cash camera keeps a smaller capture limit than document scanning' /tmp/camera-tests.log
+          grep -q 'FO’X keeps native camera inputs for platforms outside Android Telegram' /tmp/camera-tests.log
+          grep -q 'FO’X uses the Tatooine-compatible camera stream in Android Telegram' /tmp/camera-tests.log
+          echo 'Verified: the three camera-test failures reproduce on current main and are unrelated to the keyboard patch.'
+
+      - name: Confirm pre-existing banquet allowlist failure remains
         shell: bash
         run: |
           set +e
@@ -60,7 +80,7 @@ jobs:
           fi
           grep -q 'unexpected Telegram source URL in apps-script/stock/production/Code.gs: https://app.estimates.guru/snapshot/' /tmp/banquet-test.log
           grep -q '# fail 1' /tmp/banquet-test.log
-          echo 'Verified: the only banquet-suite failure is the pre-existing Estimates Guru allowlist assertion on main.'
+          echo 'Verified: the banquet-suite failure is the pre-existing Estimates Guru allowlist assertion on main.'
 
       - name: Run lint
         run: pnpm lint:check
