@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.16.4 — COMPACT PDF UPLOAD</title>
+<title>FO'X App v15.16.5 — CASH REPORT KEYBOARD DISMISS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -3273,6 +3273,48 @@ let cashReportPrepayments=[];
 let cashReportPollingToken=0;
 let cashReportRecognitionInFlight=false;
 const CASH_REPORT_RECOGNITION_MAX_WAIT_MS=45000;
+const CASH_REPORT_EDITOR_SELECTOR='input, textarea, select, [contenteditable="true"]';
+const CASH_REPORT_INTERACTIVE_SELECTOR='input, textarea, select, button, a, label, [contenteditable="true"]';
+
+function cashReportActiveEditor_(){
+  const active=document.activeElement;
+  const screen=document.getElementById('cashReportScreen');
+  return active&&screen&&screen.contains(active)&&active.matches&&active.matches(CASH_REPORT_EDITOR_SELECTOR)?active:null;
+}
+function setCashReportTelegramVerticalSwipes_(editing){
+  if(!TG)return;
+  try{
+    if(editing&&typeof TG.enableVerticalSwipes==='function')TG.enableVerticalSwipes();
+    else if(!editing&&typeof TG.disableVerticalSwipes==='function')TG.disableVerticalSwipes();
+  }catch(e){}
+}
+function blurCashReportEditor_(){
+  const active=cashReportActiveEditor_();
+  if(!active)return false;
+  active.blur();
+  return true;
+}
+function cashReportOutsideInteraction_(event){
+  const active=cashReportActiveEditor_();
+  if(!active)return;
+  const target=event&&event.target;
+  if(target&&target.closest&&target.closest(CASH_REPORT_INTERACTIVE_SELECTOR))return;
+  blurCashReportEditor_();
+}
+function installCashReportKeyboardDismiss_(){
+  const screen=document.getElementById('cashReportScreen');
+  if(!screen||screen.dataset.keyboardDismissBound==='1')return;
+  screen.dataset.keyboardDismissBound='1';
+  screen.addEventListener('focusin',event=>{
+    const target=event&&event.target;
+    if(target&&target.matches&&target.matches(CASH_REPORT_EDITOR_SELECTOR))setCashReportTelegramVerticalSwipes_(true);
+  });
+  screen.addEventListener('focusout',()=>{
+    setTimeout(()=>{if(!cashReportActiveEditor_())setCashReportTelegramVerticalSwipes_(false);},0);
+  });
+  if(window.PointerEvent)screen.addEventListener('pointerdown',cashReportOutsideInteraction_,{capture:true});
+  else screen.addEventListener('touchend',cashReportOutsideInteraction_,{capture:true,passive:true});
+}
 
 function openCashReportSection(){
   if(!isStockApiConfigured()){
@@ -3502,6 +3544,7 @@ const cashReportRetry=document.getElementById('cashReportRetry');if(cashReportRe
 document.getElementById('cashReportAddSlip').addEventListener('click',addCashTerminalSlip);
 document.getElementById('cashReportAddPrepayment').addEventListener('click',addCashPrepayment);
 document.getElementById('cashReportSend').addEventListener('click',sendCashReportToTelegram);
+installCashReportKeyboardDismiss_();
 
 switchTab(DATA[0].id);
 refresh();
