@@ -1,0 +1,68 @@
+name: cash-report-keyboard-v15165
+
+on:
+  push:
+    branches:
+      - fix/cash-report-keyboard-v15165
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: fix/cash-report-keyboard-v15165
+          fetch-depth: 0
+
+      - name: Apply scoped cash report fix
+        run: node scripts/patch_cash_report_keyboard_v15165.cjs
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20.19.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run cash report regression test
+        run: node --test tests/fox/cash_report_keyboard.test.cjs
+
+      - name: Run all repository tests
+        shell: bash
+        run: |
+          mapfile -d '' test_files < <(find tests -type f \( -name '*.test.js' -o -name '*.test.cjs' \) -print0)
+          node --test "${test_files[@]}"
+
+      - name: Run lint
+        run: pnpm lint:check
+
+      - name: Validate diff and secrets
+        shell: bash
+        run: |
+          git add index.html CHANGELOG.md tests/fox/cash_report_keyboard.test.cjs
+          git diff --cached --check
+          pattern='AIza[0-9A-Za-z_-]{30,}|[0-9]{8,10}:[0-9A-Za-z_-]{30,}|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|cloudinary://[^[:space:]]+'
+          if git diff --cached --name-only -z | xargs -0 grep -El "$pattern"; then
+            echo 'Potential secret pattern found in changed files.'
+            exit 1
+          fi
+
+      - name: Commit fix
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "fix: dismiss FO'X cash report keyboard"
+          git push origin HEAD:fix/cash-report-keyboard-v15165
