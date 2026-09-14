@@ -20,7 +20,9 @@ jobs:
           fetch-depth: 0
 
       - name: Apply scoped cash report fix
-        run: node scripts/patch_cash_report_keyboard_v15165.cjs
+        run: |
+          node scripts/patch_cash_report_keyboard_v15165.cjs
+          node scripts/write_cash_report_keyboard_test.cjs
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
