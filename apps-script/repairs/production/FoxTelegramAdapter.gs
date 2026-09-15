@@ -1,58 +1,80 @@
 /**
  * FO’X Telegram -> Galaxy Repairs adapter.
  *
- * This file is intended to live in the existing FO’X Telegram Apps Script project.
- * It does not store repair data locally. It forwards confirmed repair tickets to
- * the separate Galaxy Repair Backend.
+ * This file lives in the existing FO’X stock / Telegram Apps Script project.
+ * Repair tickets are stored only in the separate Galaxy Repair Backend.
  *
- * Required Script Properties in the FO’X Telegram Apps Script project:
+ * Required Script Properties:
  * - TELEGRAM_BOT_TOKEN
  * - REPAIR_BACKEND_URL
  * - REPAIR_API_KEY
- *
- * IMPORTANT: Telegram supports only one webhook per bot. Do NOT point the FO’X bot
- * directly at the Repair Backend. Keep the existing FO’X webhook and route repair
- * updates through foxRepairHandleTelegramUpdate_(update).
  */
 
-const FOX_REPAIR_TG = {
-  venueId: 'fox',
-  draftTtlSeconds: 6 * 60 * 60,
-  callbackPrefix: 'repair:',
-  zones: {
-    bar: 'Бар',
-    kitchen: 'Кухня',
-    hall: 'Зал',
-    back: 'Бэк'
-  }
-};
+function foxRepairConfig_() {
+  return {
+    venueId: 'fox',
+    draftTtlSeconds: 6 * 60 * 60,
+    callbackPrefix: 'repair:',
+    zones: {
+      bar: 'Бар',
+      kitchen: 'Кухня',
+      hall: 'Зал',
+      back: 'Бэк'
+    }
+  };
+}
 
-/**
- * Call this from the existing Telegram webhook before banquet-specific processing.
- * Returns true when the update belongs to the Repair flow and was fully handled.
- */
 function foxRepairHandleTelegramUpdate_(update) {
   update = update || {};
-
-  if (update.callback_query) {
-    return foxRepairHandleCallback_(update.callback_query);
-  }
-
-  if (update.message) {
-    return foxRepairHandleMessage_(update.message);
-  }
-
+  if (update.callback_query) return foxRepairHandleCallback_(update.callback_query);
+  if (update.message) return foxRepairHandleMessage_(update.message);
   return false;
 }
 
-/** Button that can be placed next to the existing Fo'x App button. */
 function foxRepairStartButton_() {
   return { text: '🔧 Ремонт', callback_data: 'repair:start' };
 }
 
+function foxRepairSendTestButton() {
+  const props = PropertiesService.getScriptProperties();
+  const token = String(props.getProperty('TELEGRAM_BOT_TOKEN') || '').trim();
+  if (!token) throw new Error('Не задан TELEGRAM_BOT_TOKEN.');
+
+  const chatId = String(
+    props.getProperty('TELEGRAM_TARGET_CHAT_ID') ||
+    props.getProperty('CASH_STYLE_CHAT_ID') ||
+    ''
+  ).trim();
+  if (!chatId) throw new Error('Не найден Telegram chat ID. Нужен TELEGRAM_TARGET_CHAT_ID или CASH_STYLE_CHAT_ID.');
+
+  const response = UrlFetchApp.fetch(
+    'https://api.telegram.org/bot' + token + '/sendMessage',
+    {
+      method: 'post',
+      payload: {
+        chat_id: chatId,
+        text: 'FO’X\n\nВыбери действие:',
+        reply_markup: JSON.stringify({
+          inline_keyboard: [[{ text: '🔧 Ремонт', callback_data: 'repair:start' }]]
+        })
+      },
+      muteHttpExceptions: true
+    }
+  );
+
+  Logger.log('HTTP ' + response.getResponseCode());
+  Logger.log(response.getContentText());
+  if (response.getResponseCode() < 200 || response.getResponseCode() >= 300) {
+    throw new Error('Telegram sendMessage error: ' + response.getContentText());
+  }
+  return response.getContentText();
+}
+
 function foxRepairHandleCallback_(query) {
-  const data = String(query && query.data || '');
-  if (data.indexOf(FOX_REPAIR_TG.callbackPrefix) !== 0) return false;
+  query = query || {};
+  const config = foxRepairConfig_();
+  const data = String(query.data || '');
+  if (data.indexOf(config.callbackPrefix) !== 0) return false;
 
   const message = query.message || {};
   const chatId = String(message.chat && message.chat.id || '');
@@ -68,13 +90,14 @@ function foxRepairHandleCallback_(query) {
       description: '',
       photoFileId: '',
       zoneId: '',
-      urgency: 'normal'
+      urgency: 'normal',
+      sourceMessageId: ''
     });
-
-    foxRepairSendMessage_(chatId,
+    foxRepairSendMessage_(
+      chatId,
       '🔧 <b>Новая заявка на ремонт</b>\n\n' +
-      'Опиши, что случилось. Можно обычным сообщением и сразу прислать фото.\n\n' +
-      'Когда данных будет достаточно, я покажу заявку перед отправкой.',
+      'Опиши, что случилось.\n\n' +
+      'Можно написать сообщение и приложить фото.',
       null
     );
     return true;
@@ -82,7 +105,7 @@ function foxRepairHandleCallback_(query) {
 
   if (data.indexOf('repair:zone:') === 0) {
     const zoneId = data.substring('repair:zone:'.length);
-    if (!FOX_REPAIR_TG.zones[zoneId]) return true;
+    if (!config.zones[zoneId]) return true;
     const draft = foxRepairLoadDraft_(chatId, userId);
     if (!draft) {
       foxRepairSendMessage_(chatId, 'Черновик заявки устарел. Нажми «🔧 Ремонт» ещё раз.', null);
@@ -100,7 +123,6 @@ function foxRepairHandleCallback_(query) {
       foxRepairSendMessage_(chatId, 'Черновик заявки устарел. Нажми «🔧 Ремонт» ещё раз.', null);
       return true;
     }
-
     if (!String(draft.description || '').trim()) {
       foxRepairSendMessage_(chatId, 'Сначала напиши, что сломалось.', null);
       return true;
@@ -112,11 +134,11 @@ function foxRepairHandleCallback_(query) {
 
     const ticket = foxRepairCreateTicket_(draft, user);
     foxRepairDeleteDraft_(chatId, userId);
-
-    foxRepairSendMessage_(chatId,
+    foxRepairSendMessage_(
+      chatId,
       '✅ <b>Заявка создана</b>\n\n' +
       '<b>' + foxRepairEscapeHtml_(ticket.ticketId) + '</b>\n' +
-      foxRepairEscapeHtml_(ticket.venueName) + ' · ' + foxRepairEscapeHtml_(ticket.zoneName) + '\n' +
+      foxRepairEscapeHtml_(ticket.venueName) + ' · ' + foxRepairEscapeHtml_(ticket.zoneName) + '\n\n' +
       foxRepairEscapeHtml_(ticket.description),
       null
     );
@@ -131,7 +153,7 @@ function foxRepairHandleCallback_(query) {
     }
     draft.stage = 'collecting';
     foxRepairSaveDraft_(chatId, userId, draft);
-    foxRepairSendMessage_(chatId, 'Напиши исправленное описание или пришли другое фото.', null);
+    foxRepairSendMessage_(chatId, 'Напиши новое описание. Можно также прислать другое фото.', null);
     return true;
   }
 
@@ -145,6 +167,7 @@ function foxRepairHandleCallback_(query) {
 }
 
 function foxRepairHandleMessage_(message) {
+  message = message || {};
   const chatId = String(message.chat && message.chat.id || '');
   const user = message.from || {};
   const userId = String(user.id || '');
@@ -156,23 +179,20 @@ function foxRepairHandleMessage_(message) {
   const text = String(message.text || message.caption || '').trim();
   if (text) {
     draft.description = text;
-    const inferredZone = foxRepairInferZone_(text);
-    if (inferredZone) draft.zoneId = inferredZone;
+    const zone = foxRepairInferZone_(text);
+    if (zone) draft.zoneId = zone;
     draft.urgency = foxRepairInferUrgency_(text);
   }
 
-  const photos = message.photo || [];
-  if (photos.length) {
-    draft.photoFileId = String(photos[photos.length - 1].file_id || '');
-  }
-
+  const photos = Array.isArray(message.photo) ? message.photo : [];
+  if (photos.length) draft.photoFileId = String(photos[photos.length - 1].file_id || '');
+  draft.sourceMessageId = String(message.message_id || '');
   foxRepairSaveDraft_(chatId, userId, draft);
 
   if (!String(draft.description || '').trim()) {
-    foxRepairSendMessage_(chatId, 'Фото получил. Теперь коротко напиши, что случилось.', null);
+    foxRepairSendMessage_(chatId, 'Фото получил ✅\n\nТеперь коротко напиши, что произошло.', null);
     return true;
   }
-
   if (!draft.zoneId) {
     foxRepairAskZone_(chatId);
     return true;
@@ -183,59 +203,68 @@ function foxRepairHandleMessage_(message) {
 }
 
 function foxRepairAskZone_(chatId) {
-  foxRepairSendMessage_(chatId,
-    'Где проблема?',
-    {
-      inline_keyboard: [
-        [
-          { text:'🍸 Бар', callback_data:'repair:zone:bar' },
-          { text:'🍳 Кухня', callback_data:'repair:zone:kitchen' }
-        ],
-        [
-          { text:'🪑 Зал', callback_data:'repair:zone:hall' },
-          { text:'📦 Бэк', callback_data:'repair:zone:back' }
-        ],
-        [ { text:'✕ Отмена', callback_data:'repair:cancel' } ]
-      ]
-    }
-  );
+  foxRepairSendMessage_(chatId, 'Где находится проблема?', {
+    inline_keyboard: [
+      [
+        { text: '🍸 Бар', callback_data: 'repair:zone:bar' },
+        { text: '🍳 Кухня', callback_data: 'repair:zone:kitchen' }
+      ],
+      [
+        { text: '🪑 Зал', callback_data: 'repair:zone:hall' },
+        { text: '📦 Бэк', callback_data: 'repair:zone:back' }
+      ],
+      [{ text: '✕ Отмена', callback_data: 'repair:cancel' }]
+    ]
+  });
 }
 
 function foxRepairShowConfirmation_(chatId, userId, draft) {
+  const config = foxRepairConfig_();
   draft.stage = 'confirmation';
   foxRepairSaveDraft_(chatId, userId, draft);
 
-  const zoneName = FOX_REPAIR_TG.zones[draft.zoneId] || draft.zoneId;
-  const urgencyLabel = draft.urgency === 'critical' ? 'Критичная' : draft.urgency === 'urgent' ? 'Срочная' : 'Обычная';
-  const photoLine = draft.photoFileId ? '\nФото: ✅' : '\nФото: нет';
+  const zoneName = config.zones[draft.zoneId] || draft.zoneId;
+  const urgencyLabel = draft.urgency === 'critical'
+    ? '🔴 Критичная'
+    : draft.urgency === 'urgent'
+      ? '🟠 Срочная'
+      : '🟢 Обычная';
+  const photoLine = draft.photoFileId ? 'Фото: ✅' : 'Фото: нет';
 
-  foxRepairSendMessage_(chatId,
-    'Проверь заявку:\n\n' +
-    '<b>FO’X · ' + foxRepairEscapeHtml_(zoneName) + '</b>\n' +
-    foxRepairEscapeHtml_(draft.description) + '\n' +
-    'Срочность: ' + urgencyLabel +
-    photoLine,
+  foxRepairSendMessage_(
+    chatId,
+    '🔧 <b>Проверь заявку</b>\n\n' +
+    '<b>Ресторан:</b> FO’X\n' +
+    '<b>Зона:</b> ' + foxRepairEscapeHtml_(zoneName) + '\n\n' +
+    '<b>Проблема:</b>\n' + foxRepairEscapeHtml_(draft.description) + '\n\n' +
+    '<b>Срочность:</b> ' + urgencyLabel + '\n' + photoLine,
     {
       inline_keyboard: [
-        [ { text:'✅ Отправить', callback_data:'repair:send' } ],
-        [ { text:'✏️ Изменить', callback_data:'repair:edit' }, { text:'✕ Отмена', callback_data:'repair:cancel' } ]
+        [{ text: '✅ Отправить', callback_data: 'repair:send' }],
+        [
+          { text: '✏️ Изменить', callback_data: 'repair:edit' },
+          { text: '✕ Отмена', callback_data: 'repair:cancel' }
+        ]
       ]
     }
   );
 }
 
 function foxRepairCreateTicket_(draft, user) {
+  const config = foxRepairConfig_();
   const props = PropertiesService.getScriptProperties();
   const url = String(props.getProperty('REPAIR_BACKEND_URL') || '').trim();
-  const apiKey = String(props.getProperty('REPAIR_API_KEY') || '');
+  const apiKey = String(props.getProperty('REPAIR_API_KEY') || '').trim();
   if (!url) throw new Error('Не задан REPAIR_BACKEND_URL.');
   if (!apiKey) throw new Error('Не задан REPAIR_API_KEY.');
 
-  const userName = [user.first_name, user.last_name].filter(Boolean).join(' ').trim() || user.username || 'Telegram user';
+  const userName = [user.first_name, user.last_name].filter(Boolean).join(' ').trim() ||
+    String(user.username || '').trim() || 'Telegram user';
+
   const payload = {
     apiKey: apiKey,
     action: 'createTicket',
-    venueId: FOX_REPAIR_TG.venueId,
+    venueId: config.venueId,
     zoneId: draft.zoneId,
     description: draft.description,
     urgency: draft.urgency || 'normal',
@@ -243,7 +272,7 @@ function foxRepairCreateTicket_(draft, user) {
     authorTelegramId: String(user.id || ''),
     authorName: userName,
     source: 'telegram_fox',
-    externalEventId: 'tg:' + String(draft.sourceMessageId || '') + ':' + String(user.id || '')
+    externalEventId: ['telegram', 'fox', String(user.id || ''), String(draft.sourceMessageId || '')].join(':')
   };
 
   const response = UrlFetchApp.fetch(url, {
@@ -253,28 +282,29 @@ function foxRepairCreateTicket_(draft, user) {
     muteHttpExceptions: true
   });
 
-  const code = response.getResponseCode();
+  const responseCode = response.getResponseCode();
+  const responseText = response.getContentText();
   let body = {};
-  try { body = JSON.parse(response.getContentText()); } catch (_) {}
-  if (code < 200 || code >= 300 || !body.ok || !body.ticket) {
-    throw new Error('Repair Backend error: ' + String(body.error || code));
+  try { body = JSON.parse(responseText); } catch (_) {}
+  if (responseCode < 200 || responseCode >= 300 || !body.ok || !body.ticket) {
+    throw new Error('Repair Backend error: ' + String(body.error || responseText || responseCode));
   }
   return body.ticket;
 }
 
 function foxRepairInferZone_(text) {
   const value = String(text || '').toLowerCase();
-  if (/\bбар\b|стойк|барн/.test(value)) return 'bar';
-  if (/кухн|повар|печ|плит|фритюр|холодиль/.test(value)) return 'kitchen';
-  if (/\bзал\b|стол|стул|диван|гостев/.test(value)) return 'hall';
-  if (/бэк|склад|подсоб|раздевал|коридор/.test(value)) return 'back';
+  if (/\bбар\b|барн|стойк|кран на баре|мойк на баре/.test(value)) return 'bar';
+  if (/кухн|повар|печь|печк|плит|фритюр|холодильник|пароконвект|гриль/.test(value)) return 'kitchen';
+  if (/\bзал\b|стол|стул|диван|гостев|входн.*двер|витрин/.test(value)) return 'hall';
+  if (/бэк|склад|подсоб|раздевал|коридор|служеб/.test(value)) return 'back';
   return '';
 }
 
 function foxRepairInferUrgency_(text) {
   const value = String(text || '').toLowerCase();
-  if (/пожар|дым|искрит|ток|затоп|льет водой|авар/.test(value)) return 'critical';
-  if (/срочно|течет|протека|не работает совсем|сломал/.test(value)) return 'urgent';
+  if (/пожар|дым|искрит|удар ток|бьет ток|бьёт ток|затоп|авар|коротит/.test(value)) return 'critical';
+  if (/срочно|течет|течёт|протека|не работает совсем|сломал|сломано|сломался/.test(value)) return 'urgent';
   return 'normal';
 }
 
@@ -292,7 +322,7 @@ function foxRepairSaveDraft_(chatId, userId, draft) {
   CacheService.getScriptCache().put(
     foxRepairDraftKey_(chatId, userId),
     JSON.stringify(draft || {}),
-    FOX_REPAIR_TG.draftTtlSeconds
+    foxRepairConfig_().draftTtlSeconds
   );
 }
 
@@ -301,8 +331,9 @@ function foxRepairDeleteDraft_(chatId, userId) {
 }
 
 function foxRepairSendMessage_(chatId, text, replyMarkup) {
-  const token = String(PropertiesService.getScriptProperties().getProperty('TELEGRAM_BOT_TOKEN') || '');
+  const token = String(PropertiesService.getScriptProperties().getProperty('TELEGRAM_BOT_TOKEN') || '').trim();
   if (!token) throw new Error('Не задан TELEGRAM_BOT_TOKEN.');
+
   const payload = {
     chat_id: chatId,
     text: text,
@@ -311,25 +342,29 @@ function foxRepairSendMessage_(chatId, text, replyMarkup) {
   };
   if (replyMarkup) payload.reply_markup = JSON.stringify(replyMarkup);
 
-  const response = UrlFetchApp.fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
-    method: 'post',
-    payload: payload,
-    muteHttpExceptions: true
-  });
+  const response = UrlFetchApp.fetch(
+    'https://api.telegram.org/bot' + token + '/sendMessage',
+    { method: 'post', payload: payload, muteHttpExceptions: true }
+  );
   if (response.getResponseCode() < 200 || response.getResponseCode() >= 300) {
     throw new Error('Telegram sendMessage error: ' + response.getContentText());
   }
+  return response.getContentText();
 }
 
 function foxRepairAnswerCallback_(callbackQueryId) {
   if (!callbackQueryId) return;
-  const token = String(PropertiesService.getScriptProperties().getProperty('TELEGRAM_BOT_TOKEN') || '');
+  const token = String(PropertiesService.getScriptProperties().getProperty('TELEGRAM_BOT_TOKEN') || '').trim();
   if (!token) return;
-  UrlFetchApp.fetch('https://api.telegram.org/bot' + token + '/answerCallbackQuery', {
-    method: 'post',
-    payload: { callback_query_id: callbackQueryId },
-    muteHttpExceptions: true
-  });
+
+  UrlFetchApp.fetch(
+    'https://api.telegram.org/bot' + token + '/answerCallbackQuery',
+    {
+      method: 'post',
+      payload: { callback_query_id: callbackQueryId },
+      muteHttpExceptions: true
+    }
+  );
 }
 
 function foxRepairEscapeHtml_(value) {
