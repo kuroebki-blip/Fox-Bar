@@ -17,6 +17,30 @@ Pachca ────────────┘           │
 
 FO’X App и Tatooine App в будущем могут читать заявки из того же Repair Backend, но не являются местом хранения данных.
 
+## Текущий статус
+
+На 15.09.2026 подтверждено живыми тестами:
+
+- отдельная таблица `Galaxy Repairs` создана;
+- отдельный Repair Backend опубликован как Apps Script Web App;
+- `GET ping` работает;
+- `POST createTicket` работает;
+- тестовая заявка `FOX-REP-0002` была успешно создана через опубликованный Repair Backend;
+- FO’X Telegram webhook переведён на актуальный Apps Script deployment;
+- `callback_query` включён в `allowed_updates`;
+- нажатие `🔧 Ремонт` доходит до FO’X Apps Script;
+- Repair flow отвечает пользователю в Telegram;
+- защита от повторной обработки callback/update добавлена и подтверждена живым тестом: один клик создаёт одно сообщение.
+
+Пока не считать полностью завершёнными:
+
+- постоянное Telegram-меню `Меню -> Fo'x App / Ремонт`;
+- создание реальной заявки из полного Telegram-диалога с проверкой записи в `Galaxy Repairs`;
+- стабильное хранение фото;
+- Pachca workflow;
+- Tatooine Telegram adapter;
+- AI-разбор свободного текста.
+
 ## Google Spreadsheet
 
 Рабочее имя: `Galaxy Repairs`.
@@ -82,7 +106,7 @@ done -> in_progress
 - `urgent` — Срочная;
 - `critical` — Критичная.
 
-AI в будущем может предложить срочность, но пользователь должен подтвердить или изменить её до создания тикета.
+В текущем Telegram MVP срочность предварительно определяется простыми правилами по тексту. В дальнейшем это можно заменить AI-классификацией с подтверждением пользователем.
 
 ## История событий
 
@@ -99,7 +123,9 @@ MVP поддерживает:
 - `REOPENED`;
 - позже `PACHCA_SENT` и `PACHCA_SYNC_ERROR`.
 
-Поле `External Event ID` используется для дедупликации повторных webhook-событий.
+Поле `External Event ID` используется для дедупликации внешних событий.
+
+Отдельно на уровне Telegram adapter добавлена защита от повторной обработки одного и того же callback/update и кратковременная защита от повторного одинакового действия пользователя.
 
 ## Время и аналитика
 
@@ -126,9 +152,11 @@ MVP поддерживает:
 
 Полноценный аналитический dashboard не входит в первый MVP.
 
-## Backend
+## Repair Backend
 
-Исходник: `apps-script/repairs/production/Code.gs`.
+Исходник:
+
+`apps-script/repairs/production/Code.gs`
 
 Required Script Properties:
 
@@ -146,26 +174,92 @@ Required Script Properties:
 - `changeStatus` — POST;
 - `addComment` — POST.
 
-Все data-операции требуют `REPAIR_API_KEY` в JSON body. Это временный service-to-service MVP механизм. Перед прямым подключением пользовательского Telegram-потока нужно добавить отдельную проверку Telegram init/update signature, а перед Pachca webhook — проверку подписи Pachca на отдельном ingress, если Apps Script не даёт надёжно прочитать нужный HTTP header.
+Все data-операции требуют `REPAIR_API_KEY` в JSON body. Это service-to-service MVP механизм.
 
-## Что пока не подключено
+## FO’X Telegram integration
 
-На этом этапе специально НЕ подключены:
+FO’X Telegram не направляется напрямую на Repair Backend. Используется существующий FO’X Apps Script webhook, который уже обслуживает банкетный поток.
 
-- Telegram FO’X;
-- Telegram Tatooine;
-- Pachca;
-- Gemini/chat parsing;
-- FO’X App frontend;
-- Tatooine frontend.
+Схема:
 
-Сначала должен быть проверен отдельный Repair Backend и CRUD/state-machine на тестовых заявках.
+```text
+Telegram FO’X
+    |
+    v
+FO’X stock Apps Script webhook
+    |--- repair update -> FoxRepair adapter -> Repair Backend
+    `--- остальные update -> существующая логика FO’X
+```
+
+Адаптер в репозитории:
+
+`apps-script/repairs/production/FoxTelegramAdapter.gs`
+
+В FO’X Apps Script должны быть Script Properties:
+
+- `TELEGRAM_BOT_TOKEN`;
+- `REPAIR_BACKEND_URL`;
+- `REPAIR_API_KEY`.
+
+Telegram webhook должен принимать:
+
+```text
+message
+edited_message
+callback_query
+```
+
+Во время внедрения выявлено важное эксплуатационное правило: Telegram webhook должен указывать на актуальный `/exec` deployment URL, а не на старый deployment и не на `/dev`.
+
+## Telegram UX
+
+Текущая кнопка `🔧 Ремонт` используется как рабочий тест входа в flow.
+
+Целевой UX согласован такой:
+
+```text
+постоянная нижняя кнопка: Меню
+        |
+        v
+inline menu:
+- 📱 Fo'x App
+- 🔧 Ремонт
+```
+
+Причина: inline-сообщение с `🔧 Ремонт` уезжает вверх по истории чата, а постоянная нижняя кнопка `Меню` не теряется.
+
+## Фото
+
+На первом этапе Telegram adapter сохраняет Telegram `file_id` в поле `Public ID фото`.
+
+Это не считается постоянным внешним хранилищем. Перед Pachca photo delivery нужно добавить controlled download/copy в стабильное хранилище и сохранить постоянный URL.
+
+## Pachca
+
+Планируемый work interface:
+
+- `🔧 Принять в работу`;
+- `⏸ Стоп/Ожидает`;
+- `✅ Выполнено`;
+- комментарии/треды -> append-only события;
+- таймеры считаются из timestamps/events, а не постоянным редактированием сообщения.
+
+До реализации входящего Pachca webhook нужно отдельно проверить механизм верификации подписи. Если Apps Script не позволяет надёжно прочитать нужный HTTP header, использовать отдельный ingress proxy.
 
 ## Безопасность
 
-- repair spreadsheet не используется stock/cash backend;
+- Repair spreadsheet не используется stock/cash backend;
 - ID таблицы и API key только в Script Properties;
-- никакие токены Пачки/Telegram не должны попадать в Git;
+- токены Pachca/Telegram не должны попадать в Git;
 - `История` append-only;
-- webhook events должны дедуплицироваться по `External Event ID`;
-- production deployment не считать подтверждённым до отдельного живого теста.
+- внешние webhook events должны дедуплицироваться;
+- production deployment не считать подтверждённым до отдельного живого теста конкретного flow;
+- deployment URL может меняться при создании нового deployment, поэтому после изменения deployment обязательно проверять фактический Telegram webhook URL.
+
+## Следующий этап
+
+1. Реализовать постоянную кнопку `Меню`.
+2. Из `Меню` показывать `📱 Fo'x App` и `🔧 Ремонт`.
+3. Прогнать полный живой Telegram flow до создания заявки в `Galaxy Repairs`.
+4. После подтверждения стабилизировать хранение фото.
+5. Затем подключать Pachca workflow.
