@@ -2,187 +2,285 @@
 
 ## Статус
 
-Интеграция FO’X Telegram с Galaxy Repairs уже частично работает в production Apps Script и подтверждена живыми тестами.
+По состоянию на 16.09.2026 repair-flow FO’X подтверждён живыми тестами.
 
-Подтверждено:
-
-- FO’X bot остаётся на существующем stock Apps Script webhook;
-- webhook переведён на актуальный `/exec` deployment;
-- `callback_query` включён в `allowed_updates`;
-- нажатие `🔧 Ремонт` доходит до Apps Script;
-- бот отвечает пользователю и запускает Repair flow;
-- повторные callback/update больше не создают дубли сообщений;
-- защита от дублей подтверждена живым тестом: один клик → одно сообщение.
-
-Ещё не завершено:
-
-- постоянное нижнее меню;
-- полный живой flow до фактического создания заявки и проверки строки в `Galaxy Repairs`;
-- стабильное хранение фото;
-- Pachca integration;
-- Tatooine integration.
-
-Исходник адаптера:
-
-`apps-script/repairs/production/FoxTelegramAdapter.gs`
-
-## Почему адаптер идёт через существующий FO’X webhook
-
-У Telegram-бота может быть только один webhook. FO’X уже использует webhook для автоматического импорта банкетов, поэтому нельзя направить того же бота напрямую в отдельный Repair Backend.
-
-Правильная схема:
+Рабочая цепочка:
 
 ```text
-Telegram FO’X bot
-      |
-      v
-существующий FO’X Apps Script webhook
-      |--- banquet update -> текущая логика банкетов
-      |
-      `--- repair update -> FoxTelegramAdapter.gs
-                              |
-                              v
-                      Galaxy Repair Backend
-                              |
-                              v
-                       Galaxy Repairs Sheet
+Telegram
+  -> Cloudflare Worker
+  -> FO’X Apps Script repair endpoint
+  -> FoxRepair adapter
+  -> Galaxy Repairs Backend
+  -> Galaxy Repairs Spreadsheet
 ```
 
-## Script Properties в FO’X Apps Script
+## Почему появился Cloudflare Worker
 
-Нужны без коммита секретов в Git:
+Прямой Telegram webhook на Google Apps Script оказался нестабилен: Telegram повторно присылал один и тот же `update_id`, потому что прямой Apps Script endpoint не давал Telegram ожидаемый простой webhook-response без Google redirect поведения.
 
-- `REPAIR_BACKEND_URL` — URL опубликованного Galaxy Repair Backend;
-- `REPAIR_API_KEY` — тот же ключ, который задан в Repair Backend;
-- `TELEGRAM_BOT_TOKEN` — существующий token FO’X Telegram bot.
+В результате один и тот же update мог повторяться через минуты, хотя adapter уже помечал его как duplicate.
 
-Секреты не хранить в Git и документации значениями.
+Решение:
 
-## Хук в текущем Telegram webhook
+- Telegram webhook указывает на Cloudflare Worker;
+- Worker сразу отвечает `200 OK`;
+- Apps Script вызывается асинхронно через Worker;
+- Worker следует redirect и повторяет forwarding до 3 раз при ошибке.
 
-После парсинга Telegram update и до banquet-specific обработки Repair adapter получает update первым.
+Worker source:
 
-Логика:
+`cloudflare/fox-repair-telegram-webhook/worker.js`
+
+## Webhook
+
+Настройка из Apps Script:
+
+`foxRepairConfigureDedicatedWebhook()`
+
+Ожидаемая конфигурация:
+
+- endpoint: Cloudflare Worker;
+- `allowed_updates`: `message`, `callback_query`;
+- Telegram `secret_token`: включён;
+- при первичной миграции `drop_pending_updates: true`.
+
+Безопасная диагностика:
+
+`foxRepairShowTelegramWebhookInfo()`
+
+Удаление текущего webhook с очисткой очереди:
+
+`foxRepairDeleteCurrentWebhook()`
+
+## Worker environment
+
+Cloudflare variables/secrets:
+
+- `GOOGLE_APPS_SCRIPT_URL` — production `/exec` FO’X Apps Script;
+- `GOOGLE_APPS_SCRIPT_SECRET` — Secret;
+- `TELEGRAM_WEBHOOK_SECRET` — Secret.
+
+Значения secrets не документируются и не хранятся в Git.
+
+## Apps Script routing
+
+`doPost` должен направлять repair action в отдельный handler:
 
 ```javascript
-if (foxRepairHandleTelegramUpdate_(update)) {
-  return textOutput_({ ok:true, handled:'repair' });
+if (action === 'telegramRepairWebhook') {
+  return handleFoxRepairTelegramWebhook_(e);
 }
 ```
 
-Если update не относится к активному Repair flow, adapter возвращает `false`, и существующая логика FO’X продолжает работу.
+Handler source:
 
-## Telegram webhook
+`apps-script/repairs/production/FoxRepairWebhookHandler.gs`
 
-Webhook должен быть настроен на актуальный production Web App URL с `/exec`.
+Handler:
 
-Разрешённые updates:
+- проверяет `TELEGRAM_REPAIR_WEBHOOK_SECRET`;
+- разбирает Telegram update;
+- передаёт его в `foxRepairHandleTelegramUpdate_()`;
+- пишет ошибку в repair diagnostics;
+- не пробрасывает необработанную ошибку наружу.
 
-```text
-message
-edited_message
-callback_query
-```
+## Banquet webhook
 
-Во время внедрения выявлено два реальных источника проблемы:
+Repair webhook больше не должен обслуживать банкетный автоимпорт.
 
-1. webhook был направлен на старый deployment ID;
-2. одна из промежуточных конфигураций использовала `/dev` вместо `/exec`.
+Для банкетов согласовано использовать отдельного Telegram-бота и отдельный webhook.
 
-После перевязки на актуальный `/exec` callback стал доходить до текущего кода.
+Старую функцию `telegramBanquetWebhook` нельзя считать частью repair production flow.
 
-Практическое правило: после создания новой deployment-версии всегда сверять реальный webhook URL Telegram с активным Apps Script deployment.
+## UX
 
-## Repair button
+Синяя системная кнопка Telegram возвращена к `Fo'x App`.
 
-Рабочая тестовая кнопка:
+Дополнительно создана закреплённая inline-карточка:
 
-```javascript
-{ text: '🔧 Ремонт', callback_data: 'repair:start' }
-```
+- `📱 Fo'x App`;
+- `🔧 Ремонт`.
 
-Она использовалась для проверки callback flow.
+Основной repair-flow теперь message-first, поэтому сотруднику не обязательно нажимать `🔧 Ремонт`.
 
-Старый подход с отдельным сообщением `FO’X -> Выбери действие -> 🔧 Ремонт` не является целевым UX, потому что такое сообщение постепенно уезжает вверх по истории.
+## Message-first flow
 
-## Целевой UX
+Если активного repair-draft нет, обычное входящее сообщение сотрудника считается началом новой заявки.
 
-Согласованный вариант:
+Пример:
 
 ```text
-постоянная нижняя кнопка: Меню
-        |
-        v
-бот присылает актуальное inline menu:
-- 📱 Fo'x App
-- 🔧 Ремонт
+сломался холодильник
 ```
 
-То есть пользователь не ищет старое сообщение с кнопкой. Входная кнопка `Меню` всегда доступна рядом с полем ввода.
+Если департамент не указан, бот спрашивает:
 
-## Диалог Repair MVP
+- Бар;
+- Кухня;
+- Зал;
+- Бэк.
 
-1. Пользователь открывает `Меню`.
-2. Нажимает `🔧 Ремонт`.
-3. Бот просит описать проблему и позволяет приложить Telegram photo.
-4. Adapter хранит временный draft.
-5. Зона пытается определиться из текста.
-6. Если зона не определилась — показывает Бар / Кухня / Зал / Бэк.
-7. Срочность предварительно определяется простыми правилами.
-8. Бот показывает карточку подтверждения.
-9. `✅ Отправить` вызывает `createTicket` отдельного Repair Backend.
-10. Пользователь получает публичный ID `FOX-REP-....`.
+Если департамент явно написан в тексте, вопрос пропускается.
 
-## Дедупликация Telegram updates
+Пример:
 
-В живом тесте Telegram callback обрабатывался несколько раз, из-за чего один клик приводил к нескольким одинаковым сообщениям.
+```text
+на кухне сломался холодильник
+```
 
-В adapter добавлена двойная защита:
+→ зона `Кухня`.
 
-- дедупликация по Telegram update/callback identity;
-- кратковременная блокировка повторного одинакового действия одного пользователя.
+Тип оборудования сам по себе зону не определяет.
 
-После исправления подтверждено: один клик `🔧 Ремонт` создаёт одно сообщение.
+## Тип заявки
 
-Это важно оставить и для следующих callback-кнопок (`zone`, `send`, `edit`, `cancel`).
+После зоны бот всегда спрашивает:
+
+- `🚨 Аварийный` → backend value `critical`;
+- `🟢 Штатный` → backend value `normal`.
+
+Слова `сломался`, `срочно` и другие слова из свободного текста не должны автоматически выбирать тип заявки.
 
 ## Фото
 
-На текущем этапе сохраняется Telegram `file_id` в `Public ID фото`.
+После выбора типа заявки бот просит фото.
 
-Это не постоянное внешнее хранилище. Перед передачей фото в Pachca нужно добавить controlled download/copy в стабильное хранилище и сохранять постоянный URL.
+Фото опционально.
 
-## Диагностика
+Пользователь может:
 
-Для проблем webhook полезно отдельно различать:
+- прислать фото;
+- нажать `⏭ Пропустить фото`;
+- ничего не делать.
 
-- Telegram не отправил callback;
-- callback пришёл не в тот deployment;
-- callback пришёл, но упал внутри Apps Script;
-- callback обработался несколько раз.
+Если фото не пришло за 2 минуты, timer автоматически переводит draft к финальной карточке без фото.
 
-Apps Script execution list подтвердил, что callback requests реально доходили в `doPost`.
+Из-за minute-based trigger фактическое время обычно 2–3 минуты.
 
-Когда стандартные execution logs не были доступны, использовалась временная собственная диагностика через Script Properties.
+## Финальная карточка
 
-## Что не делать
+Карточка показывает:
 
-- не направлять FO’X Telegram bot напрямую на Repair Backend;
-- не использовать `/dev` как production Telegram webhook;
-- не считать новый deployment активным, пока не проверен реальный webhook URL;
-- не класть `REPAIR_API_KEY` или bot token в Git;
-- не хранить Repair tickets в stock/cash spreadsheet;
-- не удалять дедупликацию callback/update;
-- не считать интеграцию полностью готовой, пока не проверен полный flow до реальной записи тикета.
+- ресторан;
+- зону;
+- нормализованную проблему;
+- тип заявки;
+- наличие фото.
 
-## Следующий шаг
+Кнопки:
 
-Реализовать постоянное меню:
+- `✅ Отправить`;
+- `✏️ Изменить`;
+- `✕ Отмена`.
+
+Если `✅ Отправить` не нажали в течение 2 минут, заявка отправляется автоматически.
+
+## Timer
+
+Один раз вручную запускается:
+
+`foxRepairSetupAutoSendTimers()`
+
+Он создаёт постоянный installable trigger:
+
+`foxRepairProcessDueDrafts`
+
+Частота: раз в минуту.
+
+На каждый draft отдельный trigger не создаётся и не удаляется.
+
+## Gemini-нормализация
+
+Свободный текст пользователя проходит через существующий Gemini-клиент FO’X.
+
+Normalizer source:
+
+`apps-script/repairs/production/FoxRepairGeminiNormalizer.gs`
+
+Используются существующие:
+
+- `GEMINI_API_KEY`;
+- `GEMINI_MODEL`;
+- `callGeminiGenerateContent_()`;
+- `parseGeminiJsonResult_()`;
+- retry settings FO’X.
+
+Пример:
 
 ```text
-Меню
-├── 📱 Fo'x App
-└── 🔧 Ремонт
+пиздец брат на кухне холода наебнулся
 ```
 
-После этого прогнать полный сценарий создания реальной заявки через Telegram до `Galaxy Repairs`.
+может быть приведено к:
+
+```text
+Поломка холодильника
+```
+
+AI только переформулирует сообщённый факт. Он не должен придумывать диагноз или причину.
+
+Adapter хранит:
+
+- `rawDescription`;
+- `description`;
+- `normalizedDescription`.
+
+Если Gemini падает, используется исходный текст как fallback.
+
+## Дедупликация
+
+Защита состоит из двух уровней:
+
+1. `update_id`/callback dedupe в Script Properties;
+2. короткий debounce одинаковых callback actions.
+
+После Cloudflare Worker дедупликация остаётся дополнительной страховкой.
+
+## Diagnostics
+
+Основные функции:
+
+- `foxRepairShowLastInternalDiagnostic()`;
+- `foxRepairShowInternalDiagnosticHistory()`;
+- `foxRepairClearInternalDiagnostics()`;
+- `foxRepairShowTelegramWebhookInfo()`.
+
+История diagnostics ограничивается последними событиями и хранится в Script Properties.
+
+## Script Properties
+
+Минимально нужны:
+
+- `TELEGRAM_BOT_TOKEN`;
+- `REPAIR_BACKEND_URL`;
+- `REPAIR_API_KEY`;
+- `TELEGRAM_REPAIR_WEBHOOK_SECRET`;
+- `TELEGRAM_REPAIR_WORKER_URL`;
+- `FOX_APP_URL`;
+- `GEMINI_API_KEY`;
+- `GEMINI_MODEL`.
+
+Служебные repair properties для drafts/dedupe создаются автоматически.
+
+## Подтверждённые живые проверки
+
+На 16.09.2026 подтверждено:
+
+- Worker webhook устанавливается Telegram API с `ok:true`;
+- обычное сообщение запускает repair-flow;
+- зона уточняется только при отсутствии явной зоны;
+- ручной выбор `Аварийный/Штатный` работает;
+- отсутствие фото не блокирует заявку;
+- 2-минутный photo timeout отрабатывает;
+- финальная заявка автоотправляется по timer;
+- тикет реально создаётся;
+- Gemini-нормализация текста реально отрабатывает.
+
+## Следующие улучшения
+
+- постоянное хранение фото вместо одного Telegram `file_id`;
+- отправка/управление тикетом через Пачку;
+- Tatooine Telegram adapter;
+- отдельный banquet bot/webhook;
+- дополнительная аналитика по оборудованию и повторным поломкам.
