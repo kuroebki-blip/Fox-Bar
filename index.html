@@ -2575,6 +2575,10 @@ const RECEIPT_MAX_OCR_TOTAL_BYTES = 12 * 1024 * 1024;
 // чем прежние 1800 px. Исходник страницы остаётся в черновике без изменений.
 const RECEIPT_OCR_MAX_SIDE = 1440;
 const RECEIPT_OCR_JPEG_QUALITY = .76;
+// В кассовом отчёте мелкий текст iiko и терминалов требует большего разрешения,
+// но 1920 px / .80 остаются читаемыми и заметно легче прежних 2200 px / .84.
+const CASH_REPORT_OCR_MAX_SIDE = 1920;
+const CASH_REPORT_OCR_JPEG_QUALITY = .80;
 const RECEIPT_STATUS_REQUEST_TIMEOUT_MS = 6500;
 const RECEIPT_JOB_START_GRACE_MS = 30000;
 const RECEIPT_POLL_INTERVAL_MS = 1500;
@@ -3004,7 +3008,7 @@ async function dataUrlToOcrImage_(dataUrl,maxSide=1800,quality=.82){
   return {mimeType:'image/jpeg',data:out.slice(comma+1),width:w,height:h};
 }
 async function dataUrlToCashOcrImage_(dataUrl){
-  return dataUrlToOcrImage_(dataUrl,2200,.84);
+  return dataUrlToOcrImage_(dataUrl,CASH_REPORT_OCR_MAX_SIDE,CASH_REPORT_OCR_JPEG_QUALITY);
 }
 async function buildOcrImagesPayload_(pages,onProgress){
   assertOcrPageCount_(pages.length);
