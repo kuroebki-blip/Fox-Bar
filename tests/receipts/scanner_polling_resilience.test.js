@@ -12,6 +12,18 @@ test('receipt polling uses an explicit short status timeout', () => {
   assert.match(frontend, /timeout\|не ответил вовремя\|jsonp error\|network\|failed to fetch/);
 });
 
+test('cash-report polling uses the same transient-safe status channel', () => {
+  assert.match(frontend, /CASH_REPORT_RECOGNITION_MAX_WAIT_MS=120000/);
+  assert.match(frontend, /function getCashReportJobStatus_[\s\S]*?RECEIPT_STATUS_REQUEST_TIMEOUT_MS/);
+  const start = frontend.indexOf('async function pollCashReportJob');
+  const end = frontend.indexOf('function normalizedCashPaymentName_', start);
+  const poll = frontend.slice(start, end);
+  assert.match(poll, /getCashReportJobStatus_\(jobId\)/);
+  assert.match(poll, /if\(!isTransientReceiptStatusError_\(error\)\)throw error/);
+  assert.match(poll, /Связь с сервером нестабильна, продолжаю ждать результат/);
+  assert.match(poll, /Backend не получил фотографии кассового отчёта/);
+});
+
 test('scanner no longer relies on a global JSONP monkey patch', () => {
   assert.doesNotMatch(scanner, /installStatusJsonpCompatibility/);
   assert.doesNotMatch(scanner, /__foxScannerStatusWrapped/);

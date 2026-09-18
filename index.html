@@ -2594,6 +2594,10 @@ function getReceiptJobStatus_(jobId){
   return jsonp(STOCK_API_URL,Object.assign({action:'status',jobId},receiptAuthParams()),RECEIPT_STATUS_REQUEST_TIMEOUT_MS);
 }
 
+function getCashReportJobStatus_(jobId){
+  return jsonp(STOCK_API_URL,Object.assign({action:'status',jobId},receiptAuthParams()),RECEIPT_STATUS_REQUEST_TIMEOUT_MS);
+}
+
 function receiptJobIsActive_(currentJobId, expectedJobId){
   return Boolean(expectedJobId) && currentJobId===expectedJobId;
 }
@@ -3281,7 +3285,7 @@ let cashReportTerminalSlips=[];
 let cashReportPrepayments=[];
 let cashReportPollingToken=0;
 let cashReportRecognitionInFlight=false;
-const CASH_REPORT_RECOGNITION_MAX_WAIT_MS=45000;
+const CASH_REPORT_RECOGNITION_MAX_WAIT_MS=120000;
 
 function openCashReportSection(){
   if(!isStockApiConfigured()){
@@ -3390,17 +3394,30 @@ async function startCashReportRecognition(){
   finally{cashReportRecognitionInFlight=false;btn.disabled=!cashReportPages.length;if(retry)retry.disabled=!cashReportPages.length;}
 }
 async function pollCashReportJob(jobId,finalStatuses,maxMs){
-  const token=++cashReportPollingToken;const started=Date.now();let notFound=0;
+  const token=++cashReportPollingToken;const started=Date.now();let notFoundSince=0;let transientFailures=0;
   while(Date.now()-started<maxMs){
     if(token!==cashReportPollingToken)throw new Error('Операция отменена.');
     try{
-      const res=await jsonp(STOCK_API_URL,Object.assign({action:'status',jobId},receiptAuthParams()));
-      if(res&&res.ok){const retrying=res.status==='PROCESSING'&&/Сервис распознавания временно занят|Повторная попытка|резервную модель/i.test(String(res.step||''));setCashReportStatus(res.status==='ERROR'||res.status==='SEND_ERROR'?'err':(retrying?'warn':''),res.step||'Обработка…',Number(res.progress)||.2);if(finalStatuses.includes(res.status))return res;}
-      else{notFound++;if(notFound>12&&res&&res.error&&!String(res.error).includes('не найден'))throw new Error(res.error);}
-    }catch(err){if(Date.now()-started>30000&&!String(err&&err.message||err).includes('timeout'))throw err;}
-    await new Promise(resolve=>setTimeout(resolve,2200));
+      const res=await getCashReportJobStatus_(jobId);
+      if(res&&res.ok){
+        notFoundSince=0;transientFailures=0;
+        const retrying=res.status==='PROCESSING'&&/Сервис распознавания временно занят|Повторная попытка|резервную модель/i.test(String(res.step||''));
+        setCashReportStatus(res.status==='ERROR'||res.status==='SEND_ERROR'?'err':(retrying?'warn':''),res.step||'Обработка…',Number(res.progress)||.2);
+        if(finalStatuses.includes(res.status))return res;
+      }else if(res&&/не найден/i.test(String(res.error||''))){
+        if(!notFoundSince)notFoundSince=Date.now();
+        if(Date.now()-notFoundSince>=RECEIPT_JOB_START_GRACE_MS)throw new Error('Backend не получил фотографии кассового отчёта. Проверь соединение и повтори попытку.');
+      }else if(res&&res.error){
+        throw new Error(res.error);
+      }
+    }catch(error){
+      if(!isTransientReceiptStatusError_(error))throw error;
+      transientFailures+=1;
+      if(transientFailures>=3)setCashReportStatus('warn','Связь с сервером нестабильна, продолжаю ждать результат…',.2);
+    }
+    await new Promise(resolve=>setTimeout(resolve,RECEIPT_POLL_INTERVAL_MS));
   }
-  throw new Error('Сервер отвечает слишком долго. Повтори через минуту.');
+  throw new Error('Распознавание ещё не завершилось. Выбранные фотографии остаются на экране — повтори попытку позже.');
 }
 function normalizedCashPaymentName_(value){return String(value||'').trim().toLowerCase().replace(/ё/g,'е').replace(/[‐‑‒–—-]+/g,' ').replace(/\s+/g,' ').replace(/^оплата\s+/,'').replace(/\s+(?:продажа|предоплата)$/,'').trim();}
 function cashPaymentRowAmount_(rows,names){const targets=(names||[]).map(normalizedCashPaymentName_);const found=(Array.isArray(rows)?rows:[]).find(row=>targets.includes(normalizedCashPaymentName_(row&&(row.name||row.row_name))));return found?Number(found.amount)||0:0;}

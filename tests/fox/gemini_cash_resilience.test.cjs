@@ -92,7 +92,7 @@ test('cash report UI keeps selected pages, exposes retry, and rejects parallel r
   assert.match(frontend, /cashReportRecognitionInFlight/);
   assert.match(frontend, /if\(cashReportRecognitionInFlight\)return/);
   assert.match(frontend, /cashReportRetry.*addEventListener\('click',startCashReportRecognition\)/);
-  assert.match(frontend, /CASH_REPORT_RECOGNITION_MAX_WAIT_MS=45000/);
+  assert.match(frontend, /CASH_REPORT_RECOGNITION_MAX_WAIT_MS=120000/);
   assert.match(frontend, /Не удалось обработать отчёт\. Сервис распознавания временно недоступен\. Попробуйте ещё раз\./);
 });
 
