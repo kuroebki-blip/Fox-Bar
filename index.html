@@ -2570,6 +2570,11 @@ const RECEIPT_MAX_OCR_IMAGE_BYTES = 6 * 1024 * 1024;
 // 12 MiB decoded becomes about 16 MiB as base64 and leaves room for the prompt
 // inside Gemini's full inline request limit.
 const RECEIPT_MAX_OCR_TOTAL_BYTES = 12 * 1024 * 1024;
+// Накладные и чеки — печатные документы. 1440 px по длинной стороне сохраняет
+// читаемость текста, но передаёт в Gemini заметно меньше визуальных токенов,
+// чем прежние 1800 px. Исходник страницы остаётся в черновике без изменений.
+const RECEIPT_OCR_MAX_SIDE = 1440;
+const RECEIPT_OCR_JPEG_QUALITY = .76;
 const RECEIPT_STATUS_REQUEST_TIMEOUT_MS = 6500;
 const RECEIPT_JOB_START_GRACE_MS = 30000;
 const RECEIPT_POLL_INTERVAL_MS = 1500;
@@ -3006,7 +3011,7 @@ async function buildOcrImagesPayload_(pages,onProgress){
   const images=[];
   for(let i=0;i<pages.length;i++){
     if(onProgress)onProgress(i,pages.length);
-    images.push(await dataUrlToOcrImage_(pages[i].dataUrl,1800,.82));
+    images.push(await dataUrlToOcrImage_(pages[i].dataUrl,RECEIPT_OCR_MAX_SIDE,RECEIPT_OCR_JPEG_QUALITY));
   }
   validateOcrImagesPayload_(images);
   return images;
