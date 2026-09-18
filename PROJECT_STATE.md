@@ -16,7 +16,7 @@
 
 | Компонент | Версия | Статус | Основание |
 | --- | --- | --- | --- |
-| FO’X frontend | `v15.16.6 COMPACT CASH OCR` | опубликован из `main` | кассовый OCR передаёт 1920 px/JPEG `.80`; GitHub Pages подтверждён |
+| FO’X frontend | `v15.16.7 RESILIENT CASH POLLING` | опубликован из `main` | кассовый OCR передаёт 1920 px/JPEG `.80` и не прерывает polling при временных status-сбоях; GitHub Pages подтверждён |
 | Tatooine frontend | `v1.8.3 TAXI PARALLEL LOAD` | опубликован в `main`; GitHub Pages обновляется из `main` | релиз параллельной загрузки раздела «Такси» |
 | Scanner/cash Apps Script | `v9.11.2 FAST RECEIPT SCANNER`, Apps Script version 94 | deployment обновлён | прежний Web App URL и deployment ID сохранены; кассовый OCR использует тот же backend без изменения проверок сумм |
 | Banquets Apps Script | неизвестно | требует подтверждения пользователя и проверки deployment | исходника production нет в `main` |
@@ -40,7 +40,7 @@ Tatooine `v1.8.3` устраняет Apps Script waterfall в разделе «�
 
 ## Проверка
 
-- Последний frontend-релиз `v15.16.6` опубликован из `main` (commit `3e2aadc`); GitHub Pages отдаёт 1920 px/JPEG `.80` для кассового OCR. Профильные проверки: 18/18. Живой тест iiko 041 и терминальных слипов в Telegram ожидает подтверждения пользователя.
+- Последний frontend-релиз `v15.16.7` опубликован из `main` (commit `28f89b7`); GitHub Pages отдаёт 1920 px/JPEG `.80` и transient-safe polling для кассового OCR. Профильные проверки: 19/19. Живой тест iiko 041 и терминальных слипов в Telegram ожидает подтверждения пользователя.
 - Автоматические тесты текущего релиза: 131/131; lint и `git diff --check` прошли по commit `bb13cf5`.
 - Публичные GitHub Pages версии FO’X `v15.15.6` и Tatooine публикуются из `main`; для FO’X после публикации нужен живой Telegram-тест сохранения графика.
 - Публичный scanner/cash backend после обновления deployment version 55 ответил на `ping` как `v9.9.5 SCHEDULE DATE KEYS RELIABLE`.
