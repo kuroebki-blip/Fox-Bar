@@ -16,7 +16,7 @@
 
 | Компонент | Версия | Статус | Основание |
 | --- | --- | --- | --- |
-| FO’X frontend | `v15.16.7 RESILIENT CASH POLLING` | опубликован из `main` | кассовый OCR передаёт 1920 px/JPEG `.80` и не прерывает polling при временных status-сбоях; GitHub Pages подтверждён |
+| FO’X frontend | `v15.16.8 PREPARATIONS SEARCH` | опубликован из `main` | в хабе «Заготовки» заменили «Чек-листы»; видны только существующие заготовки, поиск работает по карточкам и раскладкам; GitHub Pages подтверждён |
 | Tatooine frontend | `v1.8.3 TAXI PARALLEL LOAD` | опубликован в `main`; GitHub Pages обновляется из `main` | релиз параллельной загрузки раздела «Такси» |
 | Scanner/cash Apps Script | `v9.11.3 RECEIPT JOB STATUS CACHE`, Apps Script version 95 | deployment обновлён | прежний Web App URL и deployment ID сохранены; status-polling сканера использует проверяемый кэш строки задания вместо полного чтения ID-колонки |
 | Banquets Apps Script | неизвестно | требует подтверждения пользователя и проверки deployment | исходника production нет в `main` |
@@ -40,7 +40,7 @@ Tatooine `v1.8.3` устраняет Apps Script waterfall в разделе «�
 
 ## Проверка
 
-- Последний frontend-релиз `v15.16.7` опубликован из `main` (commit `28f89b7`); GitHub Pages отдаёт 1920 px/JPEG `.80` и transient-safe polling для кассового OCR. Профильные проверки: 19/19. Живой тест iiko 041 и терминальных слипов в Telegram ожидает подтверждения пользователя.
+- Последний frontend-релиз `v15.16.8` опубликован из `main` (commit `ac8c793`); GitHub Pages отдаёт страницу `PREPARATIONS SEARCH`. Профильные проверки: 14/14 для затронутого frontend-набора. Живой тест в Telegram ожидает подтверждения пользователя.
 - Scanner/cash Apps Script `v9.11.3` опубликован как Version 95 на прежнем production deployment. Проверены синтаксис, безопасное попадание в кэш и отказ от устаревшей строки; требуется живой замер времени сканирования документа в Telegram.
 - Автоматические тесты текущего релиза: 131/131; lint и `git diff --check` прошли по commit `bb13cf5`.
 - Публичные GitHub Pages версии FO’X `v15.15.6` и Tatooine публикуются из `main`; для FO’X после публикации нужен живой Telegram-тест сохранения графика.
