@@ -1,6 +1,6 @@
 # FO’X — состояние проекта
 
-Актуально на 28 августа 2026 года.
+Актуально на 18 сентября 2026 года.
 
 ## Архитектура
 
@@ -16,9 +16,9 @@
 
 | Компонент | Версия | Статус | Основание |
 | --- | --- | --- | --- |
-| FO’X frontend | `v15.15.9 SCHEDULE OCR RELIABLE` | опубликован из `main` | выделяет цифру сегодняшнего дня и исправляет разбор форматов смен |
+| FO’X frontend | `v15.16.6 COMPACT CASH OCR` | опубликован из `main` | кассовый OCR передаёт 1920 px/JPEG `.80`; GitHub Pages подтверждён |
 | Tatooine frontend | `v1.8.3 TAXI PARALLEL LOAD` | опубликован в `main`; GitHub Pages обновляется из `main` | релиз параллельной загрузки раздела «Такси» |
-| Scanner/cash Apps Script | `v9.9.7 SCHEDULE OCR RELIABLE`, Apps Script version 57 | deployment обновлён | прежний Web App URL и deployment ID сохранены; смены пересчитываются по исходной OCR-ячейке |
+| Scanner/cash Apps Script | `v9.11.2 FAST RECEIPT SCANNER`, Apps Script version 94 | deployment обновлён | прежний Web App URL и deployment ID сохранены; кассовый OCR использует тот же backend без изменения проверок сумм |
 | Banquets Apps Script | неизвестно | требует подтверждения пользователя и проверки deployment | исходника production нет в `main` |
 | Google Sheets | неизвестно | требует подтверждения пользователя | таблицы и Script Properties не хранятся в Git |
 
@@ -40,6 +40,7 @@ Tatooine `v1.8.3` устраняет Apps Script waterfall в разделе «�
 
 ## Проверка
 
+- Последний frontend-релиз `v15.16.6` опубликован из `main` (commit `3e2aadc`); GitHub Pages отдаёт 1920 px/JPEG `.80` для кассового OCR. Профильные проверки: 18/18. Живой тест iiko 041 и терминальных слипов в Telegram ожидает подтверждения пользователя.
 - Автоматические тесты текущего релиза: 131/131; lint и `git diff --check` прошли по commit `bb13cf5`.
 - Публичные GitHub Pages версии FO’X `v15.15.6` и Tatooine публикуются из `main`; для FO’X после публикации нужен живой Telegram-тест сохранения графика.
 - Публичный scanner/cash backend после обновления deployment version 55 ответил на `ping` как `v9.9.5 SCHEDULE DATE KEYS RELIABLE`.
@@ -50,7 +51,7 @@ Tatooine `v1.8.3` устраняет Apps Script waterfall в разделе «�
 
 - Терминальные чеки могли распознавать произвольные неверные цифры; пользователь подтвердил сильное ухудшение Tatooine на входном монтаже 2×2.
 - Несколько банкетов на одну дату, снятие резерва после завершения и добавление новых позиций требуют проверки на фактическом production backend.
-- Скорость сканера документов на реальном Android требует замера.
+- Скорость кассового OCR и читаемость мелкого текста iiko на реальном Android требуют живого замера после `v15.16.6`.
 - Актуальные идентификаторы таблиц и значения Script Properties неизвестны репозиторию.
 
 ## Текущая задача
