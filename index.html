@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.16.4 — COMPACT PDF UPLOAD</title>
+<title>FO'X App v15.16.8 — PREPARATIONS SEARCH</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -168,7 +168,7 @@ body.mode-receipts .overall{display:none}
 body.mode-hub #resetBtn,
 body.mode-banquets #resetBtn,
 body.mode-receipts #resetBtn{display:none}
-body.mode-checklists #backBtn,
+body.mode-preparations #backBtn,
 body.mode-banquets #backBtn,
 body.mode-receipts #backBtn{display:inline-flex}
 body.mode-hub #backBtn{display:none}
@@ -177,7 +177,14 @@ body.mode-hub #backBtn{display:none}
 .back-btn:active{background:var(--surface-2)}
 .app-screen{display:none;max-width:680px;margin:0 auto;padding:16px 14px 0}
 .app-screen.active{display:block;animation:fade .25s ease}
-#checklistsScreen{max-width:none;padding:0}
+#preparationsScreen{max-width:none;padding:0}
+  .preparations-toolbar{position:sticky;top:0;z-index:30;padding:12px 18px;background:rgba(20,17,13,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .preparations-title{margin:0 0 10px;font-family:"Unbounded",sans-serif;font-size:17px;font-weight:600}
+  .preparations-search{width:100%;height:44px;padding:0 13px;border:1px solid var(--line-strong);border-radius:12px;background:var(--surface);color:var(--text);font:inherit;font-size:15px}
+  .preparations-search:focus{outline:2px solid var(--amber-line);border-color:var(--amber)}
+  .preparations-search::placeholder{color:var(--muted-2)}
+  .preparation-group[hidden],.item[hidden]{display:none!important}
+  .preparations-empty{margin:20px 18px;color:var(--muted);font-size:14px;text-align:center}
 .hub-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:6px}
 .hub-card{width:100%;text-align:left;border:1px solid var(--line);background:var(--surface);
   color:var(--text);border-radius:18px;padding:16px;cursor:pointer;font-family:inherit}
@@ -545,16 +552,16 @@ body.mode-cash-report #backBtn{display:inline-flex}
     <button class="reset" id="resetBtn">Сбросить</button>
   </div>
   <div class="overall">
-    <div class="overall-meta"><span>Готовность смены</span><b id="overallPct">0%</b></div>
+    <div class="overall-meta"><span>Готовность заготовок</span><b id="overallPct">0%</b></div>
     <div class="bar-track"><div class="bar-fill" id="overallBar"></div></div>
   </div>
 </header>
 
 <section class="app-screen active" id="hubScreen">
   <div class="hub-grid">
-    <button class="hub-card" data-open-section="checklists">
-      <div class="hc-ico">🧾</div>
-      <div class="hc-title">Чек-листы</div>
+    <button class="hub-card" data-open-section="preparations">
+      <div class="hc-ico">🫙</div>
+      <div class="hc-title">Заготовки</div>
     </button>
     <button class="hub-card" data-open-section="banquets">
       <div class="hc-ico">🍽</div>
@@ -575,8 +582,11 @@ body.mode-cash-report #backBtn{display:inline-flex}
   </div>
 </section>
 
-<section class="app-screen" id="checklistsScreen">
-  <nav class="tabs" id="tabs"></nav>
+<section class="app-screen" id="preparationsScreen">
+  <div class="preparations-toolbar">
+    <h1 class="preparations-title">🫙 Заготовки</h1>
+    <input class="preparations-search" id="preparationsSearch" type="search" placeholder="Поиск по заготовкам и раскладкам" aria-label="Поиск по заготовкам" autocomplete="off">
+  </div>
   <main id="main"></main>
 </section>
 
@@ -1107,9 +1117,11 @@ const DATA = [
   }
 ];
 
+const VISIBLE_SECTIONS=DATA.filter(sec=>sec.id==='prep');
+
 let uid=0;
 const state={};
-DATA.forEach(sec=>{
+VISIBLE_SECTIONS.forEach(sec=>{
   sec._items=[];
   const push=(arr,qty)=>arr.forEach(it=>{ const id="i"+(uid++); it._id=id; it._qty=qty;
     state[id]={checked:false,qty:0}; sec._items.push(it); });
@@ -1117,7 +1129,7 @@ DATA.forEach(sec=>{
   if(sec.groups) sec.groups.forEach(g=>push(g.items,g.qty));
 });
 
-let activeId=DATA[0].id;
+let activeId=VISIBLE_SECTIONS[0].id;
 
 // ---- Telegram Mini App ----
 const TG = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
@@ -1133,27 +1145,19 @@ if(TG){
   try{ TG.disableVerticalSwipes(); }catch(e){}
 }
 
-// ---- tabs ----
-const tabsEl=document.getElementById('tabs');
-DATA.forEach(sec=>{
-  const t=document.createElement('button');
-  t.className='tab'; t.dataset.sec=sec.id;
-  t.innerHTML='<span class="t-name">'+sec.icon+' '+sec.name+'</span><span class="t-count" id="cnt-'+sec.id+'">0/'+sec._items.length+'</span>';
-  t.onclick=()=>switchTab(sec.id);
-  tabsEl.appendChild(t);
-});
-
-// ---- panels ----
+// ---- preparations panel ----
 const main=document.getElementById('main');
-DATA.forEach(sec=>{
+VISIBLE_SECTIONS.forEach(sec=>{
   const panel=document.createElement('section');
   panel.className='panel'; panel.id='panel-'+sec.id;
 
   const renderList=(items,label)=>{
-    if(label){ const gl=document.createElement('div'); gl.className='group-label'; gl.textContent=label; panel.appendChild(gl); }
+    const group=document.createElement('section'); group.className='preparation-group';
+    if(label){ const gl=document.createElement('div'); gl.className='group-label'; gl.textContent=label; group.appendChild(gl); }
     const list=document.createElement('div'); list.className='list';
     items.forEach(it=>list.appendChild(buildRow(it)));
-    panel.appendChild(list);
+    group.appendChild(list);
+    panel.appendChild(group);
   };
   if(sec.items) renderList(sec.items,null);
   if(sec.groups) sec.groups.forEach(g=>renderList(g.items,g.label));
@@ -1173,13 +1177,50 @@ DATA.forEach(sec=>{
 });
 
 const foot=document.createElement('div'); foot.className='foot';
-foot.textContent='FO\u0027X · чек-лист бара · обновляется перед каждой сменой';
+foot.textContent='FO\u0027X · заготовки бара · обновляется перед каждой сменой';
 main.appendChild(foot);
+
+const preparationsEmpty=document.createElement('p');
+preparationsEmpty.className='preparations-empty';
+preparationsEmpty.id='preparationsEmpty';
+preparationsEmpty.hidden=true;
+preparationsEmpty.textContent='Ничего не найдено. Попробуй другое слово.';
+main.insertBefore(preparationsEmpty,foot);
+const preparationsSearch=document.getElementById('preparationsSearch');
+preparationsSearch.addEventListener('input',applyPreparationsSearch);
+
+function normalizePreparationsSearch_(value){
+  return String(value||'').toLocaleLowerCase('ru-RU').replace(/ё/g,'е').replace(/\s+/g,' ').trim();
+}
+function preparationSearchText_(it){
+  const recipe=it&&it.r||{};
+  return [it&&it.l,it&&it.n]
+    .concat(recipe.ing||[],recipe.steps||[],recipe.method||'')
+    .filter(Boolean).join(' ');
+}
+function applyPreparationsSearch(){
+  const input=document.getElementById('preparationsSearch');
+  const query=normalizePreparationsSearch_(input&&input.value);
+  const panel=document.getElementById('panel-prep');
+  if(!panel)return;
+  let visible=0;
+  panel.querySelectorAll('.item').forEach(row=>{
+    const matches=!query||normalizePreparationsSearch_(row.dataset.search).includes(query);
+    row.hidden=!matches;
+    if(matches)visible++;
+  });
+  panel.querySelectorAll('.preparation-group').forEach(group=>{
+    group.hidden=!Array.from(group.querySelectorAll('.item')).some(row=>!row.hidden);
+  });
+  const empty=document.getElementById('preparationsEmpty');
+  if(empty)empty.hidden=visible>0;
+}
 
 function buildRow(it){
   const row=document.createElement('div');
   row.className='item'+(it._qty?' has-qty':'');
   row.dataset.id=it._id;
+  row.dataset.search=preparationSearchText_(it);
   const note=it.n?'<div class="item-note">'+it.n+'</div>':'';
   row.innerHTML='<div class="check"></div><div class="item-body"><div class="item-label">'+it.l+'</div>'+note+'</div>';
 
@@ -1221,13 +1262,11 @@ function setQty(id,v,input,row,skip){
 
 function refresh(){
   let totalAll=0, doneAll=0;
-  DATA.forEach(sec=>{
+  VISIBLE_SECTIONS.forEach(sec=>{
     let done=0;
     sec._items.forEach(it=>{ if(state[it._id].checked) done++; });
     const tot=sec._items.length; totalAll+=tot; doneAll+=done;
     const cnt=document.getElementById('cnt-'+sec.id); if(cnt) cnt.textContent=done+'/'+tot;
-    const tab=tabsEl.querySelector('[data-sec="'+sec.id+'"]');
-    if(tab) tab.classList.toggle('done', done===tot && tot>0);
     const adone=document.getElementById('done-'+sec.id);
     if(adone) adone.classList.toggle('show', done===tot && tot>0);
   });
@@ -1236,13 +1275,12 @@ function refresh(){
   document.getElementById('overallBar').style.width=pct+'%';
   const rb=document.getElementById('reportBtn');
   if(rb){ const miss=totalAll-doneAll;
-    rb.textContent = miss>0 ? ('📋 Общий отчёт · нет '+miss) : '✓ Бар укомплектован — отчёт'; }
+    rb.textContent = miss>0 ? ('📋 Отчёт по заготовкам · нет '+miss) : '✓ Заготовки готовы — отчёт'; }
 }
 
 function switchTab(id){
   activeId=id;
   document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id==='panel-'+id));
-  tabsEl.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.sec===id));
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
@@ -1255,7 +1293,7 @@ document.getElementById('reportOverlay').addEventListener('click',e=>{
 function generateReport(){
   hap('light');
   const groups=[];
-  DATA.forEach(sec=>{
+  VISIBLE_SECTIONS.forEach(sec=>{
     const lines=[];
     sec._items.forEach(it=>{
       if(!state[it._id].checked){
@@ -1272,12 +1310,12 @@ function generateReport(){
   const d=new Date();
   const dd=String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear();
 
-  let text='ОТЧЁТ ПО БАРУ — FO\u0027X\nДата: '+dd+'\n';
+  let text='ОТЧЁТ ПО ЗАГОТОВКАМ — FO\u0027X\nДата: '+dd+'\n';
   if(total) text+='Не отмечено (нет / не сделано): '+total+' поз.\n';
   text+='\n';
   if(total) text+=groups.map(g=>g.icon+' '+g.name.toUpperCase()+'\n'+g.lines.join('\n')).join('\n\n');
   if(cmt){ if(total) text+='\n\n'; text+='📝 КОММЕНТАРИИ\n'+cmt; }
-  if(!total && !cmt) text+='Бар укомплектован полностью. Всё на месте 🦊';
+  if(!total && !cmt) text+='Все заготовки готовы. Всё на месте 🦊';
 
   document.getElementById('reportText').value=text;
   document.getElementById('reportCnt').textContent = total ? ('нет '+total+' поз.') : (cmt ? 'есть комментарии' : 'всё на месте');
@@ -1387,11 +1425,11 @@ document.getElementById('resetBtn').onclick=()=>{
 
 // ===== FO'X App sections =====
 function setAppSection(section){
-  document.body.classList.remove('mode-hub','mode-checklists','mode-tables','mode-banquets','mode-receipts','mode-cash-report');
+  document.body.classList.remove('mode-hub','mode-preparations','mode-tables','mode-banquets','mode-receipts','mode-cash-report');
   document.body.classList.add('mode-'+section);
 
   document.getElementById('hubScreen').classList.toggle('active', section==='hub');
-  document.getElementById('checklistsScreen').classList.toggle('active', section==='checklists');
+  document.getElementById('preparationsScreen').classList.toggle('active', section==='preparations');
   document.getElementById('tablesScreen').classList.toggle('active', section==='tables');
   document.getElementById('banquetsScreen').classList.toggle('active', section==='banquets');
   document.getElementById('receiptsScreen').classList.toggle('active', section==='receipts');
@@ -3529,7 +3567,7 @@ document.getElementById('cashReportAddSlip').addEventListener('click',addCashTer
 document.getElementById('cashReportAddPrepayment').addEventListener('click',addCashPrepayment);
 document.getElementById('cashReportSend').addEventListener('click',sendCashReportToTelegram);
 
-switchTab(DATA[0].id);
+switchTab(VISIBLE_SECTIONS[0].id);
 refresh();
 setAppSection('hub');
 restoreReceiptDraft_();
