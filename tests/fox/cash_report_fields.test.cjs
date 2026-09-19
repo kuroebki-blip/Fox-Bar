@@ -35,3 +35,13 @@ test('EatAndSplit accepts normalized payment-row names from OCR', () => {
     { row_name: 'EatAndSplit', amount: 875 },
   ], ['Items Split', 'EatAndSplit']), 875);
 });
+
+test('cash-report prepayments label the online method as Eat and Split', () => {
+  assert.match(source, /<option value="online">Eat and Split<\/option>/);
+  assert.doesNotMatch(source, /<option value="online">Онлайн-касса<\/option>/);
+
+  const phraseStart = source.indexOf('function cashPaymentPhrase(');
+  const phraseEnd = source.indexOf('function cashLine(', phraseStart);
+  const cashPaymentPhrase = new Function(`${source.slice(phraseStart, phraseEnd)};return cashPaymentPhrase;`)();
+  assert.equal(cashPaymentPhrase('online'), 'Eat and Split');
+});

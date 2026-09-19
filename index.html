@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>FO'X App v15.16.8 — PREPARATIONS SEARCH</title>
+<title>FO'X App v15.16.9 — EAT AND SPLIT PREPAYMENT</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -3479,7 +3479,7 @@ function renderCashTerminalSlips(){
 function addCashTerminalSlip(){cashReportTerminalSlips.push({label:'Терминал '+(cashReportTerminalSlips.length+1),amount:0});renderCashTerminalSlips();refreshCashReportMessage();}
 function renderCashPrepayments(){
   const root=document.getElementById('cashReportPrepayments');root.innerHTML='';
-  cashReportPrepayments.forEach((p,i)=>{const row=document.createElement('div');row.className='cash-prepayment';row.innerHTML='<input data-date type="text" inputmode="numeric" placeholder="ДД.ММ.ГГГГ" value="'+escapeHtml(p.date||'')+'"><input data-amount type="number" inputmode="decimal" step="0.01" placeholder="Сумма" value="'+escapeHtml(p.amount?String(p.amount):'')+'"><select data-method><option value="cash">Наличными в ресторане</option><option value="online">Онлайн-касса</option><option value="card">Картой в ресторане</option><option value="account">Расчётный счёт</option></select><button class="cash-row-remove" type="button">✕</button>';row.querySelector('[data-method]').value=p.method||'online';row.querySelector('[data-date]').oninput=e=>{p.date=e.target.value;refreshCashReportMessage();};row.querySelector('[data-amount]').oninput=e=>{p.amount=Number(e.target.value)||0;refreshCashReportMessage();};row.querySelector('[data-method]').onchange=e=>{p.method=e.target.value;refreshCashReportMessage();};row.querySelector('button').onclick=()=>{cashReportPrepayments.splice(i,1);renderCashPrepayments();refreshCashReportMessage();};root.appendChild(row);});
+  cashReportPrepayments.forEach((p,i)=>{const row=document.createElement('div');row.className='cash-prepayment';row.innerHTML='<input data-date type="text" inputmode="numeric" placeholder="ДД.ММ.ГГГГ" value="'+escapeHtml(p.date||'')+'"><input data-amount type="number" inputmode="decimal" step="0.01" placeholder="Сумма" value="'+escapeHtml(p.amount?String(p.amount):'')+'"><select data-method><option value="cash">Наличными в ресторане</option><option value="online">Eat and Split</option><option value="card">Картой в ресторане</option><option value="account">Расчётный счёт</option></select><button class="cash-row-remove" type="button">✕</button>';row.querySelector('[data-method]').value=p.method||'online';row.querySelector('[data-date]').oninput=e=>{p.date=e.target.value;refreshCashReportMessage();};row.querySelector('[data-amount]').oninput=e=>{p.amount=Number(e.target.value)||0;refreshCashReportMessage();};row.querySelector('[data-method]').onchange=e=>{p.method=e.target.value;refreshCashReportMessage();};row.querySelector('button').onclick=()=>{cashReportPrepayments.splice(i,1);renderCashPrepayments();refreshCashReportMessage();};root.appendChild(row);});
   if(!cashReportPrepayments.length)root.innerHTML='<div class="cash-summary">Предоплат нет. При необходимости нажми «Добавить предоплату».</div>';
 }
 function addCashPrepayment(){cashReportPrepayments.push({date:document.getElementById('cashReportDate').value||'',amount:0,method:'online'});renderCashPrepayments();refreshCashReportMessage();}
@@ -3487,7 +3487,7 @@ function cashNumber(id){const el=document.getElementById(id);return Number(el&&e
 function formatCashMoney(value,blankWhenZero=false){const n=Number(value)||0;if(blankWhenZero&&!n)return '';return n.toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function formatCashPlain(value){const n=Number(value)||0;return n.toLocaleString('ru-RU',{minimumFractionDigits:Number.isInteger(n)?0:2,maximumFractionDigits:2});}
 function shortCashDate(value){const m=String(value||'').match(/^(\d{2})\.(\d{2})\.(\d{4})$/);return m?(m[1]+'.'+m[2]+'.'+m[3].slice(-2)):String(value||'');}
-function cashPaymentPhrase(method){return {cash:'наличными в ресторане',online:'оплата по ссылке',card:'картой в ресторане',account:'расчётный счёт'}[method]||'оплата';}
+function cashPaymentPhrase(method){return {cash:'наличными в ресторане',online:'Eat and Split',card:'картой в ресторане',account:'расчётный счёт'}[method]||'оплата';}
 function cashLine(label,value){const formatted=formatCashMoney(value,true);return '🟢'+label+':'+(formatted?' '+formatted:'');}
 function updateCashComparison(){
   const terminalTotal=cashReportTerminalSlips.reduce((sum,x)=>sum+(Number(x.amount)||0),0);const iiko=cashNumber('cashReportBankCards');const diff=terminalTotal-iiko;const el=document.getElementById('cashReportComparison');
