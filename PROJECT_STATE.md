@@ -19,7 +19,7 @@
 | FO’X frontend | `v15.16.9 EAT AND SPLIT PREPAYMENT` | опубликован из `main` | в предоплатах кассового отчёта «Онлайн-касса» заменена на `Eat and Split`; итоговое сообщение использует то же название; GitHub Pages подтверждён |
 | Tatooine frontend | `v1.8.3 TAXI PARALLEL LOAD` | опубликован в `main`; GitHub Pages обновляется из `main` | релиз параллельной загрузки раздела «Такси» |
 | Scanner/cash Apps Script | `v9.11.3 RECEIPT JOB STATUS CACHE`, Apps Script version 95 | deployment обновлён | прежний Web App URL и deployment ID сохранены; status-polling сканера использует проверяемый кэш строки задания вместо полного чтения ID-колонки |
-| Galaxy Repairs Apps Script | `v0.3.8 TELEGRAM CONTACT CARD REFRESH`, Apps Script version 14 | deployment обновлён | ссылка автору ремонтной заявки использует проверенный числовой Telegram ID; существующие карточки обновлены без записи в Sheets |
+| Galaxy Repairs Apps Script | `v0.3.9 LPR TAG STATUS NOTIFICATIONS`, Apps Script version 15 | deployment обновлён | терминальные статусы уведомляют в Пачке пересечение тегов ЛПР, ресторана и зоны; личные Telegram-сообщения не отправляются |
 | Banquets Apps Script | неизвестно | требует подтверждения пользователя и проверки deployment | исходника production нет в `main` |
 | Google Sheets | неизвестно | требует подтверждения пользователя | таблицы и Script Properties не хранятся в Git |
 
@@ -43,7 +43,7 @@ Tatooine `v1.8.3` устраняет Apps Script waterfall в разделе «�
 
 - Последний frontend-релиз `v15.16.9` опубликован из `main` (commit `3c9869f`); GitHub Pages отдаёт страницу `EAT AND SPLIT PREPAYMENT`. Профильные проверки кассового отчёта: 6/6. Живой тест в Telegram ожидает подтверждения пользователя.
 - Scanner/cash Apps Script `v9.11.3` опубликован как Version 95 на прежнем production deployment. Проверены синтаксис, безопасное попадание в кэш и отказ от устаревшей строки; требуется живой замер времени сканирования документа в Telegram.
-- Galaxy Repairs `v0.3.8` опубликован как Version 14 на прежнем production deployment; `ping` подтвердил версию, а обновление существующих карточек завершилось в Apps Script. Требуется один визуальный клик по ссылке автора в Пачке.
+- Galaxy Repairs `v0.3.9` опубликован как Version 15 на прежнем production deployment; `ping` подтвердил версию. Для статусов «Стоп», «Невозможно выполнить» и «Выполнено» Пачка адресует уведомление пересечению тегов ЛПР, ресторана и зоны. Личные Telegram-сообщения не используются; требуется живой тест на следующей заявке.
 - Автоматические тесты текущего релиза: 131/131; lint и `git diff --check` прошли по commit `bb13cf5`.
 - Публичные GitHub Pages версии FO’X `v15.15.6` и Tatooine публикуются из `main`; для FO’X после публикации нужен живой Telegram-тест сохранения графика.
 - Публичный scanner/cash backend после обновления deployment version 55 ответил на `ping` как `v9.9.5 SCHEDULE DATE KEYS RELIABLE`.
