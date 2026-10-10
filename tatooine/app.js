@@ -1226,7 +1226,7 @@
     while (Date.now() - started < timeoutMs) {
       try {
         const result = await jsonp(Object.assign({ action:'temporaryDocumentStatus', previewId }, authParams()), 7000);
-        if (result && result.ok && (result.status === successState || ['ERROR', 'UNKNOWN'].includes(result.status))) return result;
+        if (result && result.ok && (result.status === successState || ['ERROR', 'FAILED', 'UNKNOWN'].includes(result.status))) return result;
       } catch (error) {
         if (Date.now() - started > 30000) throw error;
       }
@@ -1240,6 +1240,7 @@
     if (!documentPages.length) return;
     const button = $('documentPreview'); button.disabled = true;
     try {
+      $('documentSend').disabled = false; $('documentSend').textContent = 'Отправить PDF в чат';
       documentStatus('Распознаю документ…'); const images = await documentImages();
       const previewId = 'td' + Date.now() + Math.random().toString(36).slice(2, 8);
       post({ action:'temporaryDocumentPreview', previewId, department, pagesCount:images.length, imagesJson:JSON.stringify(images) }).catch(() => {});

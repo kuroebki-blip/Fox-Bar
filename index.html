@@ -2839,7 +2839,7 @@ document.getElementById('receiptReset').onclick=()=>{
 document.getElementById('receiptScan').onclick=startReceiptRecognition;
 document.getElementById('receiptConfirm').onclick=confirmReceiptStock;
 document.getElementById('receiptSend').onclick=sendReceiptToTelegram;
-document.getElementById('receiptRetryPdf').addEventListener('click',retryReceiptPdfUpload_);
+document.getElementById('receiptRetryPdf').onclick=retryReceiptPdfUpload_;
 document.getElementById('receiptOpenPdf').onclick=()=>{
   const url=receiptResult&&receiptResult.pdfUrl;if(url){if(TG) TG.openLink(url);else window.open(url,'_blank');}
 };
@@ -3324,7 +3324,7 @@ async function pollTemporaryDocument_(previewId, timeoutMs, successState){
   while(Date.now()-started<timeoutMs){
     try{
       const res=await jsonp(STOCK_API_URL,Object.assign({action:'temporaryDocumentStatus',previewId:previewId},receiptAuthParams()),RECEIPT_STATUS_REQUEST_TIMEOUT_MS);
-      if(res&&res.ok&&(res.status===successState||['ERROR','UNKNOWN'].indexOf(res.status)>=0))return res;
+      if(res&&res.ok&&(res.status===successState||['ERROR','FAILED','UNKNOWN'].indexOf(res.status)>=0))return res;
     }catch(err){ if(!isTransientReceiptStatusError_(err)&&Date.now()-started>30000)throw err; }
     await new Promise(resolve=>setTimeout(resolve,RECEIPT_POLL_INTERVAL_MS));
   }
@@ -3348,6 +3348,7 @@ async function startTemporaryReceiptRecognition_(){
     if(status.status==='ERROR')throw new Error(status.error||'Ошибка OCR.');
     if(status.status!=='READY')throw new Error('Предпросмотр не готов.');
     receiptResult=status.result||{};receiptResult.warehouse=department;renderReceiptRecognition(receiptResult);
+    document.getElementById('receiptMessage').value=String(receiptResult.messageText||'');
     document.getElementById('receiptConfirm').hidden=true;
     ['receiptDateText','receiptArrivalDate','receiptSupplierShort','receiptSupplierFull','receiptRealTypes','receiptDocNumber','receiptPaymentCard','receiptPurchaseChannel','receiptPurchaseSummary','receiptMerchant','receiptTotal','receiptWarehouse','receiptMessage'].forEach(id=>{document.getElementById(id).readOnly=true;document.getElementById(id).disabled=true;});
     document.getElementById('receiptOpenPdf').hidden=true;

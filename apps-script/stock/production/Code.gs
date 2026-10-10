@@ -1082,7 +1082,7 @@ function doPost(e) {
     // Old receipt jobs persist PDFs/results in Drive and Sheets. The temporary
     // document release intentionally accepts only the cache-bound routes.
     if (['scan', 'scanImages', 'attachPdf', 'confirm', 'sendTelegram'].indexOf(action) >= 0) {
-      throw new Error('Старый scanner job отключён для этого релиза. Создайте новый временный preview.');
+      return textOutput_({ ok:false, error:'Старый scanner job отключён для этого релиза. Создайте новый временный preview.' });
     }
 
     if (action === 'scan') {
@@ -1753,6 +1753,7 @@ function temporaryDocumentSend_(p, auth) {
     if (entry.state === 'SENT') throw new Error('Этот документ уже отправлен в чат.');
     if (entry.state === 'SENDING') throw new Error('Документ уже отправляется.');
     if (entry.state === 'UNKNOWN') throw new Error('Статус доставки неизвестен; повторная отправка заблокирована, чтобы не создать дубль.');
+    if (entry.state !== 'READY') throw new Error('Документ ещё не готов к отправке.');
     entry.state = 'SENDING'; temporaryDocumentWrite_(entry);
     const images = parseInlineImages_(p.imagesJson, Number(p.pagesCount) || 0);
     if (temporaryDocumentImagesDigest_(images) !== String(entry.imagesDigest || '')) throw new Error('Страницы изменились после preview. Создайте новый preview.');
@@ -1768,7 +1769,7 @@ function temporaryDocumentSend_(p, auth) {
     // errors have an unknown delivery result and must not create a duplicate.
     const message = errorText_(error);
     if (entry && entry.state === 'SENDING') {
-      entry.state = /^Telegram не принял документ:.*(?:HTTP 4\d\d|bad request|forbidden|chat not found)/i.test(message) ? 'READY' : 'UNKNOWN';
+      entry.state = /^Telegram не принял документ:.*(?:HTTP 4\d\d|bad request|forbidden|chat not found)/i.test(message) ? 'FAILED' : 'UNKNOWN';
       entry.error = message; temporaryDocumentWrite_(entry);
     }
     throw error;

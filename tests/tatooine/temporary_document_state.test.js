@@ -14,7 +14,7 @@ function fixture() {
     HtmlService:{createHtmlOutput:()=>({getBlob:()=>({getAs:()=>({setName:()=>({})})})})}, MimeType:{PDF:'pdf'},
     PropertiesService:{getScriptProperties:()=>({getProperty:()=>''})}, Session:{getScriptTimeZone:()=> 'UTC'} };
   const source = fs.readFileSync(path.join(__dirname, '../../apps-script/stock/production/Code.gs'), 'utf8') + `
-parseInlineImages_=(raw)=>JSON.parse(raw); recognizePdfWithGemini_=()=>({document_date:'01.01.2026',supplier_full:'ООО Тест',supplier_short:'Тест',items:[]}); sanitizeRecognition_=(r,_,mode)=>Object.assign({scanMode:mode,documentDate:r.document_date,supplierFull:r.supplier_full,supplierShort:r.supplier_short,items:[]},r); shortSupplierName_=(_,s)=>s; normalizeDate_=x=>x; dateStamp_=()=> '01.01.2026'; normalizePurchaseChannel_=x=>x||'Покупка в магазине'; formatTelegramAmount_=()=> '0'; normalizeTelegramVenue_=x=>x; errorText_=e=>String(e.message||e); requiredString_=(x,n)=>{if(!x)throw new Error(n);return String(x)}; cleanBase64_=x=>x; globalThis.api={temporaryDocumentPreview_,temporaryDocumentSend_,temporaryDocumentStatus_};`;
+parseInlineImages_=(raw)=>JSON.parse(raw); recognizePdfWithGemini_=()=>({document_date:'01.01.2026',supplier_full:'ООО Тест',supplier_short:'Тест',items:[]}); sanitizeRecognition_=(r,_,mode)=>Object.assign({scanMode:mode,documentDate:r.document_date,supplierFull:r.supplier_full,supplierShort:r.supplier_short,items:[]},r); shortSupplierName_=(_,s)=>s; normalizeDate_=x=>x; dateStamp_=()=> '01.01.2026'; normalizePurchaseChannel_=x=>x||'Покупка в магазине'; formatTelegramAmount_=()=> '0'; normalizeTelegramVenue_=x=>x; errorText_=e=>String(e.message||e); requiredString_=(x,n)=>{if(!x)throw new Error(n);return String(x)}; cleanBase64_=x=>x; authorizeRequest_=()=>({userId:'u1',venue:'fox'}); assertTelegramActionAllowed_=()=>{}; textOutput_=x=>x; globalThis.api={temporaryDocumentPreview_,temporaryDocumentSend_,temporaryDocumentStatus_,doPost};`;
   vm.createContext(ctx); vm.runInContext(source, ctx);
   const auth = {userId:'u1',venue:'fox'}; const images = JSON.stringify([{mimeType:'image/jpeg',data:'abc'}]);
   return {ctx, cache, auth, images, api:ctx.api, sends:()=>sends, setNow:v=>{now=v;}};
@@ -33,4 +33,13 @@ test('temporary send binds reviewed images and blocks UNKNOWN retries', () => {
   const entry=JSON.parse([...f.cache.values()][0]); entry.state='UNKNOWN'; f.cache.set('temporaryDocument:preview_abcdef',JSON.stringify(entry));
   assert.throws(()=>f.api.temporaryDocumentSend_({previewId:'preview_abcdef',department:'Бар',scanMode:'document',imagesJson:f.images},f.auth),/неизвестен/);
   assert.equal(f.sends(),0);
+});
+
+test('legacy doPost with a job id is rejected before any persistence handler', () => {
+  const f=fixture(); let writes=0;
+  f.ctx.failJob_=f.ctx.recordActionError_=f.ctx.upsertDocumentRecord_=()=>{writes++;};
+  const result=f.api.doPost({parameter:{action:'scanImages',jobId:'existing-job'}});
+  assert.equal(result.ok,false);
+  assert.match(result.error,/Старый scanner job отключён/);
+  assert.equal(writes,0);
 });
