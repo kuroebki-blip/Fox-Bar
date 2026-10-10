@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- FO’X `v15.17.0` / scanner backend `v9.12.0` / Tatooine `v1.11.0`: added a temporary Tatooine document scanner with auth-bound OCR preview, explicit PDF send, server-fixed Telegram routes, and a 10-minute cache TTL. It does not write documents, images, or stock changes to Google Sheets. Both scanner UIs require a selected `Бар` or `Кухня`; that value is included in the server-built caption. Rollback: revert this commit and switch the existing Apps Script Web App deployment to its prior version.
+
 - FO’X `v15.16.9`: в выборе предоплаты кассового отчёта «Онлайн-касса» заменена на `Eat and Split`; в готовом сообщении предоплата теперь подписывается так же. Внутреннее значение `online` сохранено, поэтому добавленные ранее предоплаты совместимы. Откат: вернуть commit этого релиза.
 
 - Galaxy Repairs `v0.3.9`: при переводе заявки в «Стоп», «Невозможно выполнить» или «Выполнено» Пачка уведомляет только пересечение тегов `ЛПР`, ресторана (`FO'X`/`Tatooine`) и зоны (`Бар`/`Кухня`/`Зал`). Повторная обработка одного события не дублирует сообщение; ошибка доставки не откатывает смену статуса. Личные сообщения в Telegram не отправляются. Откат: выбрать Apps Script Version 14.

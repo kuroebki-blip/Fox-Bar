@@ -750,8 +750,9 @@ body.mode-cash-report #backBtn{display:inline-flex}
         <div class="receipt-field full">
           <label>Подразделение / куда внести товар</label>
           <select id="receiptWarehouse">
+            <option value="">Выберите подразделение</option>
             <option value="Бар">Бар</option>
-            <option value="Заготовочный">Заготовочный</option>
+            <option value="Кухня">Кухня</option>
           </select>
         </div>
       </div>
@@ -3187,6 +3188,7 @@ async function retryReceiptPdfUpload_(){
 async function startReceiptRecognition(){
   if(!isStockApiConfigured()){setReceiptStatus('warn','Сначала вставь STOCK_API_URL в index.html.',0);return;}
   if(!receiptPages.length){setReceiptStatus('warn','Добавь хотя бы одну страницу.',0);return;}
+  if(!document.getElementById('receiptWarehouse').value){setReceiptStatus('warn','Сначала выбери подразделение: Бар или Кухня.',0);return;}
   try{assertOcrPageCount_(receiptPages.length);}catch(err){setReceiptStatus('warn',String(err.message||err),0);return;}
   const btn=document.getElementById('receiptScan');btn.disabled=true;
   try{

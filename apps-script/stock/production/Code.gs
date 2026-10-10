@@ -16,7 +16,7 @@
  */
 
 const FOX_RECEIPTS = {
-  version: 'v9.11.0 BANQUET TELEGRAM AUTOIMPORT',
+  version: 'v9.12.0 TEMPORARY DOCUMENT SCANNER',
 
   stockSheets: [
     'Вино',
@@ -100,6 +100,15 @@ const FOX_RECEIPTS = {
   },
   maxPdfBytes: 15 * 1024 * 1024,
   maxAuthAgeSeconds: 24 * 60 * 60
+};
+
+// Temporary document preview deliberately has no SpreadsheetApp or Drive state.
+// The browser resubmits the reviewed images only when the user explicitly sends.
+const TEMPORARY_DOCUMENT_SCANNER = {
+  cachePrefix: 'temporaryDocument:',
+  ttlSeconds: 10 * 60,
+  maxPages: 20,
+  maxBytes: 12 * 1024 * 1024
 };
 
 const FOX_RECEIPT_HEADERS = {
@@ -903,6 +912,10 @@ function doGet(e) {
       return jsonpOutput_(callback, getJobStatus_(jobId, auth));
     }
 
+    if (action === 'temporaryDocumentStatus') {
+      return jsonpOutput_(callback, temporaryDocumentStatus_(e.parameter, auth));
+    }
+
     if (action === 'catalog') {
       return jsonpOutput_(callback, {
         ok: true,
@@ -1088,6 +1101,16 @@ function doPost(e) {
 
     if (action === 'sendTelegram') {
       sendReceiptToTelegram_(e.parameter, auth);
+      return textOutput_({ ok: true });
+    }
+
+    if (action === 'temporaryDocumentPreview') {
+      temporaryDocumentPreview_(e.parameter, auth);
+      return textOutput_({ ok: true });
+    }
+
+    if (action === 'temporaryDocumentSend') {
+      temporaryDocumentSend_(e.parameter, auth);
       return textOutput_({ ok: true });
     }
 
@@ -1634,6 +1657,83 @@ function parseInlineImages_(raw, expectedPages) {
     if (totalBytes > 24 * 1024 * 1024) throw new Error('Общий размер изображений слишком большой.');
     return { mimeType: mimeType, data: data };
   });
+}
+
+// Stateless, short-lived document flow for FO'X and Tatooine.  It never calls
+// createOrResetJob_, upsertDocumentRecord_, confirmReceipt_ or DriveApp.
+function temporaryDocumentKey_(id) { return TEMPORARY_DOCUMENT_SCANNER.cachePrefix + String(id || ''); }
+function temporaryDocumentId_() { return Utilities.getUuid().replace(/-/g, ''); }
+function temporaryDepartment_(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'бар') return 'Бар';
+  if (normalized === 'кухня') return 'Кухня';
+  throw new Error('Выберите подразделение: Бар или Кухня.');
+}
+function temporaryDocumentRead_(previewId, auth) {
+  const raw = CacheService.getScriptCache().get(temporaryDocumentKey_(previewId));
+  const entry = parseJsonSafe_(raw || '');
+  if (!entry || String(entry.ownerId) !== String(auth.userId) || String(entry.venue) !== String(auth.venue)) {
+    throw new Error('Предпросмотр не найден, истёк или принадлежит другому пользователю.');
+  }
+  return entry;
+}
+function temporaryDocumentWrite_(entry) {
+  CacheService.getScriptCache().put(temporaryDocumentKey_(entry.id), JSON.stringify(entry), TEMPORARY_DOCUMENT_SCANNER.ttlSeconds);
+}
+function temporaryDocumentPreview_(p, auth) {
+  const department = temporaryDepartment_(p.department);
+  const images = parseInlineImages_(p.imagesJson, Number(p.pagesCount) || 0);
+  let totalBytes = 0;
+  images.forEach(function(image) { totalBytes += Utilities.base64Decode(image.data).length; });
+  if (images.length > TEMPORARY_DOCUMENT_SCANNER.maxPages || totalBytes > TEMPORARY_DOCUMENT_SCANNER.maxBytes) {
+    throw new Error('Документ превышает временный лимит сканера.');
+  }
+  const raw = recognizePdfWithGemini_(images, images.length, 'document', '', { skipCatalog:true, venue:auth.venue });
+  const result = sanitizeRecognition_(raw, images.length, 'document');
+  result.supplierShort = shortSupplierName_(result.supplierFull, result.supplierShort);
+  result.department = department;
+  result.messageText = buildTemporaryDocumentCaption_(result, department, auth.venue);
+  const entry = { id:temporaryDocumentId_(), ownerId:String(auth.userId), venue:String(auth.venue), department:department, result:result, state:'READY', createdAt:Date.now() };
+  temporaryDocumentWrite_(entry);
+}
+function temporaryDocumentStatus_(p, auth) {
+  const entry = temporaryDocumentRead_(requiredString_(p.previewId, 'previewId'), auth);
+  return { ok:true, status:entry.state, previewId:entry.id, result:entry.result, expiresInSeconds:TEMPORARY_DOCUMENT_SCANNER.ttlSeconds };
+}
+function buildTemporaryDocumentCaption_(result, department, venue) {
+  return [normalizeDate_(result.documentDate) || dateStamp_(new Date()), String(result.supplierShort || 'Поставщик').trim(), FOX_RECEIPTS.messageDocumentType, 'Подразделение: ' + temporaryDepartment_(department), normalizeTelegramVenue_(venue) === 'tatooine' ? 'TATOOINE' : 'FO’X'].join('\n');
+}
+function temporaryDocumentPdf_(images, caption) {
+  const pages = images.map(function(image, index) {
+    return '<section style="page-break-after:always"><img style="max-width:100%;max-height:95vh" src="data:' + image.mimeType + ';base64,' + image.data + '" alt="Страница ' + (index + 1) + '"></section>';
+  }).join('');
+  const safeCaption = String(caption || '').replace(/[&<>]/g, function(c) { return c === '&' ? '&amp;' : (c === '<' ? '&lt;' : '&gt;'); });
+  return HtmlService.createHtmlOutput('<html><body><pre>' + safeCaption + '</pre>' + pages + '</body></html>').getBlob().getAs(MimeType.PDF).setName('document.pdf');
+}
+function temporaryDocumentSend_(p, auth) {
+  const previewId = requiredString_(p.previewId, 'previewId');
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error('Сканер занят. Повторите отправку.');
+  let entry = null;
+  try {
+    entry = temporaryDocumentRead_(previewId, auth);
+    const department = temporaryDepartment_(p.department);
+    if (entry.department !== department) throw new Error('Подразделение изменилось. Сначала выполните новый предпросмотр.');
+    if (entry.state === 'SENT') throw new Error('Этот документ уже отправлен в чат.');
+    if (entry.state === 'SENDING') throw new Error('Документ уже отправляется.');
+    entry.state = 'SENDING'; temporaryDocumentWrite_(entry);
+    const images = parseInlineImages_(p.imagesJson, Number(p.pagesCount) || 0);
+    const caption = buildTemporaryDocumentCaption_(entry.result, department, auth.venue);
+    const route = telegramRouteConfig_(auth);
+    if (!route.botToken || !route.targetChatId) throw new Error('Не настроен серверный маршрут Telegram для ресторана.');
+    const response = UrlFetchApp.fetch('https://api.telegram.org/bot' + route.botToken + '/sendDocument', { method:'post', payload:{ chat_id:route.targetChatId, caption:caption, document:temporaryDocumentPdf_(images, caption) }, muteHttpExceptions:true });
+    const body = parseJsonSafe_(response.getContentText());
+    if (response.getResponseCode() < 200 || response.getResponseCode() >= 300 || !body.ok) throw new Error('Telegram не принял документ: ' + (body.description || ('HTTP ' + response.getResponseCode())));
+    entry.state = 'SENT'; entry.sentAt = Date.now(); temporaryDocumentWrite_(entry);
+  } catch (error) {
+    if (entry && entry.state === 'SENDING') { entry.state = 'READY'; temporaryDocumentWrite_(entry); }
+    throw error;
+  } finally { lock.releaseLock(); }
 }
 
 function scanReceiptImages_(p, auth) {
@@ -2817,7 +2917,8 @@ function escapeTelegramHtml_(value) {
     .replace(/"/g, '&quot;');
 }
 
-function recognizePdfWithGemini_(pdfBase64, pagesCount, scanMode, jobId) {
+function recognizePdfWithGemini_(pdfBase64, pagesCount, scanMode, jobId, options) {
+  options = options || {};
   const props = PropertiesService.getScriptProperties();
   const apiKey = props.getProperty('GEMINI_API_KEY');
   if (!apiKey) throw new Error('В Script Properties не задан GEMINI_API_KEY.');
@@ -2839,7 +2940,7 @@ function recognizePdfWithGemini_(pdfBase64, pagesCount, scanMode, jobId) {
     mediaParts = [{ inlineData:{ mimeType:'application/pdf', data:pdfBase64 } }];
   }
 
-  const catalogText = readStockCatalog_().map(function(x) { return x.sheet + ' | ' + x.name; }).join('\n');
+  const catalogText = options.skipCatalog ? '' : readStockCatalog_().map(function(x) { return x.sheet + ' | ' + x.name; }).join('\n');
   let prompt;
   if (scanMode === 'check') {
     prompt = [
@@ -2863,7 +2964,7 @@ function recognizePdfWithGemini_(pdfBase64, pagesCount, scanMode, jobId) {
     ].join('\n');
   } else {
     prompt = [
-      'Ты распознаёшь комплект документов поставки для бара FO’X.',
+      'Ты распознаёшь комплект документов поставки для ресторана ' + (normalizeTelegramVenue_(options.venue) === 'tatooine' ? 'Tatooine' : 'FO’X') + '.',
       'PDF содержит ' + pagesCount + ' страниц. Все страницы относятся к ОДНОЙ поставке.',
       'Верни только JSON-объект без Markdown и пояснений.',
       'Найди реальные типы документов и не дублируй товары между счётом, УПД, накладной и чеками.',
@@ -3425,7 +3526,7 @@ function telegramRouteConfig_(value) {
 
 function assertTelegramActionAllowed_(action, auth) {
   if (!auth || auth.venue !== 'tatooine') return;
-  const allowed = ['status', 'cashReportScan', 'cashReportScanImages', 'cashReportSend', 'currentUser', 'tatooineEmployees', 'tatooineSetRole', 'tatooineRideBootstrap', 'tatooineMyRide', 'tatooineRideToday', 'tatooineRideRouteCalculation', 'tatooineRideRouteDetails', 'tatooineRideOptimization', 'tatooineCalculateRideRoutes', 'tatooineOptimizeRide', 'tatooineRideEmployees', 'tatooineRideAddressSuggestions', 'tatooineRideOriginSuggestions', 'tatooineRideOrigin', 'tatooineSetMyRide', 'tatooineSetEmployeeRide', 'tatooineSetEmployeeRideAddress', 'tatooineSetRideOrigin'];
+  const allowed = ['status', 'temporaryDocumentStatus', 'temporaryDocumentPreview', 'temporaryDocumentSend', 'cashReportScan', 'cashReportScanImages', 'cashReportSend', 'currentUser', 'tatooineEmployees', 'tatooineSetRole', 'tatooineRideBootstrap', 'tatooineMyRide', 'tatooineRideToday', 'tatooineRideRouteCalculation', 'tatooineRideRouteDetails', 'tatooineRideOptimization', 'tatooineCalculateRideRoutes', 'tatooineOptimizeRide', 'tatooineRideEmployees', 'tatooineRideAddressSuggestions', 'tatooineRideOriginSuggestions', 'tatooineRideOrigin', 'tatooineSetMyRide', 'tatooineSetEmployeeRide', 'tatooineSetEmployeeRideAddress', 'tatooineSetRideOrigin'];
   if (allowed.indexOf(String(action || '')) < 0) {
     throw new Error('Недоступное действие Tatooine.');
   }
@@ -4432,6 +4533,7 @@ function normalizePurchaseChannel_(value){const v=normalizeText_(value);if(v.ind
 function normalizeWarehouse_(value) {
   const v = normalizeText_(value);
   if (v.indexOf('заготов') >= 0 || v.indexOf('резерв') >= 0) return 'Заготовочный';
+  if (v.indexOf('кухн') >= 0) return 'Кухня';
   return 'Бар';
 }
 

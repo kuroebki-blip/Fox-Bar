@@ -28,11 +28,19 @@
         <h1 id="hubTitle">Tatooine</h1>
       </section>
       <nav class="hub-actions" aria-label="Разделы Tatooine">
+        <button class="hub-action primary" id="openDocumentScanner" type="button"><span aria-hidden="true">📄</span><b>Сканировать документ</b></button>
         <button class="hub-action primary" id="openCashReport" type="button"><span aria-hidden="true">💰</span><b>Кассовый отчёт</b></button>
         <button class="hub-action" id="openTaxi" type="button"><span aria-hidden="true">🚕</span><b>Такси</b></button>
         <button class="hub-action" id="openRoleManagement" type="button" hidden><span aria-hidden="true">🛡️</span><b>Управление ролями</b></button>
         <button class="hub-action" id="openRideOriginSettings" type="button" hidden><span aria-hidden="true">⚙️</span><b>Настройки</b></button>
       </nav>
+    </section>
+
+    <section class="app-screen" id="documentScannerScreen" hidden>
+      <button class="back-button" type="button" data-open-screen="hub">← Назад</button>
+      <section class="intro"><h1>Документы</h1><p>Фото не записываются в таблицы или склад. После OCR отправка в чат подтверждается отдельно.</p></section>
+      <section class="card"><label class="field full"><span>Подразделение</span><select id="documentDepartment"><option value="">Выберите подразделение</option><option value="Бар">Бар</option><option value="Кухня">Кухня</option></select></label><input id="documentGallery" class="file-input" type="file" accept="image/*" multiple><label class="source primary" for="documentGallery"><span class="source-icon">🖼️</span><span><b>Добавить фото</b><small>До 20 страниц</small></span></label><div class="pages" id="documentPages"></div><button class="button primary wide" id="documentPreview" type="button" disabled>Распознать и показать предпросмотр</button><div class="summary" id="documentStatus"></div></section>
+      <section class="card" id="documentResult" hidden><label class="field full"><span>Подпись для чата</span><textarea id="documentCaption" readonly></textarea></label><button class="button primary wide" id="documentSend" type="button">Отправить PDF в чат</button></section>
     </section>
 
     <section class="app-screen" id="taxiScreen" hidden aria-labelledby="taxiTitle">
