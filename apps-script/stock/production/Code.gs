@@ -1688,13 +1688,18 @@ function temporaryDocumentPreview_(p, auth) {
   if (images.length > TEMPORARY_DOCUMENT_SCANNER.maxPages || totalBytes > TEMPORARY_DOCUMENT_SCANNER.maxBytes) {
     throw new Error('Документ превышает временный лимит сканера.');
   }
-  const raw = recognizePdfWithGemini_(images, images.length, 'document', '', { skipCatalog:true, venue:auth.venue });
-  const result = sanitizeRecognition_(raw, images.length, 'document');
-  result.supplierShort = shortSupplierName_(result.supplierFull, result.supplierShort);
-  result.department = department;
-  result.messageText = buildTemporaryDocumentCaption_(result, department, auth.venue);
-  const entry = { id:temporaryDocumentId_(), ownerId:String(auth.userId), venue:String(auth.venue), department:department, result:result, state:'READY', createdAt:Date.now() };
+  const id = requiredString_(p.previewId, 'previewId');
+  if (!/^[A-Za-z0-9_-]{12,96}$/.test(id)) throw new Error('Некорректный previewId.');
+  const entry = { id:id, ownerId:String(auth.userId), venue:String(auth.venue), department:department, result:null, state:'PROCESSING', createdAt:Date.now() };
   temporaryDocumentWrite_(entry);
+  try {
+    const raw = recognizePdfWithGemini_(images, images.length, 'document', '', { skipCatalog:true, venue:auth.venue });
+    const result = sanitizeRecognition_(raw, images.length, 'document');
+    result.supplierShort = shortSupplierName_(result.supplierFull, result.supplierShort);
+    result.department = department;
+    result.messageText = buildTemporaryDocumentCaption_(result, department, auth.venue);
+    entry.result = result; entry.state = 'READY'; temporaryDocumentWrite_(entry);
+  } catch (error) { entry.state = 'ERROR'; entry.error = errorText_(error); temporaryDocumentWrite_(entry); throw error; }
 }
 function temporaryDocumentStatus_(p, auth) {
   const entry = temporaryDocumentRead_(requiredString_(p.previewId, 'previewId'), auth);
@@ -1731,7 +1736,13 @@ function temporaryDocumentSend_(p, auth) {
     if (response.getResponseCode() < 200 || response.getResponseCode() >= 300 || !body.ok) throw new Error('Telegram не принял документ: ' + (body.description || ('HTTP ' + response.getResponseCode())));
     entry.state = 'SENT'; entry.sentAt = Date.now(); temporaryDocumentWrite_(entry);
   } catch (error) {
-    if (entry && entry.state === 'SENDING') { entry.state = 'READY'; temporaryDocumentWrite_(entry); }
+    // Only an explicit Telegram rejection is safe to retry. Network/time-out
+    // errors have an unknown delivery result and must not create a duplicate.
+    const message = errorText_(error);
+    if (entry && entry.state === 'SENDING') {
+      entry.state = /^Telegram не принял документ:.*(?:HTTP 4\d\d|bad request|forbidden|chat not found)/i.test(message) ? 'READY' : 'UNKNOWN';
+      entry.error = message; temporaryDocumentWrite_(entry);
+    }
     throw error;
   } finally { lock.releaseLock(); }
 }

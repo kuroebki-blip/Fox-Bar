@@ -2850,7 +2850,7 @@ function resetReceiptScanner(){
 }
 function invalidateReceiptRecognition_(){
   receiptPollingToken++;
-  receiptPdfBlob=null;receiptPdfUploadPromise=null;receiptPdfUploadError='';receiptJobId='';receiptResult=null;
+  receiptPdfBlob=null;receiptPdfUploadPromise=null;receiptPdfUploadError='';receiptJobId='';receiptResult=null;if(typeof receiptTemporaryPreviewId!=='undefined')receiptTemporaryPreviewId='';
   const card=document.getElementById('receiptResultCard');if(card)card.hidden=true;
   saveReceiptDraft_();
 }
@@ -3313,6 +3313,62 @@ async function sendReceiptToTelegram(){
   try{const message=document.getElementById('receiptMessage').value.trim();setReceiptStatus('', 'Завершаю PDF для Telegram…', .12);await ensureReceiptPdfReady_();setReceiptStatus('', 'Отправляю единый PDF и сообщение в Telegram…', .2);postReceipt({action:'sendTelegram',jobId:receiptJobId,messageText:message}).catch(()=>{});const status=await pollReceiptJob(receiptJobId,['SENT','SENT_UNCONFIRMED','SEND_ERROR'],120000);if(status.status==='SEND_ERROR')throw new Error(status.error||'Ошибка Telegram');setReceiptStatus('ok','PDF и сообщение отправлены в Telegram.',1);btn.textContent='✓ Отправлено в чат';hap('ok');}
   catch(err){btn.disabled=false;setReceiptStatus('err',String(err&&err.message?err.message:err),1);}
 }
+
+// v15.17 temporary scanner: this overrides the legacy Sheets job flow for the
+// document UI. OCR preview and send are cache-bound; no receipt job, PDF upload
+// or stock confirmation is created until the temporary feature is replaced.
+let receiptTemporaryPreviewId='';
+async function pollTemporaryDocument_(previewId, timeoutMs){
+  const started=Date.now();
+  while(Date.now()-started<timeoutMs){
+    try{
+      const res=await jsonp(STOCK_API_URL,Object.assign({action:'temporaryDocumentStatus',previewId:previewId},receiptAuthParams()),RECEIPT_STATUS_REQUEST_TIMEOUT_MS);
+      if(res&&res.ok&&['READY','SENT','ERROR','UNKNOWN'].indexOf(res.status)>=0)return res;
+    }catch(err){ if(!isTransientReceiptStatusError_(err)&&Date.now()-started>30000)throw err; }
+    await new Promise(resolve=>setTimeout(resolve,RECEIPT_POLL_INTERVAL_MS));
+  }
+  throw new Error('Предпросмотр не подтвердился. Фото остались на устройстве — попробуйте ещё раз.');
+}
+async function startTemporaryReceiptRecognition_(){
+  if(!isStockApiConfigured()){setReceiptStatus('warn','Сначала вставь STOCK_API_URL в index.html.',0);return;}
+  if(!receiptPages.length){setReceiptStatus('warn','Добавь хотя бы одну страницу.',0);return;}
+  const department=document.getElementById('receiptWarehouse').value;
+  if(!department){setReceiptStatus('warn','Сначала выбери подразделение: Бар или Кухня.',0);return;}
+  const btn=document.getElementById('receiptScan');btn.disabled=true;
+  try{
+    const pagesSnapshot=receiptPages.map(page=>Object.assign({},page));
+    setReceiptStatus('', 'Подготавливаю изображения для предпросмотра…', .08);
+    const images=await buildOcrImagesPayload_(pagesSnapshot,(i,total)=>setReceiptStatus('', 'Подготавливаю страницу '+(i+1)+' из '+total+'…',.08+.1*(i/Math.max(1,total))));
+    const previewId='foxtemporary_'+Date.now()+'_'+Math.random().toString(36).slice(2,10);
+    receiptTemporaryPreviewId=previewId;receiptJobId='';receiptResult=null;receiptPdfBlob=null;receiptPdfUploadError='';
+    document.getElementById('receiptResultCard').hidden=true;
+    postReceipt({action:'temporaryDocumentPreview',previewId:previewId,department:department,pagesCount:images.length,imagesJson:JSON.stringify(images)}).catch(()=>{});
+    const status=await pollTemporaryDocument_(previewId,210000);
+    if(status.status==='ERROR')throw new Error(status.error||'Ошибка OCR.');
+    if(status.status!=='READY')throw new Error('Предпросмотр не готов.');
+    receiptResult=status.result||{};receiptResult.warehouse=department;renderReceiptRecognition(receiptResult);
+    document.getElementById('receiptConfirm').hidden=true;
+    document.getElementById('receiptOpenPdf').hidden=true;
+    document.getElementById('receiptPdfRecoveryActions').hidden=true;
+    document.getElementById('receiptActionHint').textContent='Временный сканер не вносит документ или позиции в таблицы и сток. Проверь подпись и отправь PDF отдельно.';
+    setReceiptStatus('ok','Предпросмотр готов. Проверь подпись и подтверди отправку в чат.',1);
+  }catch(err){receiptTemporaryPreviewId='';setReceiptStatus('err',String(err&&err.message?err.message:err),1);}
+  finally{btn.disabled=!receiptPages.length;}
+}
+async function sendTemporaryReceiptToTelegram_(){
+  if(!receiptTemporaryPreviewId){setReceiptStatus('warn','Сначала распознай документ.',0);return;}
+  const btn=document.getElementById('receiptSend');btn.disabled=true;
+  try{
+    const images=await buildOcrImagesPayload_(receiptPages,(i,total)=>setReceiptStatus('', 'Собираю страницу '+(i+1)+' из '+total+' для PDF…',.1+.15*(i/Math.max(1,total))));
+    postReceipt({action:'temporaryDocumentSend',previewId:receiptTemporaryPreviewId,department:document.getElementById('receiptWarehouse').value,pagesCount:images.length,imagesJson:JSON.stringify(images)}).catch(()=>{});
+    const status=await pollTemporaryDocument_(receiptTemporaryPreviewId,120000);
+    if(status.status==='SENT'){setReceiptStatus('ok','PDF и подпись отправлены в чат.',1);btn.textContent='✓ Отправлено в чат';return;}
+    if(status.status==='UNKNOWN')throw new Error('Статус доставки неизвестен. Проверьте чат; повторная отправка заблокирована, чтобы не создать дубль.');
+    throw new Error(status.error||'Telegram отклонил документ. Можно исправить и повторить.');
+  }catch(err){setReceiptStatus('err',String(err&&err.message?err.message:err),1);if(!/неизвестен/.test(String(err&&err.message||err)))btn.disabled=false;}
+}
+document.getElementById('receiptScan').onclick=startTemporaryReceiptRecognition_;
+document.getElementById('receiptSend').onclick=sendTemporaryReceiptToTelegram_;
 
 
 

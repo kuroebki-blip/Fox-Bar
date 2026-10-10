@@ -1244,9 +1244,12 @@
       documentStatus('Собираю PDF и отправляю в чат…'); const images = await documentImages();
       post({ action:'temporaryDocumentSend', previewId:documentPreviewId, department, pagesCount:images.length, imagesJson:JSON.stringify(images) }).catch(() => {});
       const result = await jsonp(Object.assign({ action:'temporaryDocumentStatus', previewId:documentPreviewId }, authParams()), 120000);
-      if (!result || !result.ok || result.status !== 'SENT') throw new Error(result && result.error ? result.error : 'Отправка не подтверждена.');
+      if (!result || !result.ok || result.status !== 'SENT') {
+        if (result && result.status === 'UNKNOWN') throw new Error('Статус доставки неизвестен. Проверьте чат; повтор заблокирован, чтобы не создать дубль.');
+        throw new Error(result && result.error ? result.error : 'Отправка не подтверждена.');
+      }
       documentStatus('PDF и подпись отправлены в чат.'); button.textContent = '✓ Отправлено в чат';
-    } catch (error) { documentStatus(errorMessage(error)); button.disabled = false; }
+    } catch (error) { const message = errorMessage(error); documentStatus(message); if (!/неизвестен/.test(message)) button.disabled = false; }
   }
 
   function movePage(index, delta) {
