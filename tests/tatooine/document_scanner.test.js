@@ -56,6 +56,46 @@ test('Tatooine keeps preview and explicit send as distinct actions', () => {
   assert.match(tatooine, /await pollTemporaryDocument\(documentPreviewId, 120000, 'SENT'\)/);
 });
 
+function extractedPoll(source, name, nextFunction) {
+  const start = source.indexOf('async function ' + name + '(');
+  const end = source.indexOf('\nasync function ' + nextFunction, start) >= 0
+    ? source.indexOf('\nasync function ' + nextFunction, start)
+    : source.indexOf('\n  async function ' + nextFunction, start);
+  assert.ok(start >= 0 && end > start, 'poll function must be extractable');
+  const declaration = source.slice(start, end).trim()
+    .replace(/await new Promise\(resolve=>setTimeout\(resolve,[^)]+\)\)\;/, 'await sleep();')
+    .replace(/RECEIPT_STATUS_REQUEST_TIMEOUT_MS/g, '1000')
+    .replace(/STOCK_API_URL/g, "'mock://api'")
+    .replace(/receiptAuthParams/g, 'authParams');
+  return new Function('jsonp', 'authParams', 'sleep', 'Date', 'return (' + declaration.replace(/^async function /, 'async function ') + ');');
+}
+
+test('Tatooine UI polling tolerates delayed PROCESSING/SENDING states until SENT', async () => {
+  let now = 0; let calls = 0;
+  const poll = extractedPoll(tatooine, 'pollTemporaryDocument', 'previewDocument')(
+    async () => ({ok:true, status:['PROCESSING', 'READY', 'SENDING', 'SENT'][calls++]}),
+    () => ({token:'mock'}),
+    async () => { now += 1500; },
+    {now:()=>now}
+  );
+  const result = await poll('preview_mock', 10000, 'SENT');
+  assert.equal(result.status, 'SENT');
+  assert.equal(calls, 4);
+});
+
+test('FO’X UI polling preserves a server caption after delayed preview completion', async () => {
+  let now = 0; let calls = 0;
+  const poll = extractedPoll(fox, 'pollTemporaryDocument_', 'startTemporaryReceiptRecognition_')(
+    async () => ({ok:true, status:['PROCESSING', 'READY'][calls++], result:{messageText:'Подразделение: Кухня\nTATOOINE'}}),
+    () => ({token:'mock'}),
+    async () => { now += 1500; },
+    {now:()=>now}
+  );
+  const result = await poll('preview_mock', 10000, 'READY');
+  assert.equal(result.result.messageText, 'Подразделение: Кухня\nTATOOINE');
+  assert.equal(calls, 2);
+});
+
 test('FO’X document UI overrides the legacy Sheets job route with the temporary route', () => {
   assert.match(fox, /function startTemporaryReceiptRecognition_/);
   assert.match(fox, /action:'temporaryDocumentPreview'/);

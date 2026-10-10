@@ -1195,7 +1195,12 @@ function doPost(e) {
   } catch (err) {
     const jobId = e && e.parameter ? String(e.parameter.jobId || '') : '';
     const action = e && e.parameter ? String(e.parameter.action || '') : '';
-    if (jobId && auth && jobMatchesTelegramRouteById_(jobId, auth)) {
+    // Temporary scanner requests are deliberately stateless: neither their
+    // validation/auth failures nor blocked legacy scanner calls may create a
+    // job row, document record, or action-error row merely because a client
+    // supplied a jobId.
+    const temporaryOrBlockedScanner = ['temporaryDocumentPreview', 'temporaryDocumentSend', 'scan', 'scanImages', 'attachPdf', 'confirm', 'sendTelegram'].indexOf(action) >= 0;
+    if (!temporaryOrBlockedScanner && jobId && auth && jobMatchesTelegramRouteById_(jobId, auth)) {
       if (action === 'banquetScan') {
         try { failBanquetJob_(jobId, errorText_(err)); } catch (_) {}
       } else if (action === 'cashReportScan' || action === 'cashReportScanImages') {
@@ -1754,9 +1759,9 @@ function temporaryDocumentSend_(p, auth) {
     if (entry.state === 'SENDING') throw new Error('Документ уже отправляется.');
     if (entry.state === 'UNKNOWN') throw new Error('Статус доставки неизвестен; повторная отправка заблокирована, чтобы не создать дубль.');
     if (entry.state !== 'READY') throw new Error('Документ ещё не готов к отправке.');
-    entry.state = 'SENDING'; temporaryDocumentWrite_(entry);
     const images = parseInlineImages_(p.imagesJson, Number(p.pagesCount) || 0);
     if (temporaryDocumentImagesDigest_(images) !== String(entry.imagesDigest || '')) throw new Error('Страницы изменились после preview. Создайте новый preview.');
+    entry.state = 'SENDING'; temporaryDocumentWrite_(entry);
     const caption = buildTemporaryDocumentCaption_(entry.result, department, auth.venue);
     const route = telegramRouteConfig_(auth);
     if (!route.botToken || !route.targetChatId) throw new Error('Не настроен серверный маршрут Telegram для ресторана.');

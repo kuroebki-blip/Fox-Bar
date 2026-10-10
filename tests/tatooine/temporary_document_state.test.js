@@ -14,7 +14,7 @@ function fixture() {
     HtmlService:{createHtmlOutput:()=>({getBlob:()=>({getAs:()=>({setName:()=>({})})})})}, MimeType:{PDF:'pdf'},
     PropertiesService:{getScriptProperties:()=>({getProperty:()=>''})}, Session:{getScriptTimeZone:()=> 'UTC'} };
   const source = fs.readFileSync(path.join(__dirname, '../../apps-script/stock/production/Code.gs'), 'utf8') + `
-parseInlineImages_=(raw)=>JSON.parse(raw); recognizePdfWithGemini_=()=>({document_date:'01.01.2026',supplier_full:'ООО Тест',supplier_short:'Тест',items:[]}); sanitizeRecognition_=(r,_,mode)=>Object.assign({scanMode:mode,documentDate:r.document_date,supplierFull:r.supplier_full,supplierShort:r.supplier_short,items:[]},r); shortSupplierName_=(_,s)=>s; normalizeDate_=x=>x; dateStamp_=()=> '01.01.2026'; normalizePurchaseChannel_=x=>x||'Покупка в магазине'; formatTelegramAmount_=()=> '0'; normalizeTelegramVenue_=x=>x; errorText_=e=>String(e.message||e); requiredString_=(x,n)=>{if(!x)throw new Error(n);return String(x)}; cleanBase64_=x=>x; authorizeRequest_=()=>({userId:'u1',venue:'fox'}); assertTelegramActionAllowed_=()=>{}; textOutput_=x=>x; globalThis.api={temporaryDocumentPreview_,temporaryDocumentSend_,temporaryDocumentStatus_,doPost};`;
+parseInlineImages_=(raw)=>JSON.parse(raw); recognizePdfWithGemini_=()=>({document_date:'01.01.2026',supplier_full:'ООО Тест',supplier_short:'Тест',items:[]}); sanitizeRecognition_=(r,_,mode)=>Object.assign({scanMode:mode,documentDate:r.document_date,supplierFull:r.supplier_full,supplierShort:r.supplier_short,items:[]},r); shortSupplierName_=(_,s)=>s; normalizeDate_=x=>x; dateStamp_=()=> '01.01.2026'; normalizePurchaseChannel_=x=>x||'Покупка в магазине'; formatTelegramAmount_=()=> '0'; normalizeTelegramVenue_=x=>x; errorText_=e=>String(e.message||e); requiredString_=(x,n)=>{if(!x)throw new Error(n);return String(x)}; cleanBase64_=x=>x; authorizeRequest_=()=>({userId:'u1',venue:'fox'}); assertTelegramActionAllowed_=()=>{}; textOutput_=x=>x; telegramRouteConfig_=()=>({botToken:'mock',targetChatId:'mock'}); temporaryDocumentPdf_=()=>({}); globalThis.api={temporaryDocumentPreview_,temporaryDocumentSend_,temporaryDocumentStatus_,doPost};`;
   vm.createContext(ctx); vm.runInContext(source, ctx);
   const auth = {userId:'u1',venue:'fox'}; const images = JSON.stringify([{mimeType:'image/jpeg',data:'abc'}]);
   return {ctx, cache, auth, images, api:ctx.api, sends:()=>sends, setNow:v=>{now=v;}};
@@ -42,4 +42,44 @@ test('legacy doPost with a job id is rejected before any persistence handler', (
   assert.equal(result.ok,false);
   assert.match(result.error,/Старый scanner job отключён/);
   assert.equal(writes,0);
+});
+
+test('temporary and blocked scanner errors never enter legacy persistence, even before auth', () => {
+  for (const parameter of [
+    {action:'temporaryDocumentPreview',jobId:'foreign-job',previewId:'bad',department:'Бар',imagesJson:'[]'},
+    {action:'temporaryDocumentSend',jobId:'foreign-job',previewId:'missing',department:'Бар',scanMode:'document',imagesJson:'[]'},
+    {action:'scanImages',jobId:'foreign-job'}
+  ]) {
+    const f=fixture(); let writes=0;
+    f.ctx.authorizeRequest_=()=>{ throw new Error('Доступ запрещён'); };
+    f.ctx.failJob_=f.ctx.recordActionError_=f.ctx.upsertDocumentRecord_=()=>{writes++;};
+    const result=f.api.doPost({parameter});
+    assert.equal(result.ok,false);
+    assert.match(result.error,/Доступ запрещён/);
+    assert.equal(writes,0,parameter.action);
+  }
+});
+
+test('preview lock contention does not create temporary state', () => {
+  const f=fixture();
+  f.ctx.LockService.getScriptLock=()=>({tryLock:()=>false,releaseLock:()=>{throw new Error('must not release');}});
+  assert.throws(()=>f.api.temporaryDocumentPreview_({previewId:'preview_locked',department:'Бар',imagesJson:f.images},f.auth),/занят/);
+  assert.equal(f.cache.size,0);
+});
+
+test('send success becomes SENT; explicit rejection becomes FAILED; network error becomes UNKNOWN', () => {
+  for (const scenario of [
+    { name:'success', fetch:()=>({getResponseCode:()=>200,getContentText:()=>'{"ok":true}'}), state:'SENT' },
+    { name:'rejected', fetch:()=>({getResponseCode:()=>400,getContentText:()=>'{"ok":false,"description":"Bad Request"}'}), state:'FAILED' },
+    { name:'timeout', fetch:()=>{throw new Error('network timeout');}, state:'UNKNOWN' }
+  ]) {
+    const f=fixture(); f.ctx.UrlFetchApp.fetch=scenario.fetch;
+    f.api.temporaryDocumentPreview_({previewId:'preview_'+scenario.name,department:'Бар',imagesJson:f.images},f.auth);
+    if (scenario.state === 'SENT') {
+      f.api.temporaryDocumentSend_({previewId:'preview_'+scenario.name,department:'Бар',scanMode:'document',imagesJson:f.images},f.auth);
+    } else {
+      assert.throws(()=>f.api.temporaryDocumentSend_({previewId:'preview_'+scenario.name,department:'Бар',scanMode:'document',imagesJson:f.images},f.auth));
+    }
+    assert.equal(f.api.temporaryDocumentStatus_({previewId:'preview_'+scenario.name},f.auth).status,scenario.state);
+  }
 });
