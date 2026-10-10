@@ -1213,13 +1213,26 @@
         const page = await preparePage(file); if (page) documentPages.push(page);
       }
       if (documentPages.length > (Number(CONFIG.maxOcrPages) || 20)) throw new Error('Максимум 20 страниц.');
-      documentPreviewId = ''; $('documentResult').hidden = true; renderDocumentPages(); documentStatus('Фото готовы. Выберите подразделение и распознайте документ.');
+      documentPreviewId = ''; $('documentResult').hidden = true; $('documentSend').disabled = false; $('documentSend').textContent = 'Отправить PDF в чат'; renderDocumentPages(); documentStatus('Фото готовы. Выберите подразделение и распознайте документ.');
     } catch (error) { documentStatus(errorMessage(error)); }
   }
   async function documentImages() {
     const images = [];
     for (const page of documentPages) images.push(await toOcrImage(page));
     validateOcrImages(images); return images;
+  }
+  async function pollTemporaryDocument(previewId, timeoutMs, successState) {
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+      try {
+        const result = await jsonp(Object.assign({ action:'temporaryDocumentStatus', previewId }, authParams()), 7000);
+        if (result && result.ok && (result.status === successState || ['ERROR', 'UNKNOWN'].includes(result.status))) return result;
+      } catch (error) {
+        if (Date.now() - started > 30000) throw error;
+      }
+      await sleep(1500);
+    }
+    throw new Error('Сервер не подтвердил операцию вовремя. Фото остались на устройстве.');
   }
   async function previewDocument() {
     const department = $('documentDepartment').value;
@@ -1230,7 +1243,7 @@
       documentStatus('Распознаю документ…'); const images = await documentImages();
       const previewId = 'td' + Date.now() + Math.random().toString(36).slice(2, 8);
       post({ action:'temporaryDocumentPreview', previewId, department, pagesCount:images.length, imagesJson:JSON.stringify(images) }).catch(() => {});
-      const result = await jsonp(Object.assign({ action:'temporaryDocumentStatus', previewId }, authParams()), 210000);
+      const result = await pollTemporaryDocument(previewId, 210000, 'READY');
       if (!result || !result.ok || result.status !== 'READY') throw new Error(result && result.error ? result.error : 'Предпросмотр не готов.');
       documentPreviewId = previewId; $('documentCaption').value = String(result.result && result.result.messageText || ''); $('documentResult').hidden = false;
       documentStatus('Предпросмотр готов. Проверьте подпись и подтвердите отправку.');
@@ -1243,7 +1256,7 @@
     try {
       documentStatus('Собираю PDF и отправляю в чат…'); const images = await documentImages();
       post({ action:'temporaryDocumentSend', previewId:documentPreviewId, department, pagesCount:images.length, imagesJson:JSON.stringify(images) }).catch(() => {});
-      const result = await jsonp(Object.assign({ action:'temporaryDocumentStatus', previewId:documentPreviewId }, authParams()), 120000);
+      const result = await pollTemporaryDocument(documentPreviewId, 120000, 'SENT');
       if (!result || !result.ok || result.status !== 'SENT') {
         if (result && result.status === 'UNKNOWN') throw new Error('Статус доставки неизвестен. Проверьте чат; повтор заблокирован, чтобы не создать дубль.');
         throw new Error(result && result.error ? result.error : 'Отправка не подтверждена.');

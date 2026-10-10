@@ -1079,6 +1079,12 @@ function doPost(e) {
     auth = authorizeRequest_(e.parameter || {});
     assertTelegramActionAllowed_(action, auth);
 
+    // Old receipt jobs persist PDFs/results in Drive and Sheets. The temporary
+    // document release intentionally accepts only the cache-bound routes.
+    if (['scan', 'scanImages', 'attachPdf', 'confirm', 'sendTelegram'].indexOf(action) >= 0) {
+      throw new Error('Старый scanner job отключён для этого релиза. Создайте новый временный preview.');
+    }
+
     if (action === 'scan') {
       scanReceipt_(e.parameter, auth);
       return textOutput_({ ok: true });
@@ -1675,13 +1681,24 @@ function temporaryDocumentRead_(previewId, auth) {
   if (!entry || String(entry.ownerId) !== String(auth.userId) || String(entry.venue) !== String(auth.venue)) {
     throw new Error('Предпросмотр не найден, истёк или принадлежит другому пользователю.');
   }
+  if (!Number(entry.expiresAt) || Date.now() >= Number(entry.expiresAt)) {
+    CacheService.getScriptCache().remove(temporaryDocumentKey_(previewId));
+    throw new Error('Предпросмотр истёк. Создайте новый preview.');
+  }
   return entry;
 }
 function temporaryDocumentWrite_(entry) {
-  CacheService.getScriptCache().put(temporaryDocumentKey_(entry.id), JSON.stringify(entry), TEMPORARY_DOCUMENT_SCANNER.ttlSeconds);
+  const remaining = Math.floor((Number(entry.expiresAt) - Date.now()) / 1000);
+  if (remaining <= 0) throw new Error('Предпросмотр истёк. Создайте новый preview.');
+  CacheService.getScriptCache().put(temporaryDocumentKey_(entry.id), JSON.stringify(entry), remaining);
+}
+function temporaryDocumentImagesDigest_(images) {
+  const source = images.map(function(image) { return image.mimeType + ':' + image.data; }).join('|');
+  return Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, source, Utilities.Charset.UTF_8));
 }
 function temporaryDocumentPreview_(p, auth) {
   const department = temporaryDepartment_(p.department);
+  const scanMode = normalizeScanMode_(p.scanMode);
   const images = parseInlineImages_(p.imagesJson, Number(p.pagesCount) || 0);
   let totalBytes = 0;
   images.forEach(function(image) { totalBytes += Utilities.base64Decode(image.data).length; });
@@ -1690,12 +1707,17 @@ function temporaryDocumentPreview_(p, auth) {
   }
   const id = requiredString_(p.previewId, 'previewId');
   if (!/^[A-Za-z0-9_-]{12,96}$/.test(id)) throw new Error('Некорректный previewId.');
-  const entry = { id:id, ownerId:String(auth.userId), venue:String(auth.venue), department:department, result:null, state:'PROCESSING', createdAt:Date.now() };
-  temporaryDocumentWrite_(entry);
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error('Сканер занят. Повторите preview.');
+  const entry = { id:id, ownerId:String(auth.userId), venue:String(auth.venue), department:department, scanMode:scanMode, imagesDigest:temporaryDocumentImagesDigest_(images), result:null, state:'PROCESSING', createdAt:Date.now(), expiresAt:Date.now() + TEMPORARY_DOCUMENT_SCANNER.ttlSeconds * 1000 };
   try {
-    const raw = recognizePdfWithGemini_(images, images.length, 'document', '', { skipCatalog:true, venue:auth.venue });
-    const result = sanitizeRecognition_(raw, images.length, 'document');
-    result.supplierShort = shortSupplierName_(result.supplierFull, result.supplierShort);
+    if (CacheService.getScriptCache().get(temporaryDocumentKey_(id))) throw new Error('Этот previewId уже существует. Создайте новый preview.');
+    temporaryDocumentWrite_(entry);
+  } finally { lock.releaseLock(); }
+  try {
+    const raw = recognizePdfWithGemini_(images, images.length, scanMode, '', { skipCatalog:true, venue:auth.venue });
+    const result = sanitizeRecognition_(raw, images.length, scanMode);
+    if (scanMode === 'document') result.supplierShort = shortSupplierName_(result.supplierFull, result.supplierShort);
     result.department = department;
     result.messageText = buildTemporaryDocumentCaption_(result, department, auth.venue);
     entry.result = result; entry.state = 'READY'; temporaryDocumentWrite_(entry);
@@ -1703,9 +1725,12 @@ function temporaryDocumentPreview_(p, auth) {
 }
 function temporaryDocumentStatus_(p, auth) {
   const entry = temporaryDocumentRead_(requiredString_(p.previewId, 'previewId'), auth);
-  return { ok:true, status:entry.state, previewId:entry.id, result:entry.result, expiresInSeconds:TEMPORARY_DOCUMENT_SCANNER.ttlSeconds };
+  return { ok:true, status:entry.state, previewId:entry.id, result:entry.result, error:entry.error || '', expiresInSeconds:Math.max(0, Math.floor((entry.expiresAt - Date.now()) / 1000)) };
 }
 function buildTemporaryDocumentCaption_(result, department, venue) {
+  if (normalizeScanMode_(result && result.scanMode) === 'check') {
+    return [normalizeDate_(result.documentDate) || dateStamp_(new Date()), String(result.paymentCard || 'Карта не указана').trim(), normalizePurchaseChannel_(result.purchaseChannel), String(result.purchaseSummary || 'Покупка').trim(), 'Итого: ' + formatTelegramAmount_(result.totalAmount) + ' руб', 'Подразделение: ' + temporaryDepartment_(department), normalizeTelegramVenue_(venue) === 'tatooine' ? 'TATOOINE' : 'FO’X'].join('\n');
+  }
   return [normalizeDate_(result.documentDate) || dateStamp_(new Date()), String(result.supplierShort || 'Поставщик').trim(), FOX_RECEIPTS.messageDocumentType, 'Подразделение: ' + temporaryDepartment_(department), normalizeTelegramVenue_(venue) === 'tatooine' ? 'TATOOINE' : 'FO’X'].join('\n');
 }
 function temporaryDocumentPdf_(images, caption) {
@@ -1723,11 +1748,14 @@ function temporaryDocumentSend_(p, auth) {
   try {
     entry = temporaryDocumentRead_(previewId, auth);
     const department = temporaryDepartment_(p.department);
+    if (entry.scanMode !== normalizeScanMode_(p.scanMode)) throw new Error('Тип скана изменился после preview. Создайте новый preview.');
     if (entry.department !== department) throw new Error('Подразделение изменилось. Сначала выполните новый предпросмотр.');
     if (entry.state === 'SENT') throw new Error('Этот документ уже отправлен в чат.');
     if (entry.state === 'SENDING') throw new Error('Документ уже отправляется.');
+    if (entry.state === 'UNKNOWN') throw new Error('Статус доставки неизвестен; повторная отправка заблокирована, чтобы не создать дубль.');
     entry.state = 'SENDING'; temporaryDocumentWrite_(entry);
     const images = parseInlineImages_(p.imagesJson, Number(p.pagesCount) || 0);
+    if (temporaryDocumentImagesDigest_(images) !== String(entry.imagesDigest || '')) throw new Error('Страницы изменились после preview. Создайте новый preview.');
     const caption = buildTemporaryDocumentCaption_(entry.result, department, auth.venue);
     const route = telegramRouteConfig_(auth);
     if (!route.botToken || !route.targetChatId) throw new Error('Не настроен серверный маршрут Telegram для ресторана.');

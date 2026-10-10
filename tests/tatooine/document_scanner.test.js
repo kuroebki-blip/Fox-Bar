@@ -24,6 +24,7 @@ test('temporary send uses the server route and prevents category or duplicate mi
   const source = backend.slice(start, end);
   assert.match(source, /entry\.department !== department/);
   assert.match(source, /entry\.state === 'SENT'/);
+  assert.match(source, /entry\.state === 'UNKNOWN'/);
   assert.match(source, /\? 'READY' : 'UNKNOWN'/);
   assert.match(source, /'READY' : 'UNKNOWN'/);
   assert.match(source, /route\.targetChatId/);
@@ -49,6 +50,10 @@ test('Tatooine keeps preview and explicit send as distinct actions', () => {
   assert.match(tatooine, /action:'temporaryDocumentPreview'/);
   assert.match(tatooine, /action:'temporaryDocumentSend'/);
   assert.match(tatooine, /documentPreviewId/);
+  assert.match(tatooine, /async function pollTemporaryDocument\(/);
+  assert.match(tatooine, /result\.status === successState \|\| \['ERROR', 'UNKNOWN'\]\.includes\(result\.status\)/);
+  assert.match(tatooine, /await pollTemporaryDocument\(previewId, 210000, 'READY'\)/);
+  assert.match(tatooine, /await pollTemporaryDocument\(documentPreviewId, 120000, 'SENT'\)/);
 });
 
 test('FO’X document UI overrides the legacy Sheets job route with the temporary route', () => {
