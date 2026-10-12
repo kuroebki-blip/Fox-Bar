@@ -6,6 +6,8 @@
   const TG = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
 
   let pages = [];
+  let documentPages = [];
+  let documentPreviewId = '';
   let jobId = '';
   let result = null;
   let terminalSlips = [];
@@ -82,6 +84,7 @@
   function showScreen(name) {
     const screens = {
       hub: $('tatooineHub'),
+      documents: $('documentScannerScreen'),
       cash: $('cashReportScreen'),
       taxi: $('taxiScreen'),
       roles: $('roleManagementScreen'),
@@ -1193,6 +1196,76 @@
     $('cashReportRecognize').disabled = !pages.length;
   }
 
+  function documentStatus(text) { $('documentStatus').textContent = text || ''; }
+  function renderDocumentPages() {
+    const root = $('documentPages'); root.innerHTML = '';
+    documentPages.forEach((page, index) => {
+      const card = document.createElement('div'); card.className = 'page';
+      card.innerHTML = '<span class="page-num">' + (index + 1) + '</span><img src="' + page.dataUrl + '" alt="Страница ' + (index + 1) + '"><div class="page-actions"><button class="del" type="button">✕</button></div>';
+      card.querySelector('button').onclick = () => { documentPages.splice(index, 1); documentPreviewId = ''; $('documentResult').hidden = true; renderDocumentPages(); };
+      root.appendChild(card);
+    });
+    $('documentPreview').disabled = !documentPages.length;
+  }
+  async function appendDocumentFiles(files) {
+    try {
+      for (const file of Array.from(files || []).filter(file => String(file.type || '').startsWith('image/'))) {
+        const page = await preparePage(file); if (page) documentPages.push(page);
+      }
+      if (documentPages.length > (Number(CONFIG.maxOcrPages) || 20)) throw new Error('Максимум 20 страниц.');
+      documentPreviewId = ''; $('documentResult').hidden = true; $('documentSend').disabled = false; $('documentSend').textContent = 'Отправить PDF в чат'; renderDocumentPages(); documentStatus('Фото готовы. Выберите подразделение и распознайте документ.');
+    } catch (error) { documentStatus(errorMessage(error)); }
+  }
+  async function documentImages() {
+    const images = [];
+    for (const page of documentPages) images.push(await toOcrImage(page));
+    validateOcrImages(images); return images;
+  }
+  async function pollTemporaryDocument(previewId, timeoutMs, successState) {
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+      try {
+        const result = await jsonp(Object.assign({ action:'temporaryDocumentStatus', previewId }, authParams()), 7000);
+        if (result && result.ok && (result.status === successState || ['ERROR', 'FAILED', 'UNKNOWN'].includes(result.status))) return result;
+      } catch (error) {
+        if (Date.now() - started > 30000) throw error;
+      }
+      await sleep(1500);
+    }
+    throw new Error('Сервер не подтвердил операцию вовремя. Фото остались на устройстве.');
+  }
+  async function previewDocument() {
+    const department = $('documentDepartment').value;
+    if (!department) { documentStatus('Выберите подразделение: Бар или Кухня.'); return; }
+    if (!documentPages.length) return;
+    const button = $('documentPreview'); button.disabled = true;
+    try {
+      $('documentSend').disabled = false; $('documentSend').textContent = 'Отправить PDF в чат';
+      documentStatus('Распознаю документ…'); const images = await documentImages();
+      const previewId = 'td' + Date.now() + Math.random().toString(36).slice(2, 8);
+      post({ action:'temporaryDocumentPreview', previewId, department, pagesCount:images.length, imagesJson:JSON.stringify(images) }).catch(() => {});
+      const result = await pollTemporaryDocument(previewId, 210000, 'READY');
+      if (!result || !result.ok || result.status !== 'READY') throw new Error(result && result.error ? result.error : 'Предпросмотр не готов.');
+      documentPreviewId = previewId; $('documentCaption').value = String(result.result && result.result.messageText || ''); $('documentResult').hidden = false;
+      documentStatus('Предпросмотр готов. Проверьте подпись и подтвердите отправку.');
+    } catch (error) { documentStatus(errorMessage(error)); }
+    finally { button.disabled = !documentPages.length; }
+  }
+  async function sendDocument() {
+    if (!documentPreviewId) { documentStatus('Сначала создайте предпросмотр.'); return; }
+    const department = $('documentDepartment').value; const button = $('documentSend'); button.disabled = true;
+    try {
+      documentStatus('Собираю PDF и отправляю в чат…'); const images = await documentImages();
+      post({ action:'temporaryDocumentSend', previewId:documentPreviewId, department, pagesCount:images.length, imagesJson:JSON.stringify(images) }).catch(() => {});
+      const result = await pollTemporaryDocument(documentPreviewId, 120000, 'SENT');
+      if (!result || !result.ok || result.status !== 'SENT') {
+        if (result && result.status === 'UNKNOWN') throw new Error('Статус доставки неизвестен. Проверьте чат; повтор заблокирован, чтобы не создать дубль.');
+        throw new Error(result && result.error ? result.error : 'Отправка не подтверждена.');
+      }
+      documentStatus('PDF и подпись отправлены в чат.'); button.textContent = '✓ Отправлено в чат';
+    } catch (error) { const message = errorMessage(error); documentStatus(message); if (!/неизвестен/.test(message)) button.disabled = false; }
+  }
+
   function movePage(index, delta) {
     const target = index + delta;
     if (target < 0 || target >= pages.length) return;
@@ -1501,6 +1574,10 @@
     $('cashReportAddSlip').addEventListener('click', addSlip);
     $('cashReportAddPrepayment').addEventListener('click', addPrepayment);
     $('cashReportSend').addEventListener('click', sendReport);
+    $('openDocumentScanner').addEventListener('click', () => showScreen('documents'));
+    $('documentGallery').addEventListener('change', async event => { const files = Array.from(event.target.files || []); event.target.value = ''; await appendDocumentFiles(files); });
+    $('documentPreview').addEventListener('click', previewDocument);
+    $('documentSend').addEventListener('click', sendDocument);
     $('openCashReport').addEventListener('click', () => showScreen('cash'));
     $('openTaxi').addEventListener('click', openTaxi);
     $('openRoleManagement').addEventListener('click', openRoleManagement);

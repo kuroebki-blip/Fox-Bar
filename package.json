@@ -7,7 +7,8 @@
   },
   "scripts": {
     "lint:check": "eslint tatooine/app.js tatooine/config.js",
-    "test:banquets:v16": "node --test tests/banquets/v16_banquets_upgrade.test.js"
+    "test:banquets:v16": "node --test tests/banquets/v16_banquets_upgrade.test.js",
+    "test:tatooine:scanner": "node --test tests/tatooine/*.test.js"
   },
   "devDependencies": {
     "eslint": "10.8.0",

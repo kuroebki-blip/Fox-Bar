@@ -1,5 +1,5 @@
 /**
- * FO’X — документы, чеки, банкетный резерв и кассовый отчёт v9.11.0
+ * FO’X — документы, чеки, банкетный резерв и кассовый отчёт v9.11.3
  *
  * Назначение:
  * 1. Принимает облегчённые JPEG-страницы для быстрого распознавания.
@@ -16,7 +16,7 @@
  */
 
 const FOX_RECEIPTS = {
-  version: 'v9.11.0 BANQUET TELEGRAM AUTOIMPORT',
+  version: 'v9.12.0 TEMPORARY DOCUMENT SCANNER',
 
   stockSheets: [
     'Вино',
@@ -100,6 +100,15 @@ const FOX_RECEIPTS = {
   },
   maxPdfBytes: 15 * 1024 * 1024,
   maxAuthAgeSeconds: 24 * 60 * 60
+};
+
+// Temporary document preview deliberately has no SpreadsheetApp or Drive state.
+// The browser resubmits the reviewed images only when the user explicitly sends.
+const TEMPORARY_DOCUMENT_SCANNER = {
+  cachePrefix: 'temporaryDocument:',
+  ttlSeconds: 10 * 60,
+  maxPages: 20,
+  maxBytes: 12 * 1024 * 1024
 };
 
 const FOX_RECEIPT_HEADERS = {
@@ -903,6 +912,10 @@ function doGet(e) {
       return jsonpOutput_(callback, getJobStatus_(jobId, auth));
     }
 
+    if (action === 'temporaryDocumentStatus') {
+      return jsonpOutput_(callback, temporaryDocumentStatus_(e.parameter, auth));
+    }
+
     if (action === 'catalog') {
       return jsonpOutput_(callback, {
         ok: true,
@@ -1061,10 +1074,18 @@ function doPost(e) {
   try {
     const action = String((e && e.parameter && e.parameter.action) || '');
     if (action === 'telegramBanquetWebhook') return handleFoxBanquetTelegramWebhook_(e);
+    if (action === 'telegramRepairWebhook') return handleFoxRepairTelegramWebhook_(e);
+    if (action === 'telegramTatooineRepairWebhook') return handleTatooineRepairTelegramWebhook_(e);
     if (!action) throw new Error('Не передан action.');
 
     auth = authorizeRequest_(e.parameter || {});
     assertTelegramActionAllowed_(action, auth);
+
+    // Old receipt jobs persist PDFs/results in Drive and Sheets. The temporary
+    // document release intentionally accepts only the cache-bound routes.
+    if (['scan', 'scanImages', 'attachPdf', 'confirm', 'sendTelegram'].indexOf(action) >= 0) {
+      return textOutput_({ ok:false, error:'Старый scanner job отключён для этого релиза. Создайте новый временный preview.' });
+    }
 
     if (action === 'scan') {
       scanReceipt_(e.parameter, auth);
@@ -1088,6 +1109,16 @@ function doPost(e) {
 
     if (action === 'sendTelegram') {
       sendReceiptToTelegram_(e.parameter, auth);
+      return textOutput_({ ok: true });
+    }
+
+    if (action === 'temporaryDocumentPreview') {
+      temporaryDocumentPreview_(e.parameter, auth);
+      return textOutput_({ ok: true });
+    }
+
+    if (action === 'temporaryDocumentSend') {
+      temporaryDocumentSend_(e.parameter, auth);
       return textOutput_({ ok: true });
     }
 
@@ -1166,7 +1197,12 @@ function doPost(e) {
   } catch (err) {
     const jobId = e && e.parameter ? String(e.parameter.jobId || '') : '';
     const action = e && e.parameter ? String(e.parameter.action || '') : '';
-    if (jobId && auth && jobMatchesTelegramRouteById_(jobId, auth)) {
+    // Temporary scanner requests are deliberately stateless: neither their
+    // validation/auth failures nor blocked legacy scanner calls may create a
+    // job row, document record, or action-error row merely because a client
+    // supplied a jobId.
+    const temporaryOrBlockedScanner = ['temporaryDocumentPreview', 'temporaryDocumentSend', 'scan', 'scanImages', 'attachPdf', 'confirm', 'sendTelegram'].indexOf(action) >= 0;
+    if (!temporaryOrBlockedScanner && jobId && auth && jobMatchesTelegramRouteById_(jobId, auth)) {
       if (action === 'banquetScan') {
         try { failBanquetJob_(jobId, errorText_(err)); } catch (_) {}
       } else if (action === 'cashReportScan' || action === 'cashReportScanImages') {
@@ -1182,7 +1218,6 @@ function doPost(e) {
     return textOutput_({ ok: false, error: errorText_(err) });
   }
 }
-
 
 // FO’X v9.11 — Telegram -> Estimates Guru -> banquet autoimport
 
@@ -1226,6 +1261,48 @@ function telegramBanquetSourceChatId_() {
   return String(PropertiesService.getScriptProperties().getProperty('TELEGRAM_BANQUET_SOURCE_CHAT_ID') || '').trim();
 }
 
+function telegramBanquetSourceThreadId_() {
+  return String(PropertiesService.getScriptProperties().getProperty('TELEGRAM_BANQUET_SOURCE_THREAD_ID') || '').trim();
+}
+
+
+function handleFoxRepairTelegramWebhook_(e) {
+  const props = PropertiesService.getScriptProperties();
+  const expectedSecret = String(props.getProperty('TELEGRAM_REPAIR_WEBHOOK_SECRET') || '');
+  const actualSecret = String(e && e.parameter && e.parameter.secret || '');
+
+  if (!expectedSecret || !constantTimeEqual_(expectedSecret, actualSecret)) {
+    return textOutput_({ ok:false, error:'unauthorized' });
+  }
+
+  let update;
+  try {
+    update = JSON.parse(String(e && e.postData && e.postData.contents || '{}'));
+  } catch (_) {
+    return textOutput_({ ok:true, ignored:true, reason:'invalid_update' });
+  }
+
+  try {
+    const handled = foxRepairHandleTelegramUpdate_(update);
+    return textOutput_({
+      ok: true,
+      handled: handled ? 'repair' : 'ignored'
+    });
+  } catch (err) {
+    try {
+      foxRepairDiagnosticSet_('repair_webhook_exception', {
+        updateId: String(update && update.update_id || ''),
+        callbackData: String(update && update.callback_query && update.callback_query.data || ''),
+        error: errorText_(err)
+      });
+    } catch (_) {}
+
+    // Telegram must receive a successful HTTP response so it does not keep
+    // retrying the same update forever. The error is persisted in diagnostics.
+    return textOutput_({ ok:true, handled:'error_logged' });
+  }
+}
+
 function handleFoxBanquetTelegramWebhook_(e) {
   const props = PropertiesService.getScriptProperties();
   const expectedSecret = String(props.getProperty('TELEGRAM_BANQUET_WEBHOOK_SECRET') || '');
@@ -1235,12 +1312,63 @@ function handleFoxBanquetTelegramWebhook_(e) {
   let update;
   try { update = JSON.parse(String(e && e.postData && e.postData.contents || '{}')); }
   catch (_) { return textOutput_({ ok:true, ignored:true, reason:'invalid_update' }); }
+
+  // Repair flow gets first chance to consume Telegram updates.
+  // Diagnostic is persisted in Script Properties because Apps Script web-app
+  // execution logs can be unavailable for webhook calls.
+  try {
+    props.setProperty('REPAIR_LAST_WEBHOOK_DIAGNOSTIC', JSON.stringify({
+      at: new Date().toISOString(),
+      stage: 'repair_before_handle',
+      updateType: update.callback_query ? 'callback_query' : (update.message ? 'message' : (update.edited_message ? 'edited_message' : 'other')),
+      callbackData: String(update.callback_query && update.callback_query.data || ''),
+      chatId: String(
+        update.callback_query && update.callback_query.message && update.callback_query.message.chat && update.callback_query.message.chat.id ||
+        update.message && update.message.chat && update.message.chat.id ||
+        update.edited_message && update.edited_message.chat && update.edited_message.chat.id ||
+        ''
+      )
+    }));
+
+    if (foxRepairHandleTelegramUpdate_(update)) {
+      props.setProperty('REPAIR_LAST_WEBHOOK_DIAGNOSTIC', JSON.stringify({
+        at: new Date().toISOString(),
+        stage: 'repair_handled',
+        updateType: update.callback_query ? 'callback_query' : (update.message ? 'message' : (update.edited_message ? 'edited_message' : 'other')),
+        callbackData: String(update.callback_query && update.callback_query.data || '')
+      }));
+      return textOutput_({ ok:true, handled:'repair' });
+    }
+
+    props.setProperty('REPAIR_LAST_WEBHOOK_DIAGNOSTIC', JSON.stringify({
+      at: new Date().toISOString(),
+      stage: 'repair_not_handled',
+      updateType: update.callback_query ? 'callback_query' : (update.message ? 'message' : (update.edited_message ? 'edited_message' : 'other')),
+      callbackData: String(update.callback_query && update.callback_query.data || '')
+    }));
+  } catch (repairErr) {
+    const diagnostic = {
+      at: new Date().toISOString(),
+      stage: 'repair_exception',
+      updateType: update.callback_query ? 'callback_query' : (update.message ? 'message' : (update.edited_message ? 'edited_message' : 'other')),
+      callbackData: String(update.callback_query && update.callback_query.data || ''),
+      error: errorText_(repairErr),
+      stack: String(repairErr && repairErr.stack || '')
+    };
+    props.setProperty('REPAIR_LAST_WEBHOOK_DIAGNOSTIC', JSON.stringify(diagnostic));
+    console.error('FO’X repair webhook failed: ' + JSON.stringify(diagnostic));
+    return textOutput_({ ok:false, handled:'repair', error:diagnostic.error });
+  }
+
   const message = update.message || update.edited_message || null;
   if (!message) return textOutput_({ ok:true, ignored:true, reason:'unsupported_update' });
 
   const sourceChatId = telegramBanquetSourceChatId_();
+  const sourceThreadId = telegramBanquetSourceThreadId_();
   const chatId = String(message.chat && message.chat.id || '');
+  const threadId = String(message.message_thread_id || '');
   if (!sourceChatId || chatId !== sourceChatId) return textOutput_({ ok:true, ignored:true, reason:'other_chat' });
+  if (!sourceThreadId || threadId !== sourceThreadId) return textOutput_({ ok:true, ignored:true, reason:'other_topic' });
 
   const snapshotUrl = telegramBanquetSnapshotUrlFromMessage_(message);
   if (!snapshotUrl) return textOutput_({ ok:true, ignored:true, reason:'no_estimate_snapshot' });
@@ -1509,7 +1637,9 @@ function notifyFoxBanquetImportFailure_(message) {
     const token = String(PropertiesService.getScriptProperties().getProperty('TELEGRAM_BOT_TOKEN') || '');
     const chatId = String(message && message.chat && message.chat.id || '');
     if (!token || !chatId) return;
-    telegramApiCall_(token, 'sendMessage', { chat_id:chatId, reply_to_message_id:message.message_id, text:'⚠️ FO’X не смог автоматически загрузить банкет из Estimates Guru. Проверьте ссылку и отправьте сообщение повторно.', disable_web_page_preview:true });
+    const payload = { chat_id:chatId, reply_to_message_id:message.message_id, text:'⚠️ FO’X не смог автоматически загрузить банкет из Estimates Guru. Проверьте ссылку и отправьте сообщение повторно.', disable_web_page_preview:true };
+    if (message && message.message_thread_id) payload.message_thread_id = message.message_thread_id;
+    telegramApiCall_(token, 'sendMessage', payload);
   } catch (_) {}
 }
 
@@ -1519,35 +1649,114 @@ function foxBanquetsCaptureTelegramSourceChat() {
   if (!token) throw new Error('В Script Properties не задан TELEGRAM_BOT_TOKEN.');
   const webhook = telegramApiCall_(token, 'getWebhookInfo', {});
   if (webhook && webhook.result && webhook.result.url) throw new Error('У бота уже включён webhook. Задайте TELEGRAM_BANQUET_SOURCE_CHAT_ID вручную или временно отключите webhook.');
-  const updates = telegramApiCall_(token, 'getUpdates', { offset:-100, limit:100, timeout:0, allowed_updates:JSON.stringify(['message','edited_message']) });
+  const updates = telegramApiCall_(token, 'getUpdates', { offset:-100, limit:100, timeout:0, allowed_updates:JSON.stringify(['message','edited_message','callback_query']) });
   const rows = (updates && updates.result || []).map(function(update) { return update.message || update.edited_message || null; }).filter(Boolean);
   for (let i = rows.length - 1; i >= 0; i--) {
     if (!telegramBanquetSnapshotUrlFromMessage_(rows[i])) continue;
     const chatId = String(rows[i].chat && rows[i].chat.id || '');
-    if (!chatId) continue;
+    const threadId = String(rows[i].message_thread_id || '');
+    if (!chatId || !threadId) continue;
     props.setProperty('TELEGRAM_BANQUET_SOURCE_CHAT_ID', chatId);
-    return { ok:true, chatId:chatId, title:String(rows[i].chat && (rows[i].chat.title || rows[i].chat.username) || '') };
+    props.setProperty('TELEGRAM_BANQUET_SOURCE_THREAD_ID', threadId);
+    return { ok:true, chatId:chatId, threadId:threadId, title:String(rows[i].chat && (rows[i].chat.title || rows[i].chat.username) || '') };
   }
-  throw new Error('Сообщение Estimates Guru не найдено. Убедитесь, что бот видит сообщения группы.');
+  throw new Error('Сообщение Estimates Guru из темы Telegram не найдено. Отправьте ссылку в тему FO’X и повторите захват.');
 }
 
 function foxBanquetsConfigureTelegramWebhook() {
   const props = PropertiesService.getScriptProperties();
-  const token = String(props.getProperty('TELEGRAM_BOT_TOKEN') || '');
+  const token = String(props.getProperty('TELEGRAM_BOT_TOKEN') || '').trim();
   if (!token) throw new Error('В Script Properties не задан TELEGRAM_BOT_TOKEN.');
-  if (!telegramBanquetSourceChatId_()) throw new Error('Сначала задайте TELEGRAM_BANQUET_SOURCE_CHAT_ID или выполните foxBanquetsCaptureTelegramSourceChat().');
-  const serviceUrl = String(ScriptApp.getService().getUrl() || '');
-  if (!serviceUrl) throw new Error('Web App ещё не опубликован. Выполните deployment Apps Script.');
+
+  // Явно используем актуальный production deployment FO’X.
+  // Если позже deployment изменится, можно просто обновить
+  // TELEGRAM_WEBHOOK_URL_OVERRIDE в Script Properties без правки кода.
+  const fallbackProductionUrl = 'https://script.google.com/macros/s/AKfycbx9XlQG6kCvWVU6OekcWAmHAVnjFXfG-_UD_pKQrQqYaWNyHzmXsmB_2LGohxETrrfTpA/exec';
+  const overrideUrl = String(
+    props.getProperty('TELEGRAM_WEBHOOK_URL_OVERRIDE') || fallbackProductionUrl
+  ).trim();
+
+  if (!overrideUrl) {
+    throw new Error('Не задан URL production Web App для Telegram webhook.');
+  }
+
+  const serviceUrl = overrideUrl.replace(/\/dev(?=\?|$)/, '/exec');
+  if (!/\/exec(?:\?|$)/.test(serviceUrl)) {
+    throw new Error('TELEGRAM_WEBHOOK_URL_OVERRIDE должен быть production URL, заканчивающимся на /exec.');
+  }
+
   let secret = String(props.getProperty('TELEGRAM_BANQUET_WEBHOOK_SECRET') || '');
-  if (!secret) { secret = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, ''); props.setProperty('TELEGRAM_BANQUET_WEBHOOK_SECRET', secret); }
+  if (!secret) {
+    secret = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '');
+    props.setProperty('TELEGRAM_BANQUET_WEBHOOK_SECRET', secret);
+  }
+
   const webhookUrl = serviceUrl + '?action=telegramBanquetWebhook&secret=' + encodeURIComponent(secret);
   const current = telegramApiCall_(token, 'getWebhookInfo', {});
-  const currentUrl = String(current && current.result && current.result.url || '');
-  if (currentUrl && currentUrl !== webhookUrl) throw new Error('У FO’X-бота уже настроен другой webhook. Автоматическая замена остановлена.');
-  const result = telegramApiCall_(token, 'setWebhook', { url:webhookUrl, allowed_updates:JSON.stringify(['message','edited_message']), drop_pending_updates:false });
+  const currentUrl = String(current && current.result && current.result.url || '').trim();
+
+  // Разрешаем миграцию старого FO’X webhook на новый deployment,
+  // если это тот же наш endpoint и тот же secret. Чужой webhook не трогаем.
+  if (currentUrl && currentUrl !== webhookUrl) {
+    const looksLikeOurWebhook =
+      /^https:\/\/script\.google\.com\/macros\/s\//i.test(currentUrl) &&
+      currentUrl.indexOf('action=telegramBanquetWebhook') >= 0 &&
+      currentUrl.indexOf('secret=' + encodeURIComponent(secret)) >= 0;
+
+    if (!looksLikeOurWebhook) {
+      throw new Error('У FO’X-бота уже настроен другой webhook. Автоматическая замена остановлена.');
+    }
+  }
+
+  const result = telegramApiCall_(token, 'setWebhook', {
+    url: webhookUrl,
+    allowed_updates: JSON.stringify(['message','edited_message','callback_query']),
+    drop_pending_updates: false
+  });
+
   if (!result || !result.ok) throw new Error('Telegram не принял webhook.');
+
+  props.setProperty('TELEGRAM_WEBHOOK_URL_OVERRIDE', serviceUrl);
   props.setProperty('TELEGRAM_BANQUET_WEBHOOK_CONFIGURED_AT', new Date().toISOString());
-  return { ok:true, sourceChatId:telegramBanquetSourceChatId_(), webhookConfigured:true };
+
+  Logger.log(JSON.stringify({
+    ok: true,
+    webhookUrl: webhookUrl,
+    previousWebhookUrl: currentUrl,
+    allowedUpdates: ['message','edited_message','callback_query']
+  }));
+
+  return {
+    ok: true,
+    sourceChatId: telegramBanquetSourceChatId_(),
+    sourceThreadId: telegramBanquetSourceThreadId_(),
+    webhookConfigured: true,
+    webhookUrl: webhookUrl,
+    previousWebhookUrl: currentUrl,
+    allowedUpdates: ['message','edited_message','callback_query']
+  };
+}
+
+
+/**
+ * Manual diagnostic helper.
+ * Run this from the Apps Script editor after pressing the Repair button.
+ * It prints the last persisted webhook diagnostic even when Cloud Console
+ * logs for doPost are unavailable.
+ */
+function foxRepairShowLastWebhookDiagnostic() {
+  const props = PropertiesService.getScriptProperties();
+  const raw = String(props.getProperty('REPAIR_LAST_WEBHOOK_DIAGNOSTIC') || '');
+  if (!raw) {
+    Logger.log('REPAIR_LAST_WEBHOOK_DIAGNOSTIC is empty. Press the Repair button in Telegram first.');
+    return { ok:false, empty:true };
+  }
+  Logger.log(raw);
+  try {
+    return JSON.parse(raw);
+  } catch (_) {
+    return { ok:false, raw:raw };
+  }
 }
 
 function foxBanquetsDisableTelegramWebhook() {
@@ -1634,6 +1843,117 @@ function parseInlineImages_(raw, expectedPages) {
     if (totalBytes > 24 * 1024 * 1024) throw new Error('Общий размер изображений слишком большой.');
     return { mimeType: mimeType, data: data };
   });
+}
+
+// Stateless, short-lived document flow for FO'X and Tatooine.  It never calls
+// createOrResetJob_, upsertDocumentRecord_, confirmReceipt_ or DriveApp.
+function temporaryDocumentKey_(id) { return TEMPORARY_DOCUMENT_SCANNER.cachePrefix + String(id || ''); }
+function temporaryDocumentId_() { return Utilities.getUuid().replace(/-/g, ''); }
+function temporaryDepartment_(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'бар') return 'Бар';
+  if (normalized === 'кухня') return 'Кухня';
+  throw new Error('Выберите подразделение: Бар или Кухня.');
+}
+function temporaryDocumentRead_(previewId, auth) {
+  const raw = CacheService.getScriptCache().get(temporaryDocumentKey_(previewId));
+  const entry = parseJsonSafe_(raw || '');
+  if (!entry || String(entry.ownerId) !== String(auth.userId) || String(entry.venue) !== String(auth.venue)) {
+    throw new Error('Предпросмотр не найден, истёк или принадлежит другому пользователю.');
+  }
+  if (!Number(entry.expiresAt) || Date.now() >= Number(entry.expiresAt)) {
+    CacheService.getScriptCache().remove(temporaryDocumentKey_(previewId));
+    throw new Error('Предпросмотр истёк. Создайте новый preview.');
+  }
+  return entry;
+}
+function temporaryDocumentWrite_(entry) {
+  const remaining = Math.floor((Number(entry.expiresAt) - Date.now()) / 1000);
+  if (remaining <= 0) throw new Error('Предпросмотр истёк. Создайте новый preview.');
+  CacheService.getScriptCache().put(temporaryDocumentKey_(entry.id), JSON.stringify(entry), remaining);
+}
+function temporaryDocumentImagesDigest_(images) {
+  const source = images.map(function(image) { return image.mimeType + ':' + image.data; }).join('|');
+  return Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, source, Utilities.Charset.UTF_8));
+}
+function temporaryDocumentPreview_(p, auth) {
+  const department = temporaryDepartment_(p.department);
+  const scanMode = normalizeScanMode_(p.scanMode);
+  const images = parseInlineImages_(p.imagesJson, Number(p.pagesCount) || 0);
+  let totalBytes = 0;
+  images.forEach(function(image) { totalBytes += Utilities.base64Decode(image.data).length; });
+  if (images.length > TEMPORARY_DOCUMENT_SCANNER.maxPages || totalBytes > TEMPORARY_DOCUMENT_SCANNER.maxBytes) {
+    throw new Error('Документ превышает временный лимит сканера.');
+  }
+  const id = requiredString_(p.previewId, 'previewId');
+  if (!/^[A-Za-z0-9_-]{12,96}$/.test(id)) throw new Error('Некорректный previewId.');
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error('Сканер занят. Повторите preview.');
+  const entry = { id:id, ownerId:String(auth.userId), venue:String(auth.venue), department:department, scanMode:scanMode, imagesDigest:temporaryDocumentImagesDigest_(images), result:null, state:'PROCESSING', createdAt:Date.now(), expiresAt:Date.now() + TEMPORARY_DOCUMENT_SCANNER.ttlSeconds * 1000 };
+  try {
+    if (CacheService.getScriptCache().get(temporaryDocumentKey_(id))) throw new Error('Этот previewId уже существует. Создайте новый preview.');
+    temporaryDocumentWrite_(entry);
+  } finally { lock.releaseLock(); }
+  try {
+    const raw = recognizePdfWithGemini_(images, images.length, scanMode, '', { skipCatalog:true, venue:auth.venue });
+    const result = sanitizeRecognition_(raw, images.length, scanMode);
+    if (scanMode === 'document') result.supplierShort = shortSupplierName_(result.supplierFull, result.supplierShort);
+    result.department = department;
+    result.messageText = buildTemporaryDocumentCaption_(result, department, auth.venue);
+    entry.result = result; entry.state = 'READY'; temporaryDocumentWrite_(entry);
+  } catch (error) { entry.state = 'ERROR'; entry.error = errorText_(error); temporaryDocumentWrite_(entry); throw error; }
+}
+function temporaryDocumentStatus_(p, auth) {
+  const entry = temporaryDocumentRead_(requiredString_(p.previewId, 'previewId'), auth);
+  return { ok:true, status:entry.state, previewId:entry.id, result:entry.result, error:entry.error || '', expiresInSeconds:Math.max(0, Math.floor((entry.expiresAt - Date.now()) / 1000)) };
+}
+function buildTemporaryDocumentCaption_(result, department, venue) {
+  if (normalizeScanMode_(result && result.scanMode) === 'check') {
+    return [normalizeDate_(result.documentDate) || dateStamp_(new Date()), String(result.paymentCard || 'Карта не указана').trim(), normalizePurchaseChannel_(result.purchaseChannel), String(result.purchaseSummary || 'Покупка').trim(), 'Итого: ' + formatTelegramAmount_(result.totalAmount) + ' руб', 'Подразделение: ' + temporaryDepartment_(department), normalizeTelegramVenue_(venue) === 'tatooine' ? 'TATOOINE' : 'FO’X'].join('\n');
+  }
+  return [normalizeDate_(result.documentDate) || dateStamp_(new Date()), String(result.supplierShort || 'Поставщик').trim(), FOX_RECEIPTS.messageDocumentType, 'Подразделение: ' + temporaryDepartment_(department), normalizeTelegramVenue_(venue) === 'tatooine' ? 'TATOOINE' : 'FO’X'].join('\n');
+}
+function temporaryDocumentPdf_(images, caption) {
+  const pages = images.map(function(image, index) {
+    return '<section style="page-break-after:always"><img style="max-width:100%;max-height:95vh" src="data:' + image.mimeType + ';base64,' + image.data + '" alt="Страница ' + (index + 1) + '"></section>';
+  }).join('');
+  const safeCaption = String(caption || '').replace(/[&<>]/g, function(c) { return c === '&' ? '&amp;' : (c === '<' ? '&lt;' : '&gt;'); });
+  return HtmlService.createHtmlOutput('<html><body><pre>' + safeCaption + '</pre>' + pages + '</body></html>').getBlob().getAs(MimeType.PDF).setName('document.pdf');
+}
+function temporaryDocumentSend_(p, auth) {
+  const previewId = requiredString_(p.previewId, 'previewId');
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) throw new Error('Сканер занят. Повторите отправку.');
+  let entry = null;
+  try {
+    entry = temporaryDocumentRead_(previewId, auth);
+    const department = temporaryDepartment_(p.department);
+    if (entry.scanMode !== normalizeScanMode_(p.scanMode)) throw new Error('Тип скана изменился после preview. Создайте новый preview.');
+    if (entry.department !== department) throw new Error('Подразделение изменилось. Сначала выполните новый предпросмотр.');
+    if (entry.state === 'SENT') throw new Error('Этот документ уже отправлен в чат.');
+    if (entry.state === 'SENDING') throw new Error('Документ уже отправляется.');
+    if (entry.state === 'UNKNOWN') throw new Error('Статус доставки неизвестен; повторная отправка заблокирована, чтобы не создать дубль.');
+    if (entry.state !== 'READY') throw new Error('Документ ещё не готов к отправке.');
+    const images = parseInlineImages_(p.imagesJson, Number(p.pagesCount) || 0);
+    if (temporaryDocumentImagesDigest_(images) !== String(entry.imagesDigest || '')) throw new Error('Страницы изменились после preview. Создайте новый preview.');
+    entry.state = 'SENDING'; temporaryDocumentWrite_(entry);
+    const caption = buildTemporaryDocumentCaption_(entry.result, department, auth.venue);
+    const route = telegramRouteConfig_(auth);
+    if (!route.botToken || !route.targetChatId) throw new Error('Не настроен серверный маршрут Telegram для ресторана.');
+    const response = UrlFetchApp.fetch('https://api.telegram.org/bot' + route.botToken + '/sendDocument', { method:'post', payload:{ chat_id:route.targetChatId, caption:caption, document:temporaryDocumentPdf_(images, caption) }, muteHttpExceptions:true });
+    const body = parseJsonSafe_(response.getContentText());
+    if (response.getResponseCode() < 200 || response.getResponseCode() >= 300 || !body.ok) throw new Error('Telegram не принял документ: ' + (body.description || ('HTTP ' + response.getResponseCode())));
+    entry.state = 'SENT'; entry.sentAt = Date.now(); temporaryDocumentWrite_(entry);
+  } catch (error) {
+    // Only an explicit Telegram rejection is safe to retry. Network/time-out
+    // errors have an unknown delivery result and must not create a duplicate.
+    const message = errorText_(error);
+    if (entry && entry.state === 'SENDING') {
+      entry.state = /^Telegram не принял документ:.*(?:HTTP 4\d\d|bad request|forbidden|chat not found)/i.test(message) ? 'FAILED' : 'UNKNOWN';
+      entry.error = message; temporaryDocumentWrite_(entry);
+    }
+    throw error;
+  } finally { lock.releaseLock(); }
 }
 
 function scanReceiptImages_(p, auth) {
@@ -1997,7 +2317,7 @@ function createCashReportJob_(jobId, auth, pagesCount) {
   const ss = getSpreadsheet_();
   const sh = ss.getSheetByName(FOX_RECEIPTS.sheets.jobs);
   if (!sh) throw new Error('Не найден служебный лист «Скан_Задания».');
-  const found = findRowByValue_(sh, 1, jobId, 3);
+  const found = findReceiptJobRow_(sh, jobId);
   if (found) {
     const existing = getJobRow_(jobId);
     const sameUser = existing && String(existing['Telegram User ID']) === String(auth.userId);
@@ -2013,6 +2333,7 @@ function createCashReportJob_(jobId, auth, pagesCount) {
     found ? sh.getRange(row, 12).getValue() || new Date() : new Date(),
     new Date(), '', cashReportJobMode_(auth)
   ]]);
+  rememberReceiptJobRow_(jobId, row);
 }
 
 function failCashReportJob_(jobId, message) {
@@ -2817,7 +3138,8 @@ function escapeTelegramHtml_(value) {
     .replace(/"/g, '&quot;');
 }
 
-function recognizePdfWithGemini_(pdfBase64, pagesCount, scanMode, jobId) {
+function recognizePdfWithGemini_(pdfBase64, pagesCount, scanMode, jobId, options) {
+  options = options || {};
   const props = PropertiesService.getScriptProperties();
   const apiKey = props.getProperty('GEMINI_API_KEY');
   if (!apiKey) throw new Error('В Script Properties не задан GEMINI_API_KEY.');
@@ -2839,7 +3161,6 @@ function recognizePdfWithGemini_(pdfBase64, pagesCount, scanMode, jobId) {
     mediaParts = [{ inlineData:{ mimeType:'application/pdf', data:pdfBase64 } }];
   }
 
-  const catalogText = readStockCatalog_().map(function(x) { return x.sheet + ' | ' + x.name; }).join('\n');
   let prompt;
   if (scanMode === 'check') {
     prompt = [
@@ -2857,13 +3178,13 @@ function recognizePdfWithGemini_(pdfBase64, pagesCount, scanMode, jobId) {
       'total_amount — итог к оплате.',
       'items — товарные строки для возможного стока. Доставка и услуги помечай is_service=true.',
       'Для каждой строки извлеки количество, единицу, цену за единицу с НДС и сумму с НДС.',
-      'suggested_stock_name выбирай только из каталога ниже либо оставляй пустым.',
+      'suggested_stock_name всегда оставляй пустым: сервер сопоставит позиции со стоком после распознавания.',
       'supplier_full/supplier_short могут содержать продавца, real_document_types = [«Кассовый чек»] или точный тип.',
-      '', 'КАТАЛОГ СТОКА FO’X (лист | точное наименование):', catalogText
+      '', 'Не трать ответ на объяснения: верни только JSON по схеме.'
     ].join('\n');
   } else {
     prompt = [
-      'Ты распознаёшь комплект документов поставки для бара FO’X.',
+      'Ты распознаёшь комплект документов поставки для ресторана ' + (normalizeTelegramVenue_(options.venue) === 'tatooine' ? 'Tatooine' : 'FO’X') + '.',
       'PDF содержит ' + pagesCount + ' страниц. Все страницы относятся к ОДНОЙ поставке.',
       'Верни только JSON-объект без Markdown и пояснений.',
       'Найди реальные типы документов и не дублируй товары между счётом, УПД, накладной и чеками.',
@@ -2872,9 +3193,9 @@ function recognizePdfWithGemini_(pdfBase64, pagesCount, scanMode, jobId) {
       'supplier_full — юридическое название; supplier_short — короткое название для Telegram.',
       'Примеры: ИП Андреев Алексей Владимирович → ИП Андреев; ООО АСТ-интернэшнл → АСТ; ИП Шамрай → ИП Шамрай; ООО АГРОБАР ЭКСПРЕСС → Агробар; ООО Винтрест-В → Винтрест; ООО ВИНТРЕНД РИТЕЙЛ ГРУПП → Винтренд Ритейл Групп.',
       'Для каждой строки извлеки количество, единицу, цену за единицу с НДС и сумму с НДС. Доставка и услуги: is_service=true.',
-      'suggested_stock_name выбирай только из каталога ниже либо оставляй пустым.',
+      'suggested_stock_name всегда оставляй пустым: сервер сопоставит позиции со стоком после распознавания.',
       'Даты строго ДД.ММ.ГГГГ. Неизвестно: строка "", число 0, массив [].',
-      '', 'КАТАЛОГ СТОКА FO’X (лист | точное наименование):', catalogText
+      '', 'Не трать ответ на объяснения: верни только JSON по схеме.'
     ].join('\n');
   }
 
@@ -3169,6 +3490,87 @@ function normalizeGeminiModel_(value) {
   return String(value || FOX_RECEIPTS.defaultGeminiModel).trim().replace(/^models\//, '');
 }
 
+
+/**
+ * Нормализует свободное описание ремонтной заявки через уже подключённый Gemini.
+ * Не ставит диагноз и не придумывает причины: только превращает разговорный текст
+ * в короткую рабочую формулировку для тикета.
+ */
+function normalizeFoxRepairTextWithGemini_(rawText) {
+  const source = String(rawText || '').trim().replace(/\s+/g, ' ');
+  if (!source) return { title:'', description:'' };
+
+  const props = PropertiesService.getScriptProperties();
+  const apiKey = String(props.getProperty('GEMINI_API_KEY') || '').trim();
+  if (!apiKey) throw new Error('В Script Properties не задан GEMINI_API_KEY.');
+
+  const model = normalizeGeminiModel_(
+    props.getProperty('GEMINI_MODEL') || FOX_RECEIPTS.defaultGeminiModel
+  );
+
+  const schema = {
+    type:'OBJECT',
+    properties:{
+      title:{ type:'STRING' },
+      description:{ type:'STRING' }
+    },
+    required:['title','description']
+  };
+
+  const prompt = [
+    'Ты нормализуешь сообщения сотрудников ресторана FO’X для технических заявок на ремонт.',
+    'Исходное сообщение может быть разговорным, с матом, опечатками, сленгом и обращениями.',
+    'Нужно сохранить только фактически сообщённую неисправность и убрать эмоциональный шум.',
+    'Никогда не придумывай диагноз, причину поломки, детали или последствия, которых нет в исходном тексте.',
+    'title — короткое название тикета, обычно 2–7 слов. Пример: «холодильник сломался» -> «Поломка холодильника».',
+    'description — короткая нейтральная формулировка того же факта, максимум 1 предложение.',
+    'Если из текста нельзя понять объект или проблему, аккуратно переформулируй только то, что известно.',
+    'Не добавляй ресторан, департамент, срочность, автора и служебные данные.',
+    'Верни только JSON по схеме.',
+    '',
+    'ИСХОДНОЕ СООБЩЕНИЕ:',
+    source
+  ].join('\n');
+
+  const body = {
+    contents:[{ role:'user', parts:[{ text:prompt }] }],
+    generationConfig:{
+      responseMimeType:'application/json',
+      responseSchema:schema,
+      temperature:0,
+      maxOutputTokens:512
+    }
+  };
+
+  let parsed;
+  try {
+    parsed = parseGeminiJsonResult_(callGeminiGenerateContent_(apiKey, model, body, {
+      maxAttempts:2,
+      retrySettings:FOX_RECEIPTS.geminiDocumentRetry,
+      operation:'repair_normalize'
+    }).text);
+  } catch (firstError) {
+    if (!/INVALID_ARGUMENT|invalid argument|HTTP 400/i.test(errorText_(firstError))) throw firstError;
+    parsed = parseGeminiJsonResult_(callGeminiGenerateContent_(apiKey, model, {
+      contents:[{ role:'user', parts:[{ text:prompt }] }],
+      generationConfig:{ responseMimeType:'application/json', temperature:0, maxOutputTokens:512 }
+    }, {
+      maxAttempts:2,
+      retrySettings:FOX_RECEIPTS.geminiDocumentRetry,
+      operation:'repair_normalize_fallback',
+      fallback:true
+    }).text);
+  }
+
+  const title = String(parsed && parsed.title || '').trim().replace(/\s+/g, ' ').slice(0, 180);
+  const description = String(parsed && parsed.description || '').trim().replace(/\s+/g, ' ').slice(0, 500);
+
+  return {
+    title:title || source.slice(0, 180),
+    description:description || title || source.slice(0, 500)
+  };
+}
+
 function sanitizeRecognition_(r, pagesCount, scanMode) {
   r = r && typeof r === 'object' ? r : {};
   scanMode = normalizeScanMode_(scanMode);
@@ -3425,7 +3827,7 @@ function telegramRouteConfig_(value) {
 
 function assertTelegramActionAllowed_(action, auth) {
   if (!auth || auth.venue !== 'tatooine') return;
-  const allowed = ['status', 'cashReportScan', 'cashReportScanImages', 'cashReportSend', 'currentUser', 'tatooineEmployees', 'tatooineSetRole', 'tatooineRideBootstrap', 'tatooineMyRide', 'tatooineRideToday', 'tatooineRideRouteCalculation', 'tatooineRideRouteDetails', 'tatooineRideOptimization', 'tatooineCalculateRideRoutes', 'tatooineOptimizeRide', 'tatooineRideEmployees', 'tatooineRideAddressSuggestions', 'tatooineRideOriginSuggestions', 'tatooineRideOrigin', 'tatooineSetMyRide', 'tatooineSetEmployeeRide', 'tatooineSetEmployeeRideAddress', 'tatooineSetRideOrigin'];
+  const allowed = ['status', 'temporaryDocumentStatus', 'temporaryDocumentPreview', 'temporaryDocumentSend', 'cashReportScan', 'cashReportScanImages', 'cashReportSend', 'currentUser', 'tatooineEmployees', 'tatooineSetRole', 'tatooineRideBootstrap', 'tatooineMyRide', 'tatooineRideToday', 'tatooineRideRouteCalculation', 'tatooineRideRouteDetails', 'tatooineRideOptimization', 'tatooineCalculateRideRoutes', 'tatooineOptimizeRide', 'tatooineRideEmployees', 'tatooineRideAddressSuggestions', 'tatooineRideOriginSuggestions', 'tatooineRideOrigin', 'tatooineSetMyRide', 'tatooineSetEmployeeRide', 'tatooineSetEmployeeRideAddress', 'tatooineSetRideOrigin'];
   if (allowed.indexOf(String(action || '')) < 0) {
     throw new Error('Недоступное действие Tatooine.');
   }
@@ -4224,16 +4626,48 @@ function validateTelegramInitData_(initData, botToken) {
   }
 }
 
+function receiptJobRowCacheKey_(jobId) {
+  return 'fox_receipt_job_row_' + encodeURIComponent(String(jobId || ''));
+}
+
+function cachedReceiptJobRow_(jobId) {
+  try {
+    return Math.max(0, Number(CacheService.getScriptCache().get(receiptJobRowCacheKey_(jobId))) || 0);
+  } catch (_) {
+    return 0;
+  }
+}
+
+function rememberReceiptJobRow_(jobId, row) {
+  if (!row) return;
+  try {
+    CacheService.getScriptCache().put(receiptJobRowCacheKey_(jobId), String(row), 21600);
+  } catch (_) {}
+}
+
+function findReceiptJobRow_(sh, jobId) {
+  const cachedRow = cachedReceiptJobRow_(jobId);
+  if (cachedRow >= 3) {
+    try {
+      if (String(sh.getRange(cachedRow, 1).getDisplayValue()) === String(jobId)) return cachedRow;
+    } catch (_) {}
+  }
+  const foundRow = findRowByValue_(sh, 1, jobId, 3);
+  rememberReceiptJobRow_(jobId, foundRow);
+  return foundRow;
+}
+
 function createOrResetJob_(jobId, auth, warehouse, pagesCount, scanMode) {
   const ss=getSpreadsheet_();const sh=ss.getSheetByName(FOX_RECEIPTS.sheets.jobs);if(!sh)throw new Error('Не найден лист «Скан_Задания». Запусти setupFoxReceipts().');
-  const found=findRowByValue_(sh,1,jobId,3);const row=found||sh.getLastRow()+1;
+  const found=findReceiptJobRow_(sh,jobId);const row=found||sh.getLastRow()+1;
   sh.getRange(row,1,1,FOX_RECEIPT_HEADERS.jobs.length).setValues([[jobId,'PROCESSING','Загрузка PDF',0.02,'','','',auth.userId,auth.userName,warehouse,pagesCount,found?sh.getRange(row,12).getValue()||new Date():new Date(),new Date(),'',normalizeScanMode_(scanMode)]]);
+  rememberReceiptJobRow_(jobId, row);
 }
 
 function updateJob_(jobId, patch) {
   const ss = getSpreadsheet_();
   const sh = ss.getSheetByName(FOX_RECEIPTS.sheets.jobs);
-  const row = findRowByValue_(sh, 1, jobId, 3);
+  const row = findReceiptJobRow_(sh, jobId);
   if (!row) throw new Error('Задание не найдено: ' + jobId);
 
   const map = {
@@ -4294,7 +4728,7 @@ function getJobRow_(jobId) {
   const ss = getSpreadsheet_();
   const sh = ss.getSheetByName(FOX_RECEIPTS.sheets.jobs);
   if (!sh) return null;
-  const row = findRowByValue_(sh, 1, jobId, 3);
+  const row = findReceiptJobRow_(sh, jobId);
   if (!row) return null;
   const headers = sh.getRange(2, 1, 1, FOX_RECEIPT_HEADERS.jobs.length).getValues()[0];
   const values = sh.getRange(row, 1, 1, headers.length).getValues()[0];
@@ -4432,6 +4866,7 @@ function normalizePurchaseChannel_(value){const v=normalizeText_(value);if(v.ind
 function normalizeWarehouse_(value) {
   const v = normalizeText_(value);
   if (v.indexOf('заготов') >= 0 || v.indexOf('резерв') >= 0) return 'Заготовочный';
+  if (v.indexOf('кухн') >= 0) return 'Кухня';
   return 'Бар';
 }
 
