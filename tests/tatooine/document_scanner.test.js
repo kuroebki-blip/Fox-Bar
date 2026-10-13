@@ -10,7 +10,7 @@ const fox = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 
 function extractedDocumentRequestGuard(source) {
   const start = source.indexOf('function createDocumentRequestGuard()');
-  const end = source.indexOf('\n  function escapeHtml', start);
+  const end = source.indexOf('\n  const documentRequestGuard', start);
   assert.ok(start >= 0 && end > start, 'document request guard must be extractable');
   return new Function('return (' + source.slice(start, end).trim().replace(/^function /, 'function ') + ');')();
 }
