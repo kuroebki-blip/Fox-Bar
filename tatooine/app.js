@@ -8,6 +8,7 @@
   let pages = [];
   let documentPages = [];
   let documentPreviewId = '';
+  let documentPreviewMode = '';
   let jobId = '';
   let result = null;
   let terminalSlips = [];
@@ -35,6 +36,19 @@
   const sleep = ms => new Promise(resolve => {
     setTimeout(resolve, ms);
   });
+
+  // A mode change must make every in-flight preview or send response stale.
+  // The request itself cannot be cancelled once Apps Script accepted it, but it
+  // must never restore a preview for a mode the user has since left.
+  function createDocumentRequestGuard() {
+    let generation = 0;
+    return {
+      invalidate: () => ++generation,
+      current: () => generation,
+      isCurrent: token => token === generation
+    };
+  }
+  const documentRequestGuard = createDocumentRequestGuard();
 
   function escapeHtml(value) {
     return String(value || '').replace(/[&<>"']/g, char => ({
@@ -1197,12 +1211,30 @@
   }
 
   function documentStatus(text) { $('documentStatus').textContent = text || ''; }
+  function documentScanMode() { return $('documentScanMode').value === 'check' ? 'check' : 'document'; }
+  function updateDocumentScanModeUi() {
+    const isCheck = documentScanMode() === 'check';
+    $('documentScanModeNote').textContent = isCheck
+      ? 'Кассовый, фискальный или онлайн-чек. Несколько фото одного длинного чека объединятся в один PDF.'
+      : 'Накладная, счёт, УПД, ТТН или комплект документов одной поставки.';
+    $('documentPreview').textContent = isCheck ? 'Распознать чек и показать предпросмотр' : 'Распознать и показать предпросмотр';
+  }
+  function invalidateDocumentPreview(statusText) {
+    documentRequestGuard.invalidate();
+    documentPreviewId = '';
+    documentPreviewMode = '';
+    $('documentResult').hidden = true;
+    $('documentCaption').value = '';
+    $('documentSend').disabled = false;
+    $('documentSend').textContent = 'Отправить PDF в чат';
+    if (statusText) documentStatus(statusText);
+  }
   function renderDocumentPages() {
     const root = $('documentPages'); root.innerHTML = '';
     documentPages.forEach((page, index) => {
       const card = document.createElement('div'); card.className = 'page';
       card.innerHTML = '<span class="page-num">' + (index + 1) + '</span><img src="' + page.dataUrl + '" alt="Страница ' + (index + 1) + '"><div class="page-actions"><button class="del" type="button">✕</button></div>';
-      card.querySelector('button').onclick = () => { documentPages.splice(index, 1); documentPreviewId = ''; $('documentResult').hidden = true; renderDocumentPages(); };
+      card.querySelector('button').onclick = () => { documentPages.splice(index, 1); invalidateDocumentPreview(); renderDocumentPages(); };
       root.appendChild(card);
     });
     $('documentPreview').disabled = !documentPages.length;
@@ -1213,7 +1245,7 @@
         const page = await preparePage(file); if (page) documentPages.push(page);
       }
       if (documentPages.length > (Number(CONFIG.maxOcrPages) || 20)) throw new Error('Максимум 20 страниц.');
-      documentPreviewId = ''; $('documentResult').hidden = true; $('documentSend').disabled = false; $('documentSend').textContent = 'Отправить PDF в чат'; renderDocumentPages(); documentStatus('Фото готовы. Выберите подразделение и распознайте документ.');
+      invalidateDocumentPreview(); renderDocumentPages(); documentStatus('Фото готовы. Выберите подразделение и распознайте документ.');
     } catch (error) { documentStatus(errorMessage(error)); }
   }
   async function documentImages() {
@@ -1236,34 +1268,42 @@
   }
   async function previewDocument() {
     const department = $('documentDepartment').value;
+    const scanMode = documentScanMode();
     if (!department) { documentStatus('Выберите подразделение: Бар или Кухня.'); return; }
     if (!documentPages.length) return;
     const button = $('documentPreview'); button.disabled = true;
+    const requestToken = documentRequestGuard.invalidate();
     try {
       $('documentSend').disabled = false; $('documentSend').textContent = 'Отправить PDF в чат';
-      documentStatus('Распознаю документ…'); const images = await documentImages();
+      documentStatus(scanMode === 'check' ? 'Распознаю чек…' : 'Распознаю документ…'); const images = await documentImages();
+      if (!documentRequestGuard.isCurrent(requestToken)) return;
       const previewId = 'td' + Date.now() + Math.random().toString(36).slice(2, 8);
-      post({ action:'temporaryDocumentPreview', previewId, department, pagesCount:images.length, imagesJson:JSON.stringify(images) }).catch(() => {});
+      post({ action:'temporaryDocumentPreview', previewId, scanMode, department, pagesCount:images.length, imagesJson:JSON.stringify(images) }).catch(() => {});
       const result = await pollTemporaryDocument(previewId, 210000, 'READY');
+      if (!documentRequestGuard.isCurrent(requestToken) || documentScanMode() !== scanMode) return;
       if (!result || !result.ok || result.status !== 'READY') throw new Error(result && result.error ? result.error : 'Предпросмотр не готов.');
-      documentPreviewId = previewId; $('documentCaption').value = String(result.result && result.result.messageText || ''); $('documentResult').hidden = false;
+      documentPreviewId = previewId; documentPreviewMode = scanMode; $('documentCaption').value = String(result.result && result.result.messageText || ''); $('documentResult').hidden = false;
       documentStatus('Предпросмотр готов. Проверьте подпись и подтвердите отправку.');
-    } catch (error) { documentStatus(errorMessage(error)); }
-    finally { button.disabled = !documentPages.length; }
+    } catch (error) { if (documentRequestGuard.isCurrent(requestToken)) documentStatus(errorMessage(error)); }
+    finally { if (documentRequestGuard.isCurrent(requestToken)) button.disabled = !documentPages.length; }
   }
   async function sendDocument() {
     if (!documentPreviewId) { documentStatus('Сначала создайте предпросмотр.'); return; }
-    const department = $('documentDepartment').value; const button = $('documentSend'); button.disabled = true;
+    const department = $('documentDepartment').value; const scanMode = documentScanMode(); const requestToken = documentRequestGuard.current(); const previewId = documentPreviewId; const button = $('documentSend');
+    if (documentPreviewMode !== scanMode) { invalidateDocumentPreview('Режим сканирования изменён. Создайте новый предпросмотр.'); return; }
+    button.disabled = true;
     try {
       documentStatus('Собираю PDF и отправляю в чат…'); const images = await documentImages();
-      post({ action:'temporaryDocumentSend', previewId:documentPreviewId, department, pagesCount:images.length, imagesJson:JSON.stringify(images) }).catch(() => {});
-      const result = await pollTemporaryDocument(documentPreviewId, 120000, 'SENT');
+      if (!documentRequestGuard.isCurrent(requestToken) || documentScanMode() !== scanMode) return;
+      post({ action:'temporaryDocumentSend', previewId, scanMode, department, pagesCount:images.length, imagesJson:JSON.stringify(images) }).catch(() => {});
+      const result = await pollTemporaryDocument(previewId, 120000, 'SENT');
+      if (!documentRequestGuard.isCurrent(requestToken) || documentScanMode() !== scanMode) return;
       if (!result || !result.ok || result.status !== 'SENT') {
         if (result && result.status === 'UNKNOWN') throw new Error('Статус доставки неизвестен. Проверьте чат; повтор заблокирован, чтобы не создать дубль.');
         throw new Error(result && result.error ? result.error : 'Отправка не подтверждена.');
       }
       documentStatus('PDF и подпись отправлены в чат.'); button.textContent = '✓ Отправлено в чат';
-    } catch (error) { const message = errorMessage(error); documentStatus(message); if (!/неизвестен/.test(message)) button.disabled = false; }
+    } catch (error) { if (documentRequestGuard.isCurrent(requestToken)) { const message = errorMessage(error); documentStatus(message); if (!/неизвестен/.test(message)) button.disabled = false; } }
   }
 
   function movePage(index, delta) {
@@ -1575,6 +1615,10 @@
     $('cashReportAddPrepayment').addEventListener('click', addPrepayment);
     $('cashReportSend').addEventListener('click', sendReport);
     $('openDocumentScanner').addEventListener('click', () => showScreen('documents'));
+    $('documentScanMode').addEventListener('change', () => {
+      updateDocumentScanModeUi();
+      invalidateDocumentPreview('Режим сканирования изменён. Создайте новый предпросмотр.');
+    });
     $('documentGallery').addEventListener('change', async event => { const files = Array.from(event.target.files || []); event.target.value = ''; await appendDocumentFiles(files); });
     $('documentPreview').addEventListener('click', previewDocument);
     $('documentSend').addEventListener('click', sendDocument);
@@ -1601,11 +1645,12 @@
     $('rideOriginDialog').addEventListener('click', event => { if (event.target === $('rideOriginDialog')) closeRideOriginDialog(); });
     document.querySelectorAll('[data-open-screen]').forEach(button => button.addEventListener('click', () => showScreen(button.dataset.openScreen)));
     bindInputs();
+    updateDocumentScanModeUi();
     renderPages();
     checkBackend();
     loadCurrentUser();
   }
 
-  window.TatooineCashTest = Object.freeze({ base64DecodedBytes, validateOcrImages, exactPaymentRowAmount, buildTatooineCashMessage, updateComparison, usesAndroidTelegramCamera, canPermissions });
+  window.TatooineCashTest = Object.freeze({ base64DecodedBytes, validateOcrImages, exactPaymentRowAmount, buildTatooineCashMessage, updateComparison, usesAndroidTelegramCamera, canPermissions, createDocumentRequestGuard });
   init();
 })();

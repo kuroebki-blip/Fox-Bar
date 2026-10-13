@@ -8,6 +8,13 @@ const backend = fs.readFileSync(path.join(root, 'apps-script/stock/production/Co
 const tatooine = fs.readFileSync(path.join(root, 'tatooine/app.js'), 'utf8');
 const fox = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 
+function extractedDocumentRequestGuard(source) {
+  const start = source.indexOf('function createDocumentRequestGuard()');
+  const end = source.indexOf('\n  function escapeHtml', start);
+  assert.ok(start >= 0 && end > start, 'document request guard must be extractable');
+  return new Function('return (' + source.slice(start, end).trim().replace(/^function /, 'function ') + ');')();
+}
+
 test('temporary document flow is cache-bound and never writes Sheets or stock', () => {
   const start = backend.indexOf('function temporaryDocumentPreview_');
   const end = backend.indexOf('function scanReceiptImages_', start);
@@ -53,7 +60,46 @@ test('Tatooine keeps preview and explicit send as distinct actions', () => {
   assert.match(tatooine, /async function pollTemporaryDocument\(/);
   assert.match(tatooine, /result\.status === successState \|\| \['ERROR', 'FAILED', 'UNKNOWN'\]\.includes\(result\.status\)/);
   assert.match(tatooine, /await pollTemporaryDocument\(previewId, 210000, 'READY'\)/);
-  assert.match(tatooine, /await pollTemporaryDocument\(documentPreviewId, 120000, 'SENT'\)/);
+  assert.match(tatooine, /await pollTemporaryDocument\(previewId, 120000, 'SENT'\)/);
+});
+
+test('Tatooine document scanner exposes both scan modes and sends them on preview and delivery', () => {
+  const tatooineHtml = fs.readFileSync(path.join(root, 'tatooine/index.html'), 'utf8');
+  assert.match(tatooineHtml, /id="documentScanMode"/);
+  assert.match(tatooineHtml, /value="document">Документ поставки/);
+  assert.match(tatooineHtml, /value="check">Кассовый \/ онлайн-чек/);
+  const previewStart = tatooine.indexOf('async function previewDocument()');
+  const sendStart = tatooine.indexOf('async function sendDocument()');
+  const sendEnd = tatooine.indexOf('\n\n  function movePage', sendStart);
+  assert.match(tatooine.slice(previewStart, sendStart), /action:'temporaryDocumentPreview', previewId, scanMode, department/);
+  assert.match(tatooine.slice(sendStart, sendEnd), /action:'temporaryDocumentSend', previewId, scanMode, department/);
+});
+
+test('mode switch rejects stale mocked responses during and after recognition without touching photos or department', () => {
+  const createGuard = extractedDocumentRequestGuard(tatooine);
+  const guard = createGuard();
+  const selected = { department: 'Кухня', pages: [{ mock: 'photo' }] };
+  const previewToken = guard.invalidate();
+  const previewResponse = { ok: true, status: 'READY', result: { messageText: 'old document' } };
+
+  guard.invalidate(); // mock the user choosing the other mode while OCR is pending
+  assert.equal(guard.isCurrent(previewToken), false);
+  assert.equal(selected.department, 'Кухня');
+  assert.equal(selected.pages.length, 1);
+  assert.equal(previewResponse.status, 'READY');
+
+  const sendToken = guard.current();
+  guard.invalidate(); // mock switching mode after preview while delivery is pending
+  assert.equal(guard.isCurrent(sendToken), false);
+  assert.equal(selected.department, 'Кухня');
+  assert.equal(selected.pages[0].mock, 'photo');
+});
+
+test('Tatooine invalidates the preview and ignores late mode-mismatched results', () => {
+  assert.match(tatooine, /documentScanMode'\)\.addEventListener\('change'/);
+  assert.match(tatooine, /invalidateDocumentPreview\('Режим сканирования изменён/);
+  assert.match(tatooine, /!documentRequestGuard\.isCurrent\(requestToken\) \|\| documentScanMode\(\) !== scanMode/);
+  assert.match(tatooine, /documentPreviewMode !== scanMode/);
 });
 
 function extractedPoll(source, name, nextFunction) {
