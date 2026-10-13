@@ -1,6 +1,6 @@
 # FO’X — состояние проекта
 
-Актуально на 18 сентября 2026 года.
+Актуально на 13 октября 2026 года.
 
 ## Архитектура
 
@@ -17,7 +17,7 @@
 | Компонент | Версия | Статус | Основание |
 | --- | --- | --- | --- |
 | FO’X frontend | `v15.16.9 EAT AND SPLIT PREPAYMENT` | опубликован из `main` | в предоплатах кассового отчёта «Онлайн-касса» заменена на `Eat and Split`; итоговое сообщение использует то же название; GitHub Pages подтверждён |
-| Tatooine frontend | `v1.8.3 TAXI PARALLEL LOAD` | опубликован в `main`; GitHub Pages обновляется из `main` | релиз параллельной загрузки раздела «Такси» |
+| Tatooine frontend | `v1.11.1 DOCUMENT SCAN MODES` | опубликован из `main`; GitHub Pages подтверждён | в scanner добавлен выбор документа поставки или кассового/онлайн-чека; `scanMode` передаётся в preview и отправку, а смена режима делает старые ответы неактуальными |
 | Scanner/cash Apps Script | `v9.11.3 RECEIPT JOB STATUS CACHE`, Apps Script version 95 | deployment обновлён | прежний Web App URL и deployment ID сохранены; status-polling сканера использует проверяемый кэш строки задания вместо полного чтения ID-колонки |
 | Galaxy Repairs Apps Script | `v0.3.9 LPR TAG STATUS NOTIFICATIONS`, Apps Script version 15 | deployment обновлён | терминальные статусы уведомляют в Пачке пересечение тегов ЛПР, ресторана и зоны; личные Telegram-сообщения не отправляются |
 | Banquets Apps Script | неизвестно | требует подтверждения пользователя и проверки deployment | исходника production нет в `main` |
@@ -33,6 +33,8 @@ Tatooine `v1.8.2` добавляет настраиваемую точку на�
 
 Tatooine `v1.8.3` устраняет Apps Script waterfall в разделе «Такси»: после получения текущего пользователя независимые данные развоза загружаются параллельно. Initial startup по-прежнему не запрашивает эти данные.
 
+Tatooine `v1.11.1` возвращает в документный scanner выбор между документом поставки и кассовым/онлайн-чеком. Смена режима очищает preview, но сохраняет выбранное подразделение и фото; поздние ответы предыдущего OCR или отправки не меняют текущий экран. Backend, Telegram routes, Google Sheets и permissions не изменялись.
+
 ## Что есть только в ветках или candidate
 
 - Полный candidate исходник scanner/cash Apps Script находится в ветке `codex/cash-slip-detail-montage`, но не в `main`.
@@ -42,6 +44,7 @@ Tatooine `v1.8.3` устраняет Apps Script waterfall в разделе «�
 ## Проверка
 
 - Последний frontend-релиз `v15.16.9` опубликован из `main` (commit `3c9869f`); GitHub Pages отдаёт страницу `EAT AND SPLIT PREPAYMENT`. Профильные проверки кассового отчёта: 6/6. Живой тест в Telegram ожидает подтверждения пользователя.
+- Tatooine `v1.11.1` опубликован из `main` (PR #40, merge commit `462c726`); ESLint/receipt-scanner polling test и GitHub Pages deployment прошли. Публичный HTML и JS подтверждают selector режима, cache-busted `v=1.11.1` assets и передачу `scanMode` в оба temporary scanner-запроса. Реальные фото, платный OCR и отправка Telegram намеренно не запускались; живой mobile Telegram smoke-test остаётся пользовательской проверкой.
 - Scanner/cash Apps Script `v9.11.3` опубликован как Version 95 на прежнем production deployment. Проверены синтаксис, безопасное попадание в кэш и отказ от устаревшей строки; требуется живой замер времени сканирования документа в Telegram.
 - Galaxy Repairs `v0.3.9` опубликован как Version 15 на прежнем production deployment; `ping` подтвердил версию. Для статусов «Стоп», «Невозможно выполнить» и «Выполнено» Пачка адресует уведомление пересечению тегов ЛПР, ресторана и зоны. Личные Telegram-сообщения не используются; требуется живой тест на следующей заявке.
 - Автоматические тесты текущего релиза: 131/131; lint и `git diff --check` прошли по commit `bb13cf5`.
