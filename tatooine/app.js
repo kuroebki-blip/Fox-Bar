@@ -1211,6 +1211,7 @@
   }
 
   function documentStatus(text) { $('documentStatus').textContent = text || ''; }
+  function documentSendStatus(text) { $('documentSendStatus').textContent = text || ''; }
   function documentScanMode() { return $('documentScanMode').value === 'check' ? 'check' : 'document'; }
   function updateDocumentScanModeUi() {
     const isCheck = documentScanMode() === 'check';
@@ -1227,6 +1228,7 @@
     $('documentCaption').value = '';
     $('documentSend').disabled = false;
     $('documentSend').textContent = 'Отправить PDF в чат';
+    documentSendStatus('');
     if (statusText) documentStatus(statusText);
   }
   function renderDocumentPages() {
@@ -1275,6 +1277,7 @@
     const requestToken = documentRequestGuard.invalidate();
     try {
       $('documentSend').disabled = false; $('documentSend').textContent = 'Отправить PDF в чат';
+      documentSendStatus('');
       documentStatus(scanMode === 'check' ? 'Распознаю чек…' : 'Распознаю документ…'); const images = await documentImages();
       if (!documentRequestGuard.isCurrent(requestToken)) return;
       const previewId = 'td' + Date.now() + Math.random().toString(36).slice(2, 8);
@@ -1291,7 +1294,10 @@
     if (!documentPreviewId) { documentStatus('Сначала создайте предпросмотр.'); return; }
     const department = $('documentDepartment').value; const scanMode = documentScanMode(); const requestToken = documentRequestGuard.current(); const previewId = documentPreviewId; const button = $('documentSend');
     if (documentPreviewMode !== scanMode) { invalidateDocumentPreview('Режим сканирования изменён. Создайте новый предпросмотр.'); return; }
+    if (button.disabled) return;
     button.disabled = true;
+    button.textContent = 'Отправляю PDF…';
+    documentSendStatus('Отправляю PDF и подпись в чат…');
     try {
       documentStatus('Собираю PDF и отправляю в чат…'); const images = await documentImages();
       if (!documentRequestGuard.isCurrent(requestToken) || documentScanMode() !== scanMode) return;
@@ -1302,8 +1308,15 @@
         if (result && result.status === 'UNKNOWN') throw new Error('Статус доставки неизвестен. Проверьте чат; повтор заблокирован, чтобы не создать дубль.');
         throw new Error(result && result.error ? result.error : 'Отправка не подтверждена.');
       }
-      documentStatus('PDF и подпись отправлены в чат.'); button.textContent = '✓ Отправлено в чат';
-    } catch (error) { if (documentRequestGuard.isCurrent(requestToken)) { const message = errorMessage(error); documentStatus(message); if (!/неизвестен/.test(message)) button.disabled = false; } }
+      documentStatus('PDF и подпись отправлены в чат.'); documentSendStatus('PDF и подпись отправлены в чат.'); button.textContent = '✓ Отправлено в чат';
+    } catch (error) {
+      if (documentRequestGuard.isCurrent(requestToken)) {
+        const message = errorMessage(error); const deliveryUnknown = /неизвестен/.test(message);
+        documentStatus(message); documentSendStatus(message);
+        button.textContent = deliveryUnknown ? 'Статус доставки неизвестен' : 'Повторить отправку';
+        if (!deliveryUnknown) button.disabled = false;
+      }
+    }
   }
 
   function movePage(index, delta) {

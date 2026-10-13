@@ -102,6 +102,19 @@ test('Tatooine invalidates the preview and ignores late mode-mismatched results'
   assert.match(tatooine, /documentPreviewMode !== scanMode/);
 });
 
+test('Tatooine document send gives immediate mobile feedback and makes retries explicit', () => {
+  const start = tatooine.indexOf('async function sendDocument()');
+  const end = tatooine.indexOf('\n\n  function movePage', start);
+  const source = tatooine.slice(start, end);
+  const tatooineHtml = fs.readFileSync(path.join(root, 'tatooine/index.html'), 'utf8');
+  assert.match(tatooineHtml, /id="documentSendStatus" aria-live="polite"/);
+  assert.match(source, /if \(button\.disabled\) return;/);
+  assert.match(source, /button\.textContent = 'Отправляю PDF…'/);
+  assert.match(source, /documentSendStatus\('Отправляю PDF и подпись в чат…'\)/);
+  assert.match(source, /button\.textContent = '✓ Отправлено в чат'/);
+  assert.match(source, /button\.textContent = deliveryUnknown \? 'Статус доставки неизвестен' : 'Повторить отправку'/);
+});
+
 function extractedPoll(source, name, nextFunction) {
   const start = source.indexOf('async function ' + name + '(');
   const end = source.indexOf('\nasync function ' + nextFunction, start) >= 0
