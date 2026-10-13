@@ -35,3 +35,6 @@ jobs:
 
       - name: Test receipt scanner polling
         run: node --test tests/receipts/scanner_polling_resilience.test.js
+
+      - name: Test Tatooine document scanner
+        run: pnpm test:tatooine:scanner
