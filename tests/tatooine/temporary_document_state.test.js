@@ -83,3 +83,13 @@ test('send success becomes SENT; explicit rejection becomes FAILED; network erro
     assert.equal(f.api.temporaryDocumentStatus_({previewId:'preview_'+scenario.name},f.auth).status,scenario.state);
   }
 });
+
+test('Tatooine temporary send falls back to the signed current chat when no shared chat is configured', () => {
+  const f=fixture(); let payload=null;
+  f.auth={userId:'u1',venue:'tatooine',chatId:'-100123'};
+  f.ctx.telegramRouteConfig_=()=>({botToken:'mock',targetChatId:''});
+  f.ctx.UrlFetchApp.fetch=(_,options)=>{ payload=options.payload; return {getResponseCode:()=>200,getContentText:()=>'{"ok":true}'}; };
+  f.api.temporaryDocumentPreview_({previewId:'preview_tatooine_route',department:'Бар',scanMode:'check',imagesJson:f.images},f.auth);
+  f.api.temporaryDocumentSend_({previewId:'preview_tatooine_route',department:'Бар',scanMode:'check',imagesJson:f.images},f.auth);
+  assert.equal(payload.chat_id,'-100123');
+});

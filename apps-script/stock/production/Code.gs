@@ -1939,8 +1939,9 @@ function temporaryDocumentSend_(p, auth) {
     entry.state = 'SENDING'; temporaryDocumentWrite_(entry);
     const caption = buildTemporaryDocumentCaption_(entry.result, department, auth.venue);
     const route = telegramRouteConfig_(auth);
-    if (!route.botToken || !route.targetChatId) throw new Error('Не настроен серверный маршрут Telegram для ресторана.');
-    const response = UrlFetchApp.fetch('https://api.telegram.org/bot' + route.botToken + '/sendDocument', { method:'post', payload:{ chat_id:route.targetChatId, caption:caption, document:temporaryDocumentPdf_(images, caption) }, muteHttpExceptions:true });
+    const targetChatId = String(route.targetChatId || auth.chatId || auth.userId || '');
+    if (!route.botToken || !targetChatId) throw new Error('Не настроен серверный маршрут Telegram для ресторана.');
+    const response = UrlFetchApp.fetch('https://api.telegram.org/bot' + route.botToken + '/sendDocument', { method:'post', payload:{ chat_id:targetChatId, caption:caption, document:temporaryDocumentPdf_(images, caption) }, muteHttpExceptions:true });
     const body = parseJsonSafe_(response.getContentText());
     if (response.getResponseCode() < 200 || response.getResponseCode() >= 300 || !body.ok) throw new Error('Telegram не принял документ: ' + (body.description || ('HTTP ' + response.getResponseCode())));
     entry.state = 'SENT'; entry.sentAt = Date.now(); temporaryDocumentWrite_(entry);

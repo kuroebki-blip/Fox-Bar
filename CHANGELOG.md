@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Scanner backend: Tatooine temporary document send now falls back from an optional shared target chat to the Telegram chat verified in Mini App `initData`, then to the verified user ID. This matches FO’X per-user delivery without trusting a browser-provided chat ID. Rollback: revert this commit and redeploy the existing Apps Script Web App.
+
 - Tatooine `v1.11.2`: document delivery now changes the pressed button immediately, reports progress and failures beside that button, and blocks duplicate clicks. Rollback: revert this commit and redeploy GitHub Pages.
 
 - Tatooine `v1.11.1`: document scanner now lets the user choose `Документ поставки` or `Кассовый / онлайн-чек` and sends the selected `scanMode` for both OCR preview and PDF delivery. Changing the mode clears the old preview and makes late OCR/delivery responses stale, while keeping the selected department and photos. Rollback: revert this commit and redeploy GitHub Pages.
