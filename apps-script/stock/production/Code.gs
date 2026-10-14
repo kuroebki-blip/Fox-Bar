@@ -1937,7 +1937,10 @@ function temporaryDocumentSend_(p, auth) {
     const images = parseInlineImages_(p.imagesJson, Number(p.pagesCount) || 0);
     if (temporaryDocumentImagesDigest_(images) !== String(entry.imagesDigest || '')) throw new Error('Страницы изменились после preview. Создайте новый preview.');
     entry.state = 'SENDING'; temporaryDocumentWrite_(entry);
-    const caption = buildTemporaryDocumentCaption_(entry.result, department, auth.venue);
+    const defaultCaption = buildTemporaryDocumentCaption_(entry.result, department, auth.venue);
+    const caption = Object.prototype.hasOwnProperty.call(p, 'caption')
+      ? String(p.caption || '').trim().slice(0, 1024)
+      : defaultCaption;
     const route = telegramRouteConfig_(auth);
     const targetChatId = String(route.targetChatId || auth.userId || auth.chatId || '');
     if (!route.botToken || !targetChatId) throw new Error('Не настроен серверный маршрут Telegram для ресторана.');
