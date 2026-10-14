@@ -1,5 +1,5 @@
 window.TATOOINE_CONFIG = Object.freeze({
-  version: 'v1.11.6 IMAGE ROTATION AND CAPTION EDIT',
+  version: 'v1.11.7 HIDDEN HUB ACTIONS',
   apiUrl: 'https://script.google.com/macros/s/AKfycbx9XlQG6kCvWVU6OekcWAmHAVnjFXfG-_UD_pKQrQqYaWNyHzmXsmB_2LGohxETrrfTpA/exec',
   venue: 'tatooine',
   restaurantName: 'Tatooine',
