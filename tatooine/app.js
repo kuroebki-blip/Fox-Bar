@@ -1334,7 +1334,10 @@
       const result = await pollTemporaryDocument(previewId, 120000, 'SENT');
       if (!documentRequestGuard.isCurrent(requestToken) || documentScanMode() !== scanMode) return;
       if (!result || !result.ok || result.status !== 'SENT') {
-        if (result && result.status === 'UNKNOWN') throw new Error('Статус доставки неизвестен. Проверьте чат; повтор заблокирован, чтобы не создать дубль.');
+        if (result && result.status === 'UNKNOWN') {
+          const detail = String(result.error || '').trim();
+          throw new Error('Статус доставки неизвестен. Проверьте чат; повтор заблокирован, чтобы не создать дубль.' + (detail ? ' Причина на сервере: ' + detail : ''));
+        }
         throw new Error(result && result.error ? result.error : 'Отправка не подтверждена.');
       }
       documentStatus('PDF и подпись отправлены в чат.', 'success'); documentSendStatus('PDF и подпись отправлены в чат.', 'success'); button.textContent = '✓ Отправлено в чат';
