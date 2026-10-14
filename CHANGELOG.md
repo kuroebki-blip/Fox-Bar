@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Tatooine `v1.11.8`: скрытие «Такси», «Управления ролями» и «Настроек» дублируется через актуальный `config.js`, чтобы сработать даже если Telegram показывает закешированный HTML главного экрана. Функции и маршруты сохранены.
+
 - Tatooine `v1.11.7`: пункты «Такси», «Управление ролями» и «Настройки» скрыты с главного экрана, чтобы их не открывали случайно. Экраны, маршруты, permissions и backend-функции сохранены.
 
 - Tatooine `v1.11.4`: when Telegram delivery has an unknown outcome, the scanner keeps the duplicate-safe retry block and now shows the backend diagnostic returned for that preview. Rollback: revert this commit and redeploy GitHub Pages.
