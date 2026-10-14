@@ -71,6 +71,7 @@ button,label[for]{-webkit-tap-highlight-color:transparent}
 .button:disabled,.danger:disabled{opacity:.45;cursor:wait}
 .wide{width:100%;margin-top:9px}.send{margin-top:12px}
 .summary,.note{margin-top:10px;color:var(--muted);font-size:11px;line-height:1.5}.note{padding-top:10px;border-top:1px solid var(--line)}
+.document-validation{margin:8px 0 12px;padding:11px 12px;border:1px solid rgba(239,139,125,.75);border-radius:11px;background:rgba(239,139,125,.16);color:#ffd1ca;font-size:12px;font-weight:800;line-height:1.45}.document-validation[hidden]{display:none}.field.invalid select,.field select[aria-invalid="true"]{border-color:var(--err);box-shadow:0 0 0 3px rgba(239,139,125,.18)}.field span b{color:var(--err)}.document-status:not(:empty){padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2)}.document-status.is-error{border-color:rgba(239,139,125,.72);background:rgba(239,139,125,.16);color:#ffd1ca;font-size:12px;font-weight:800}.document-status.is-success{border-color:rgba(114,201,154,.55);background:rgba(114,201,154,.12);color:#d1f0dc;font-size:12px;font-weight:800}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .field{display:flex;flex-direction:column;gap:5px;min-width:0}.field.full,.field.message{grid-column:1/-1}
 .field span{color:var(--muted-2);font-size:10px;font-weight:800;letter-spacing:.55px;text-transform:uppercase}

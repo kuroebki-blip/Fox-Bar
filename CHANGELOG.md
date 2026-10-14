@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Tatooine `v1.11.3`: scanner now makes the required department impossible to miss: after photos are added, the field gets a high-contrast error, the action button explains what is missing and stays disabled until `Бар` or `Кухня` is selected. Delivery and recognition errors are also high-contrast; changing department invalidates an old preview. Rollback: revert this commit and redeploy GitHub Pages.
+
 - Scanner backend: Tatooine temporary document send now falls back from an optional shared target chat to the Telegram chat verified in Mini App `initData`, then to the verified user ID. This matches FO’X per-user delivery without trusting a browser-provided chat ID. Rollback: revert this commit and redeploy the existing Apps Script Web App.
 
 - Tatooine `v1.11.2`: document delivery now changes the pressed button immediately, reports progress and failures beside that button, and blocks duplicate clicks. Rollback: revert this commit and redeploy GitHub Pages.
