@@ -169,7 +169,7 @@
 
   function errorMessage(error, fallback) {
     const message = String(error && error.message ? error.message : fallback || 'Не удалось выполнить действие.');
-    if (/gemini\\s+api\\s+http\\s+503\\b|\\b503\\s+unavailable\\b/i.test(message)) {
+    if (/(?:gemini\s+api\s+http\s+503\b|\b503\s+unavailable\b)/i.test(message)) {
       return 'Сервис распознавания документа перегружен. Попробуйте ещё раз через несколько секунд.';
     }
     return message;
@@ -1268,8 +1268,22 @@
     const root = $('documentPages'); root.innerHTML = '';
     documentPages.forEach((page, index) => {
       const card = document.createElement('div'); card.className = 'page';
-      card.innerHTML = '<span class="page-num">' + (index + 1) + '</span><img src="' + page.dataUrl + '" alt="Страница ' + (index + 1) + '"><div class="page-actions"><button class="del" type="button">✕</button></div>';
-      card.querySelector('button').onclick = () => { documentPages.splice(index, 1); invalidateDocumentPreview(); renderDocumentPages(); };
+      card.innerHTML = '<span class="page-num">' + (index + 1) + '</span><img src="' + page.dataUrl + '" alt="Страница ' + (index + 1) + '"><div class="page-actions"><button class="rotate" type="button" aria-label="Повернуть фото на 90 градусов">↻ Повернуть</button><button class="del" type="button" aria-label="Удалить фото">✕ Удалить</button></div>';
+      card.querySelector('.rotate').onclick = async () => {
+        const rotateButton = card.querySelector('.rotate'); rotateButton.disabled = true;
+        try {
+          const rotated = await rotateDataUrl(page.dataUrl);
+          const livePage = documentPages.find(item => item.id === page.id);
+          if (!livePage) return;
+          Object.assign(livePage, rotated);
+          invalidateDocumentPreview('Фото повёрнуто. Создайте новый предпросмотр.');
+          renderDocumentPages();
+        } catch (error) {
+          documentStatus(errorMessage(error), 'error');
+          rotateButton.disabled = false;
+        }
+      };
+      card.querySelector('.del').onclick = () => { documentPages.splice(index, 1); invalidateDocumentPreview(); renderDocumentPages(); };
       root.appendChild(card);
     });
     updateDocumentPreviewButton();
@@ -1334,7 +1348,7 @@
     try {
       documentStatus('Собираю PDF и отправляю в чат…'); const images = await documentImages();
       if (!documentRequestGuard.isCurrent(requestToken) || documentScanMode() !== scanMode) return;
-      post({ action:'temporaryDocumentSend', previewId, scanMode, department, pagesCount:images.length, imagesJson:JSON.stringify(images) }).catch(() => {});
+      post({ action:'temporaryDocumentSend', previewId, scanMode, department, pagesCount:images.length, imagesJson:JSON.stringify(images), caption: $('documentCaption').value }).catch(() => {});
       const result = await pollTemporaryDocument(previewId, 120000, 'SENT');
       if (!documentRequestGuard.isCurrent(requestToken) || documentScanMode() !== scanMode) return;
       if (!result || !result.ok || result.status !== 'SENT') {
