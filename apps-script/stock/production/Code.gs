@@ -1939,7 +1939,7 @@ function temporaryDocumentSend_(p, auth) {
     entry.state = 'SENDING'; temporaryDocumentWrite_(entry);
     const caption = buildTemporaryDocumentCaption_(entry.result, department, auth.venue);
     const route = telegramRouteConfig_(auth);
-    const targetChatId = String(route.targetChatId || auth.chatId || auth.userId || '');
+    const targetChatId = String(route.targetChatId || auth.userId || auth.chatId || '');
     if (!route.botToken || !targetChatId) throw new Error('Не настроен серверный маршрут Telegram для ресторана.');
     const response = UrlFetchApp.fetch('https://api.telegram.org/bot' + route.botToken + '/sendDocument', { method:'post', payload:{ chat_id:targetChatId, caption:caption, document:temporaryDocumentPdf_(images, caption) }, muteHttpExceptions:true });
     const body = parseJsonSafe_(response.getContentText());
