@@ -1,5 +1,5 @@
 window.TATOOINE_CONFIG = Object.freeze({
-  version: 'v1.11.3 DOCUMENT VALIDATION',
+  version: 'v1.11.4 DELIVERY DIAGNOSTIC',
   apiUrl: 'https://script.google.com/macros/s/AKfycbx9XlQG6kCvWVU6OekcWAmHAVnjFXfG-_UD_pKQrQqYaWNyHzmXsmB_2LGohxETrrfTpA/exec',
   venue: 'tatooine',
   restaurantName: 'Tatooine',

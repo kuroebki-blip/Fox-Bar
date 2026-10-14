@@ -113,6 +113,8 @@ test('Tatooine document send gives immediate mobile feedback and makes retries e
   assert.match(source, /documentSendStatus\('Отправляю PDF и подпись в чат…'\)/);
   assert.match(source, /button\.textContent = '✓ Отправлено в чат'/);
   assert.match(source, /button\.textContent = deliveryUnknown \? 'Статус доставки неизвестен' : 'Повторить отправку'/);
+  assert.match(source, /const detail = String\(result\.error \|\| ''\)\.trim\(\)/);
+  assert.match(source, /Причина на сервере:/);
 });
 
 test('Tatooine makes a missing department visible before document recognition can start', () => {

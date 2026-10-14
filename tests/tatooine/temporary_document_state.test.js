@@ -80,7 +80,9 @@ test('send success becomes SENT; explicit rejection becomes FAILED; network erro
     } else {
       assert.throws(()=>f.api.temporaryDocumentSend_({previewId:'preview_'+scenario.name,department:'Бар',scanMode:'document',imagesJson:f.images},f.auth));
     }
-    assert.equal(f.api.temporaryDocumentStatus_({previewId:'preview_'+scenario.name},f.auth).status,scenario.state);
+    const status=f.api.temporaryDocumentStatus_({previewId:'preview_'+scenario.name},f.auth);
+    assert.equal(status.status,scenario.state);
+    if (scenario.state === 'UNKNOWN') assert.match(status.error,/network timeout/);
   }
 });
 
