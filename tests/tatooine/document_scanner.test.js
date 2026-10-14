@@ -115,6 +115,20 @@ test('Tatooine document send gives immediate mobile feedback and makes retries e
   assert.match(source, /button\.textContent = deliveryUnknown \? 'Статус доставки неизвестен' : 'Повторить отправку'/);
 });
 
+test('Tatooine makes a missing department visible before document recognition can start', () => {
+  const tatooineHtml = fs.readFileSync(path.join(root, 'tatooine/index.html'), 'utf8');
+  assert.match(tatooineHtml, /id="documentDepartmentField"/);
+  assert.match(tatooineHtml, /id="documentDepartmentValidation" role="alert"/);
+  assert.match(tatooineHtml, /id="documentStatus" aria-live="polite"/);
+  assert.match(tatooine, /function updateDocumentPreviewButton\(\)/);
+  assert.match(tatooine, /button\.disabled = !hasPages \|\| !hasDepartment/);
+  assert.match(tatooine, /'Выберите подразделение для распознавания'/);
+  assert.match(tatooine, /function requireDocumentDepartment\(\)/);
+  assert.match(tatooine, /documentStatus\('Выберите подразделение: Бар или Кухня\. Сначала выберите его, затем распознавайте документ\.', 'error'\)/);
+  assert.match(tatooine, /\$\('documentDepartment'\)\.addEventListener\('change'/);
+  assert.match(tatooine, /invalidateDocumentPreview\('Подразделение изменено\. Создайте новый предпросмотр\.'/);
+});
+
 function extractedPoll(source, name, nextFunction) {
   const start = source.indexOf('async function ' + name + '(');
   const end = source.indexOf('\nasync function ' + nextFunction, start) >= 0

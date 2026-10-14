@@ -1210,15 +1210,44 @@
     $('cashReportRecognize').disabled = !pages.length;
   }
 
-  function documentStatus(text) { $('documentStatus').textContent = text || ''; }
-  function documentSendStatus(text) { $('documentSendStatus').textContent = text || ''; }
+  function documentStatus(text, tone) {
+    const status = $('documentStatus'); status.textContent = text || '';
+    status.classList.toggle('is-error', tone === 'error');
+    status.classList.toggle('is-success', tone === 'success');
+  }
+  function documentSendStatus(text, tone) {
+    const status = $('documentSendStatus'); status.textContent = text || '';
+    status.classList.toggle('is-error', tone === 'error');
+    status.classList.toggle('is-success', tone === 'success');
+  }
   function documentScanMode() { return $('documentScanMode').value === 'check' ? 'check' : 'document'; }
+  function updateDocumentPreviewButton() {
+    const hasPages = documentPages.length > 0;
+    const hasDepartment = Boolean($('documentDepartment').value);
+    const button = $('documentPreview');
+    button.disabled = !hasPages || !hasDepartment;
+    button.textContent = hasPages && !hasDepartment
+      ? 'Выберите подразделение для распознавания'
+      : (documentScanMode() === 'check' ? 'Распознать чек и показать предпросмотр' : 'Распознать и показать предпросмотр');
+    const field = $('documentDepartmentField'); const validation = $('documentDepartmentValidation');
+    const missingDepartment = hasPages && !hasDepartment;
+    field.classList.toggle('invalid', missingDepartment);
+    $('documentDepartment').setAttribute('aria-invalid', missingDepartment ? 'true' : 'false');
+    validation.hidden = !missingDepartment;
+  }
+  function requireDocumentDepartment() {
+    if ($('documentDepartment').value) return true;
+    updateDocumentPreviewButton();
+    documentStatus('Выберите подразделение: Бар или Кухня. Сначала выберите его, затем распознавайте документ.', 'error');
+    $('documentDepartment').focus({ preventScroll:true });
+    return false;
+  }
   function updateDocumentScanModeUi() {
     const isCheck = documentScanMode() === 'check';
     $('documentScanModeNote').textContent = isCheck
       ? 'Кассовый, фискальный или онлайн-чек. Несколько фото одного длинного чека объединятся в один PDF.'
       : 'Накладная, счёт, УПД, ТТН или комплект документов одной поставки.';
-    $('documentPreview').textContent = isCheck ? 'Распознать чек и показать предпросмотр' : 'Распознать и показать предпросмотр';
+    updateDocumentPreviewButton();
   }
   function invalidateDocumentPreview(statusText) {
     documentRequestGuard.invalidate();
@@ -1239,7 +1268,7 @@
       card.querySelector('button').onclick = () => { documentPages.splice(index, 1); invalidateDocumentPreview(); renderDocumentPages(); };
       root.appendChild(card);
     });
-    $('documentPreview').disabled = !documentPages.length;
+    updateDocumentPreviewButton();
   }
   async function appendDocumentFiles(files) {
     try {
@@ -1248,7 +1277,7 @@
       }
       if (documentPages.length > (Number(CONFIG.maxOcrPages) || 20)) throw new Error('Максимум 20 страниц.');
       invalidateDocumentPreview(); renderDocumentPages(); documentStatus('Фото готовы. Выберите подразделение и распознайте документ.');
-    } catch (error) { documentStatus(errorMessage(error)); }
+    } catch (error) { documentStatus(errorMessage(error), 'error'); }
   }
   async function documentImages() {
     const images = [];
@@ -1271,7 +1300,7 @@
   async function previewDocument() {
     const department = $('documentDepartment').value;
     const scanMode = documentScanMode();
-    if (!department) { documentStatus('Выберите подразделение: Бар или Кухня.'); return; }
+    if (!department && !requireDocumentDepartment()) return;
     if (!documentPages.length) return;
     const button = $('documentPreview'); button.disabled = true;
     const requestToken = documentRequestGuard.invalidate();
@@ -1287,11 +1316,11 @@
       if (!result || !result.ok || result.status !== 'READY') throw new Error(result && result.error ? result.error : 'Предпросмотр не готов.');
       documentPreviewId = previewId; documentPreviewMode = scanMode; $('documentCaption').value = String(result.result && result.result.messageText || ''); $('documentResult').hidden = false;
       documentStatus('Предпросмотр готов. Проверьте подпись и подтвердите отправку.');
-    } catch (error) { if (documentRequestGuard.isCurrent(requestToken)) documentStatus(errorMessage(error)); }
-    finally { if (documentRequestGuard.isCurrent(requestToken)) button.disabled = !documentPages.length; }
+    } catch (error) { if (documentRequestGuard.isCurrent(requestToken)) documentStatus(errorMessage(error), 'error'); }
+    finally { if (documentRequestGuard.isCurrent(requestToken)) updateDocumentPreviewButton(); }
   }
   async function sendDocument() {
-    if (!documentPreviewId) { documentStatus('Сначала создайте предпросмотр.'); return; }
+    if (!documentPreviewId) { documentStatus('Сначала создайте предпросмотр.', 'error'); return; }
     const department = $('documentDepartment').value; const scanMode = documentScanMode(); const requestToken = documentRequestGuard.current(); const previewId = documentPreviewId; const button = $('documentSend');
     if (documentPreviewMode !== scanMode) { invalidateDocumentPreview('Режим сканирования изменён. Создайте новый предпросмотр.'); return; }
     if (button.disabled) return;
@@ -1308,11 +1337,11 @@
         if (result && result.status === 'UNKNOWN') throw new Error('Статус доставки неизвестен. Проверьте чат; повтор заблокирован, чтобы не создать дубль.');
         throw new Error(result && result.error ? result.error : 'Отправка не подтверждена.');
       }
-      documentStatus('PDF и подпись отправлены в чат.'); documentSendStatus('PDF и подпись отправлены в чат.'); button.textContent = '✓ Отправлено в чат';
+      documentStatus('PDF и подпись отправлены в чат.', 'success'); documentSendStatus('PDF и подпись отправлены в чат.', 'success'); button.textContent = '✓ Отправлено в чат';
     } catch (error) {
       if (documentRequestGuard.isCurrent(requestToken)) {
         const message = errorMessage(error); const deliveryUnknown = /неизвестен/.test(message);
-        documentStatus(message); documentSendStatus(message);
+        documentStatus(message, 'error'); documentSendStatus(message, 'error');
         button.textContent = deliveryUnknown ? 'Статус доставки неизвестен' : 'Повторить отправку';
         if (!deliveryUnknown) button.disabled = false;
       }
@@ -1631,6 +1660,11 @@
     $('documentScanMode').addEventListener('change', () => {
       updateDocumentScanModeUi();
       invalidateDocumentPreview('Режим сканирования изменён. Создайте новый предпросмотр.');
+    });
+    $('documentDepartment').addEventListener('change', () => {
+      invalidateDocumentPreview('Подразделение изменено. Создайте новый предпросмотр.');
+      updateDocumentPreviewButton();
+      if ($('documentDepartment').value && documentPages.length) documentStatus('Подразделение выбрано. Можно распознавать документ.');
     });
     $('documentGallery').addEventListener('change', async event => { const files = Array.from(event.target.files || []); event.target.value = ''; await appendDocumentFiles(files); });
     $('documentPreview').addEventListener('click', previewDocument);
