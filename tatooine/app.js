@@ -168,7 +168,11 @@
   }
 
   function errorMessage(error, fallback) {
-    return String(error && error.message ? error.message : fallback || 'Не удалось выполнить действие.');
+    const message = String(error && error.message ? error.message : fallback || 'Не удалось выполнить действие.');
+    if (/gemini\\s+api\\s+http\\s+503\\b|\\b503\\s+unavailable\\b/i.test(message)) {
+      return 'Сервис распознавания документа перегружен. Попробуйте ещё раз через несколько секунд.';
+    }
+    return message;
   }
 
   function setRideStatus(id, text) {
