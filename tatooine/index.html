@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0e1116">
-  <title>Tatooine v1.11.5</title>
+  <title>Tatooine v1.11.6</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Unbounded:wght@600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../shared/document-scanner/scanner.css?v=1.11.1">
-  <link rel="stylesheet" href="styles.css?v=1.11.4">
+  <link rel="stylesheet" href="styles.css?v=1.11.6">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -24,7 +24,7 @@
   <main class="shell">
     <section class="app-screen" id="tatooineHub" aria-labelledby="hubTitle">
       <section class="intro">
-        <span class="version" id="appVersion">v1.11.5</span>
+        <span class="version" id="appVersion">v1.11.6</span>
         <h1 id="hubTitle">Tatooine</h1>
       </section>
       <nav class="hub-actions" aria-label="Разделы Tatooine">
@@ -40,7 +40,7 @@
       <button class="back-button" type="button" data-open-screen="hub">← Назад</button>
       <section class="intro"><h1>Документы</h1><p>Фото не записываются в таблицы или склад. После OCR отправка в чат подтверждается отдельно.</p></section>
       <section class="card"><label class="field full" id="documentDepartmentField"><span>Подразделение <b aria-hidden="true">· обязательно</b></span><select id="documentDepartment" aria-describedby="documentDepartmentValidation"><option value="">Выберите подразделение</option><option value="Бар">Бар</option><option value="Кухня">Кухня</option></select></label><p class="document-validation" id="documentDepartmentValidation" role="alert" hidden>Выберите подразделение — «Бар» или «Кухня». Без него документ не будет распознан и отправлен.</p><label class="field full"><span>Что сканируем</span><select id="documentScanMode"><option value="document">Документ поставки</option><option value="check">Кассовый / онлайн-чек</option></select><small id="documentScanModeNote">Накладная, счёт, УПД, ТТН или комплект документов одной поставки.</small></label><input id="documentGallery" class="file-input" type="file" accept="image/*" multiple><label class="source primary" for="documentGallery"><span class="source-icon">🖼️</span><span><b>Добавить фото</b><small>До 20 страниц</small></span></label><div class="pages" id="documentPages"></div><button class="button primary wide" id="documentPreview" type="button" disabled>Распознать и показать предпросмотр</button><div class="summary document-status" id="documentStatus" aria-live="polite"></div></section>
-      <section class="card" id="documentResult" hidden><label class="field full"><span>Подпись для чата</span><textarea id="documentCaption" readonly></textarea></label><button class="button primary wide" id="documentSend" type="button">Отправить PDF в чат</button><div class="summary document-status" id="documentSendStatus" aria-live="polite"></div></section>
+      <section class="card" id="documentResult" hidden><label class="field full"><span>Подпись для чата</span><textarea id="documentCaption" maxlength="1024" aria-describedby="documentCaptionHint"></textarea><small id="documentCaptionHint">Можно исправить текст перед отправкой в чат.</small></label><button class="button primary wide" id="documentSend" type="button">Отправить PDF в чат</button><div class="summary document-status" id="documentSendStatus" aria-live="polite"></div></section>
     </section>
 
     <section class="app-screen" id="taxiScreen" hidden aria-labelledby="taxiTitle">
