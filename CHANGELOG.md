@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Tatooine `v1.11.7`: пункты «Такси», «Управление ролями» и «Настройки» скрыты с главного экрана, чтобы их не открывали случайно. Экраны, маршруты, permissions и backend-функции сохранены.
+
 - Tatooine `v1.11.4`: when Telegram delivery has an unknown outcome, the scanner keeps the duplicate-safe retry block and now shows the backend diagnostic returned for that preview. Rollback: revert this commit and redeploy GitHub Pages.
 
 - Tatooine `v1.11.3`: scanner now makes the required department impossible to miss: after photos are added, the field gets a high-contrast error, the action button explains what is missing and stays disabled until `Бар` or `Кухня` is selected. Delivery and recognition errors are also high-contrast; changing department invalidates an old preview. Rollback: revert this commit and redeploy GitHub Pages.
